@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"math"
 )
 
 // Params can be interpreted two ways:
@@ -22,11 +23,8 @@ func NewParams(data []byte) *Params {
 }
 
 func (a *Params) Push(data []byte) {
-	if len(data) > 256 {
-		panic("Params: wrong bytes length")
-	}
 	if len(a.parsed) >= 256 {
-		panic("Params: overflow")
+		panic("Params.Push: overflow")
 	}
 	a.parsed = append(a.parsed, data)
 	a.bytes = nil
@@ -60,44 +58,31 @@ func (a *Params) ensureParsed() {
 func (a *Params) ensureBytes() {
 	if a.bytes == nil {
 		var buf bytes.Buffer
-		if err := writeArray(a.parsed, &buf); err != nil {
+		if err := encodeArray(a.parsed, &buf); err != nil {
 			panic(err)
 		}
 		a.bytes = buf.Bytes()
 	}
 }
 
-func (a *Params) Read(r io.Reader) error {
-	var sz uint16
-	if err := ReadInteger(r, &sz); err != nil {
-		return err
-	}
-	a.bytes = make([]byte, sz)
-	a.parsed = nil
-	_, err := r.Read(a.bytes)
-	return err
+type maxDataLen byte
+
+const (
+	ArrayMaxDataLen0     = maxDataLen(0)
+	ArrayMaxDataLen8     = maxDataLen(8)
+	ArrayMaxDataLen16    = maxDataLen(16)
+	ArrayMaxDataLen32    = maxDataLen(32)
+	ArrayMaxDataLenWrong = maxDataLen(64)
+)
+
+type dataLen interface {
+	byte | uint16 | uint32
 }
 
-func (a *Params) Write(w io.Writer) (err error) {
-	a.ensureBytes()
-	if err = WriteInteger(w, uint16(len(a.bytes))); err != nil {
-		return
-	}
-	_, err = w.Write(a.bytes)
-	return
-}
-
-func writeArray(d [][]byte, w io.Writer) error {
-	if len(d) == 0 {
-		return nil
-	}
-	// write number of elements
-	if _, err := w.Write([]byte{byte(len(d) - 1)}); err != nil {
-		return err
-	}
-	// write elements
+func encodeData[T dataLen](d [][]byte, w io.Writer) error {
 	for _, d := range d {
-		if _, err := w.Write([]byte{byte(len(d))}); err != nil {
+		sz := T(len(d))
+		if err := WriteInteger(w, sz); err != nil {
 			return err
 		}
 		if _, err := w.Write(d); err != nil {
@@ -107,29 +92,79 @@ func writeArray(d [][]byte, w io.Writer) error {
 	return nil
 }
 
-func parseArray(r io.Reader) ([][]byte, error) {
-	var sz [1]byte
-	if _, err := r.Read(sz[:]); err != nil {
-		return nil, err
-	}
-	num := int(sz[0]) + 1
-	ret := make([][]byte, num)
+func decodeData[T dataLen](r io.Reader, n byte) ([][]byte, error) {
+	ret := make([][]byte, n)
+	var sz T
 	for i := range ret {
-		if _, err := r.Read(sz[:]); err != nil {
+		if err := ReadInteger(r, &sz); err != nil {
 			return nil, err
 		}
-		if sz[0] == 0 {
-			return nil, errors.New("cannot parse Params: bytes size cannot be 0")
-		}
-		d := make([]byte, sz[0])
-		n, err := r.Read(d)
-		if err != nil {
+		ret[i] = make([]byte, sz)
+		if _, err := r.Read(ret[i]); err != nil {
 			return nil, err
 		}
-		if n != len(d) {
-			return nil, errors.New("wrong bytes size")
-		}
-		ret[i] = d
 	}
 	return ret, nil
+}
+
+func maxLen(data [][]byte) maxDataLen {
+	if len(data) == 0 {
+		return ArrayMaxDataLen0
+	}
+	dl := ArrayMaxDataLen8
+	for _, d := range data {
+		switch {
+		case len(d) > math.MaxUint32:
+			return ArrayMaxDataLenWrong
+		case len(d) > math.MaxUint16:
+			return ArrayMaxDataLen32
+		case len(d) > math.MaxUint8:
+			dl = ArrayMaxDataLen16
+		}
+	}
+	return dl
+}
+
+func encodeArray(data [][]byte, w io.Writer) error {
+	if len(data) > math.MaxUint8 {
+		return errors.New("array cannot contain more that 255 elements")
+	}
+	ml := maxLen(data)
+	if ml == ArrayMaxDataLenWrong {
+		return errors.New("wrong data length")
+	}
+	prefix := [2]byte{byte(ml), byte(len(data))}
+	if _, err := w.Write(prefix[:]); err != nil {
+		return err
+	}
+	var err error
+	switch ml {
+	case ArrayMaxDataLen8:
+		err = encodeData[byte](data, w)
+	case ArrayMaxDataLen16:
+		err = encodeData[uint16](data, w)
+	case ArrayMaxDataLen32:
+		err = encodeData[uint32](data, w)
+	}
+	return err
+}
+
+func parseArray(r io.Reader) ([][]byte, error) {
+	var prefix [2]byte
+	if _, err := r.Read(prefix[:]); err != nil {
+		return nil, err
+	}
+	ml := maxDataLen(prefix[0])
+	n := prefix[1]
+	switch ml {
+	case ArrayMaxDataLen0:
+		return nil, nil
+	case ArrayMaxDataLen8:
+		return decodeData[byte](r, n)
+	case ArrayMaxDataLen16:
+		return decodeData[uint16](r, n)
+	case ArrayMaxDataLen32:
+		return decodeData[uint32](r, n)
+	}
+	return nil, errors.New("wrong data len code")
 }

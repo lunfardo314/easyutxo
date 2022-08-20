@@ -1,4 +1,4 @@
-package easyutxo
+package engine
 
 import (
 	"encoding/binary"
@@ -35,7 +35,7 @@ func (c OpCode) String() string {
 }
 
 type instructionParser func(codeAfterOpcode []byte) (instructionRunner, []byte)
-type instructionRunner func(tx *Transaction, par *Params) bool
+type instructionRunner func(tx ContextAccess) bool
 
 func parseOpcode(code []byte) (OpCode, []byte) {
 	var opcode OpCode
@@ -83,6 +83,6 @@ func opExitParser(codeAfterOpcode []byte) (instructionRunner, []byte) {
 	return opExitRunner, codeAfterOpcode
 }
 
-func opExitRunner(tx *Transaction, par *Params) bool {
+func opExitRunner(tx ContextAccess) bool {
 	return false
 }

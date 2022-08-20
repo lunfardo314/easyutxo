@@ -1,4 +1,4 @@
-package easyutxo
+package engine
 
 import (
 	"testing"
@@ -22,13 +22,13 @@ func TestBasic(t *testing.T) {
 	})
 	t.Run("1", func(t *testing.T) {
 		e := NewEngine()
-		e.Run(nil, nil, nil)
+		e.Run(nil, nil)
 	})
 	t.Run("2", func(t *testing.T) {
 		e := NewEngine()
 
 		code := OP_EXIT.AsBytes()
-		e.Run(code, nil, nil)
+		e.Run(code, nil)
 		opcode, remaining := parseOpcode(code)
 		require.EqualValues(t, OP_EXIT, opcode)
 		require.EqualValues(t, 0, len(remaining))
@@ -39,7 +39,7 @@ func TestBasic(t *testing.T) {
 		opcode := OpCode(150)
 		code := opcode.AsBytes()
 		require.Panics(t, func() {
-			e.Run(code, nil, nil)
+			e.Run(code, nil)
 		})
 	})
 

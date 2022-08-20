@@ -2,7 +2,6 @@ package easyutxo
 
 import (
 	"bytes"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,10 +29,8 @@ func TestParams(t *testing.T) {
 		da := NewParams(nil)
 		da.Push(data)
 		require.EqualValues(t, 1, da.NumElements())
-		serFull := MustBytes(da)
-		daBack := NewParams(nil)
-		err := daBack.Read(bytes.NewReader(serFull))
-		require.NoError(t, err)
+		serFull := da.Bytes()
+		daBack := NewParams(serFull)
 		require.EqualValues(t, 1, daBack.NumElements())
 		require.EqualValues(t, da.At(0), daBack.At(0))
 		require.Panics(t, func() {
@@ -45,8 +42,8 @@ func TestParams(t *testing.T) {
 	})
 	t.Run("not empty", func(t *testing.T) {
 		da := NewParams(nil)
-		err := da.Write(io.Discard)
-		require.NoError(t, err)
+		daBytes := da.Bytes()
+		require.EqualValues(t, []byte{0, 0}, daBytes)
 		require.NotPanics(t, func() {
 			da.Push(nil)
 		})
@@ -59,7 +56,7 @@ func TestParams(t *testing.T) {
 			da := NewParams(nil)
 			da.Push(bytes.Repeat(data, 256))
 		})
-		require.Panics(t, func() {
+		require.NotPanics(t, func() {
 			da := NewParams(nil)
 			da.Push(bytes.Repeat(data, 257))
 		})
@@ -75,5 +72,28 @@ func TestParams(t *testing.T) {
 				da.Push(data)
 			}
 		})
+	})
+	t.Run("serialization short", func(t *testing.T) {
+		da := NewParams(nil)
+		for i := 0; i < 100; i++ {
+			da.Push(bytes.Repeat(data, 100))
+		}
+		daBack := NewParams(da.Bytes())
+		require.EqualValues(t, da.NumElements(), daBack.NumElements())
+		for i := byte(0); i < 100; i++ {
+			require.EqualValues(t, da.At(i), daBack.At(i))
+		}
+	})
+	t.Run("serialization long", func(t *testing.T) {
+		da := NewParams(nil)
+		for i := 0; i < 100; i++ {
+			da.Push(bytes.Repeat(data, 2000))
+		}
+		daBytes := da.Bytes()
+		daBack := NewParams(daBytes)
+		require.EqualValues(t, da.NumElements(), daBack.NumElements())
+		for i := byte(0); i < 100; i++ {
+			require.EqualValues(t, da.At(i), daBack.At(i))
+		}
 	})
 }
