@@ -6,10 +6,8 @@ type Engine struct {
 	remainingCode []byte
 }
 
-type DEAS []byte
-
 type ContextAccess interface {
-	GetElement(deas DEAS) ([]byte, bool)
+	GetElement(elemLocation []byte) ([]byte, bool)
 }
 
 func NewEngine() *Engine {
