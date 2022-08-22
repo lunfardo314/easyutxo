@@ -1,6 +1,8 @@
 package easyutxo
 
-import "github.com/lunfardo314/easyutxo/engine"
+import (
+	"github.com/lunfardo314/easyutxo/engine"
+)
 
 const (
 	TransactionIDLength = 32
@@ -35,6 +37,7 @@ func TransactionFromBytes(txbytes []byte) *Transaction {
 		SliceArray: *SliceArrayFromBytes(txbytes),
 	}
 	ret.Inputs = InputsFromBytes(ret.At(0))
+	return ret
 }
 
 func InputsFromBytes(inputsBytes []byte) Inputs {
