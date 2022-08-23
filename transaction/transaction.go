@@ -12,7 +12,7 @@ const (
 
 type OutputBlock struct {
 	Script Script
-	Params easyutxo.SliceArray
+	Params easyutxo.LazySlice
 }
 
 type Script interface {
@@ -20,29 +20,29 @@ type Script interface {
 }
 
 type Transaction struct {
-	easyutxo.SliceArray
+	easyutxo.LazySlice
 	Inputs          Inputs
 	InputParameters InputParameters
 	OutputContexts  OutputContexts
 	TransactionData TransactionData
 }
 
-type Inputs easyutxo.SliceArray
-type InputParameters easyutxo.SliceArray
-type OutputContexts easyutxo.SliceArray
-type Output easyutxo.SliceArray
-type TransactionData easyutxo.SliceArray
+type Inputs easyutxo.LazySlice
+type InputParameters easyutxo.LazySlice
+type OutputContexts easyutxo.LazySlice
+type Output easyutxo.LazySlice
+type TransactionData easyutxo.LazySlice
 
 func TransactionFromBytes(txbytes []byte) *Transaction {
 	ret := &Transaction{
-		SliceArray: *easyutxo.SliceArrayFromBytes(txbytes),
+		LazySlice: *easyutxo.LazySliceFromBytes(txbytes),
 	}
 	ret.Inputs = InputsFromBytes(ret.At(0))
 	return ret
 }
 
 func InputsFromBytes(inputsBytes []byte) Inputs {
-	return Inputs(*easyutxo.SliceArrayFromBytes(inputsBytes))
+	return Inputs(*easyutxo.LazySliceFromBytes(inputsBytes))
 }
 
 //- element locator
@@ -57,7 +57,7 @@ type ElementLocation []byte
 
 type ScriptEmbedded struct {
 	LibraryRef byte
-	Data       easyutxo.SliceArray
+	Data       easyutxo.LazySlice
 }
 
 func (s *ScriptEmbedded) Run(tx *Transaction) {
@@ -66,7 +66,7 @@ func (s *ScriptEmbedded) Run(tx *Transaction) {
 
 type ScriptInline struct {
 	Code []byte
-	Data easyutxo.SliceArray
+	Data easyutxo.LazySlice
 }
 
 func (s *ScriptInline) Run(tx *Transaction) {
@@ -76,7 +76,7 @@ func (s *ScriptInline) Run(tx *Transaction) {
 type ScriptRef struct {
 	ScriptHash     [32]byte
 	ScriptLocation []byte
-	Data           easyutxo.SliceArray
+	Data           easyutxo.LazySlice
 }
 
 func (s *ScriptRef) Run(eng *engine.Engine, tx *Transaction) {
