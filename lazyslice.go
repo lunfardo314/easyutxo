@@ -44,7 +44,7 @@ func (a *LazySlice) Push(data []byte) {
 	a.bytes = nil // invalidate bytes
 }
 
-func (a *LazySlice) SetAt(idx byte, data []byte) {
+func (a *LazySlice) SetAtIdx(idx byte, data []byte) {
 	a.parsed[idx] = data
 	a.bytes = nil // invalidate bytes
 }
@@ -247,7 +247,7 @@ func (st *LazySliceTree) Bytes() []byte {
 		return st.sa.Bytes()
 	}
 	for i, str := range st.subtrees {
-		st.sa.SetAt(i, str.Bytes())
+		st.sa.SetAtIdx(i, str.Bytes())
 	}
 	return st.sa.Bytes()
 }
@@ -277,7 +277,7 @@ func (st *LazySliceTree) PushDataAtPath(data []byte, path ...byte) {
 // SetDataAtPathAtIdx LazySlice at the end of the path must exist and must be LazySlice
 func (st *LazySliceTree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte) {
 	if len(path) == 0 {
-		st.sa.SetAt(idx, data)
+		st.sa.SetAtIdx(idx, data)
 		delete(st.subtrees, idx)
 		return
 	}
@@ -285,6 +285,10 @@ func (st *LazySliceTree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte)
 	subtree.SetDataAtPathAtIdx(idx, data, path[1:]...)
 	st.subtrees[path[0]] = subtree
 	st.sa.invalidateBytes()
+}
+
+func (st *LazySliceTree) SetEmptyArrayAtPathAtIdx(idx byte, path ...byte) {
+	st.SetDataAtPathAtIdx(idx, []byte{0, 0}, path...)
 }
 
 // BytesAtPath returns serialized for of the element at path

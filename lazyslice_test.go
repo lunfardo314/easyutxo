@@ -198,7 +198,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 			st.BytesAtPath(1)
 		})
 	})
-	t.Run("nonsence panic", func(t *testing.T) {
+	t.Run("nonsense panic", func(t *testing.T) {
 		st := LazySliceTreeFromBytes([]byte("0123456789"))
 		require.Panics(t, func() {
 			st.BytesAtPath(0)
@@ -211,7 +211,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 1-1", func(t *testing.T) {
-		sa := LazySliceFromBytes(nil)
+		sa := LazySliceEmptyArray()
 		for i := 0; i < howMany; i++ {
 			sa.Push(data[i])
 		}
@@ -227,7 +227,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 1-2", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := LazySliceTreeEmpty()
 		for i := 0; i < howMany; i++ {
 			st.PushDataAtPath(data[i])
 		}
@@ -241,13 +241,13 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 2 panic", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := LazySliceTreeEmpty()
 		require.Panics(t, func() {
 			st.PushDataAtPath(data[0], 1)
 		})
 	})
 	t.Run("level 2 panic and not", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := LazySliceTreeEmpty()
 
 		st.PushNewSubtreeAtPath()
 		require.NotPanics(t, func() {
@@ -264,7 +264,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 3", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := LazySliceTreeEmpty()
 		st.PushNewSubtreeAtPath()
 		st.PushNewSubtreeAtPath()
 		st.PushNewSubtreeAtPath(0)
@@ -295,15 +295,15 @@ func TestSliceTreeSemantics(t *testing.T) {
 			st.BytesAtPath(1, 2, 1)
 		})
 
-		st.SetDataAtPathAtIdx(0, data[17], 1, 2)
+		bs := []byte("1234567890")
+		st.SetDataAtPathAtIdx(0, bs, 1, 2)
 		require.EqualValues(t, 1, st.NumElementsAtPath(1, 2))
 		dataBack = st.BytesAtPath(1, 2, 0)
-		require.EqualValues(t, data[17], dataBack)
+		require.EqualValues(t, bs, dataBack)
 		require.Panics(t, func() {
 			st.BytesAtPath(1, 2, 1)
 		})
 		require.Panics(t, func() {
-			// because by accident encoded uint16(17) is vector of 17 empty elements
 			tmp := st.BytesAtPath(1, 2, 0, 0)
 			require.EqualValues(t, 0, len(tmp))
 		})
@@ -312,7 +312,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("serialize", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := LazySliceTreeEmpty()
 		s := st.Bytes()
 		st1 := LazySliceFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
