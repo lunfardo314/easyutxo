@@ -2,7 +2,6 @@ package easyutxo
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"math"
@@ -81,7 +80,7 @@ func (a *SliceArray) ensureBytes() {
 
 type maxDataLen byte
 
-// prefix of the serializad slize array are two bytes
+// prefix of the serialized slice array are two bytes
 // 0 byte with ArrayMaxData.. code, the number of bits reserved for element data length
 // 1 byte is number of elements in the array
 const (
@@ -116,22 +115,13 @@ func decodeElement(buf []byte, dl maxDataLen) ([]byte, []byte, error) {
 	switch dl {
 	case ArrayMaxDataLen0:
 	case ArrayMaxDataLen8:
-		if len(buf) < 1 {
-			return nil, nil, errors.New("unexpected EOF")
-		}
 		sz = int(buf[0])
 		buf = buf[1:]
 	case ArrayMaxDataLen16:
-		if len(buf) < 2 {
-			return nil, nil, errors.New("unexpected EOF")
-		}
-		sz = int(binary.LittleEndian.Uint16(buf[:2]))
+		sz = int(DecodeInteger[uint16](buf[:2]))
 		buf = buf[2:]
 	case ArrayMaxDataLen32:
-		if len(buf) < 4 {
-			return nil, nil, errors.New("unexpected EOF")
-		}
-		sz = int(binary.LittleEndian.Uint32(buf[:4]))
+		sz = int(DecodeInteger[uint32](buf[:4]))
 		buf = buf[4:]
 	default:
 		return nil, nil, errors.New("wrong maxDataLen value")
@@ -144,6 +134,10 @@ func decodeElement(buf []byte, dl maxDataLen) ([]byte, []byte, error) {
 
 // decodeData decodes by splitting into slices, reusing the same underlying array
 func decodeData(data []byte, dl maxDataLen, n byte) ([][]byte, error) {
+	if dl == ArrayMaxDataLen0 {
+		// vector of n empty elements
+		return make([][]byte, n), nil
+	}
 	ret := make([][]byte, n)
 	var err error
 	for i := 0; i < int(n); i++ {
@@ -209,14 +203,14 @@ func parseArray(data []byte) ([][]byte, error) {
 }
 
 type SliceTree struct {
-	sa     *SliceArray
-	cached map[byte]*SliceTree
+	sa       *SliceArray
+	subtrees map[byte]*SliceTree
 }
 
 func SliceTreeFromBytes(data []byte) *SliceTree {
 	return &SliceTree{
-		sa:     SliceArrayFromBytes(data),
-		cached: make(map[byte]*SliceTree),
+		sa:       SliceArrayFromBytes(data),
+		subtrees: make(map[byte]*SliceTree),
 	}
 }
 
@@ -225,25 +219,37 @@ func (st *SliceTree) Bytes() []byte {
 	if st.sa.IsLeaf() {
 		return st.sa.Bytes()
 	}
-	for i, tr := range st.cached {
+	for i, tr := range st.subtrees {
 		st.sa.SetAt(i, tr.Bytes())
 	}
 	return st.sa.Bytes()
 }
 
-func (st *SliceTree) getChild(idx byte) *SliceTree {
-	ret, ok := st.cached[idx]
-	if !ok {
-		ret = SliceTreeFromBytes(st.sa.At(idx))
-		st.cached[idx] = ret
+// if takes from cache or creates a subtree, if the data is ns nil
+func (st *SliceTree) getSubtree(idx byte) *SliceTree {
+	ret, ok := st.subtrees[idx]
+	if ok {
+		return ret
 	}
+	b := st.sa.At(idx)
+	if len(b) == 0 {
+		return nil // no subtree, just nil value
+	}
+	ret = SliceTreeFromBytes(b)
+	st.subtrees[idx] = ret
 	return ret
 }
+
+// BytesAtPath returns serialized for of the element at path
 func (st *SliceTree) BytesAtPath(path ...byte) []byte {
 	if len(path) == 0 {
 		return st.Bytes()
 	}
-	return st.getChild(path[0]).BytesAtPath(path[1:]...)
+	subtree := st.getSubtree(path[0])
+	if subtree == nil {
+		return nil
+	}
+	return subtree.BytesAtPath(path[1:]...)
 }
 
 // PushDataAtPath SliceArray at the end of the path must exist and must be SliceArray
@@ -252,29 +258,40 @@ func (st *SliceTree) PushDataAtPath(data []byte, path ...byte) {
 		st.sa.Push(data)
 		return
 	}
-	if path[0] < st.sa.NumElements() {
-		tr := st.getChild(path[0])
-		tr.PushDataAtPath(data, path[1:]...)
-		st.sa.InvalidateBytes()
-		return
+	subtree := st.getSubtree(path[0])
+	if subtree == nil {
+		subtree = SliceTreeFromBytes(nil)
 	}
-	panic("path does not exist")
+	subtree.PushDataAtPath(data, path[1:]...)
+	st.subtrees[path[0]] = subtree
+	st.sa.InvalidateBytes()
+	return
 }
 
-// SetDataAtPathAt SliceArray at the end of the path must exist and must be SliceArray
-func (st *SliceTree) SetDataAtPathAt(data []byte, idx byte, path ...byte) {
+// SetDataAtPathAtIdx SliceArray at the end of the path must exist and must be SliceArray
+func (st *SliceTree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte) {
 	if len(path) == 0 {
 		st.sa.SetAt(idx, data)
-		delete(st.cached, idx)
+		delete(st.subtrees, idx)
 		return
 	}
-	if path[0] < st.sa.NumElements() {
-		tr := st.getChild(path[0])
-		tr.SetDataAtPathAt(data, idx, path[1:]...)
-		st.sa.InvalidateBytes()
-		return
+	subtree := st.getSubtree(path[0])
+	if subtree == nil {
+		panic("SetDataAtPathAtIdx: subtree should not be empty")
 	}
-	panic("path does not exist")
+	subtree.SetDataAtPathAtIdx(idx, data, path[1:]...)
+	st.sa.InvalidateBytes()
+}
+
+func (st *SliceTree) GetDataAtPathAtIdx(idx byte, path ...byte) []byte {
+	if len(path) == 0 {
+		return st.sa.At(idx)
+	}
+	subtree := st.getSubtree(path[0])
+	if subtree == nil {
+		panic("GetDataAtPathAtIdx: subtree cannot be nil")
+	}
+	return subtree.GetDataAtPathAtIdx(idx, path[1:]...)
 }
 
 // PushNewArrayAtPath pushes creates a new SliceArray at the end of the path, if it exists
@@ -287,5 +304,9 @@ func (st *SliceTree) NumElementsAtPath(path ...byte) byte {
 	if len(path) == 0 {
 		return st.sa.NumElements()
 	}
-	return st.getChild(path[0]).NumElementsAtPath(path[1:]...)
+	subtree := st.getSubtree(path[0])
+	if subtree == nil {
+		panic("subtree cannot be nil")
+	}
+	return subtree.NumElementsAtPath(path[1:]...)
 }

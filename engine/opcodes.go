@@ -1,8 +1,9 @@
 package engine
 
 import (
-	"encoding/binary"
 	"fmt"
+
+	"github.com/lunfardo314/easyutxo"
 )
 
 type OpCode uint16
@@ -14,11 +15,9 @@ func isShortOpcode(firstByte byte) bool {
 }
 
 func (c OpCode) AsBytes() []byte {
-	var b [2]byte
-	binary.LittleEndian.PutUint16(b[:], uint16(c))
-	ret := b[:]
-	if isShortOpcode(b[0]) {
-		ret = b[:1]
+	ret := easyutxo.EncodeInteger(uint16(c))
+	if isShortOpcode(ret[1]) {
+		ret = ret[:1]
 	}
 	return ret
 }
@@ -41,13 +40,13 @@ func parseOpcode(code []byte) (OpCode, []byte) {
 	var opcode OpCode
 	var parOffset int
 	if isShortOpcode(code[0]) {
-		opcode = OpCode(binary.LittleEndian.Uint16([]byte{code[0], 0}))
+		opcode = OpCode(easyutxo.DecodeInteger[uint16]([]byte{0, code[0]}))
 		parOffset = 1
 	} else {
 		if len(code) < 2 {
 			panic("unexpected end of the code")
 		}
-		opcode = OpCode(binary.LittleEndian.Uint16(code[:2]))
+		opcode = OpCode(easyutxo.DecodeInteger[uint16](code[:2]))
 		parOffset = 2
 	}
 	return opcode, code[parOffset:]

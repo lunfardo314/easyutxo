@@ -82,6 +82,37 @@ func TestSliceArray(t *testing.T) {
 			}
 		})
 	})
+	t.Run("ser prefix", func(t *testing.T) {
+		da := SliceArrayFromBytes([]byte{byte(ArrayMaxDataLen0), 0})
+		bin := da.Bytes()
+		daBack := SliceArrayFromBytes(bin)
+		require.EqualValues(t, 0, daBack.NumElements())
+		require.EqualValues(t, bin, daBack.Bytes())
+
+		da = SliceArrayFromBytes([]byte{byte(ArrayMaxDataLen8), 0})
+		bin = da.Bytes()
+		daBack = SliceArrayFromBytes(bin)
+		require.EqualValues(t, 0, daBack.NumElements())
+		require.EqualValues(t, bin, daBack.Bytes())
+
+		da = SliceArrayFromBytes([]byte{byte(ArrayMaxDataLen0), 17})
+		bin = da.Bytes()
+		daBack = SliceArrayFromBytes(bin)
+		require.EqualValues(t, 17, daBack.NumElements())
+		for i := 0; i < 17; i++ {
+			require.EqualValues(t, 0, len(daBack.At(byte(i))))
+		}
+		require.Panics(t, func() {
+			daBack.At(18)
+		})
+	})
+	t.Run("all empty", func(t *testing.T) {
+		sa := SliceArrayFromBytes(nil)
+		sa.Push(nil)
+		sa.Push(nil)
+		sa.Push(nil)
+		require.EqualValues(t, 3, sa.NumElements())
+	})
 	t.Run("serialization short", func(t *testing.T) {
 		da := SliceArrayFromBytes(nil)
 		for i := 0; i < 100; i++ {
@@ -130,8 +161,7 @@ func init() {
 	data1 = make([][]byte, howMany)
 
 	for i := range data1 {
-		data1[i] = make([]byte, 2)
-		binary.LittleEndian.PutUint16(data1[i], uint16(i))
+		data1[i] = EncodeInteger(uint16(i))
 	}
 }
 
@@ -157,7 +187,7 @@ func TestSliceTree(t *testing.T) {
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
 			tmp = st.BytesAtPath(byte(i))
-			require.EqualValues(t, uint16(i), binary.LittleEndian.Uint16(tmp))
+			require.EqualValues(t, uint16(i), DecodeInteger[uint16](tmp))
 		}
 		require.Panics(t, func() {
 			st.BytesAtPath(howMany)
@@ -171,7 +201,7 @@ func TestSliceTree(t *testing.T) {
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
 			tmp = st.BytesAtPath(byte(i))
-			require.EqualValues(t, uint16(i), binary.LittleEndian.Uint16(tmp))
+			require.EqualValues(t, uint16(i), binary.BigEndian.Uint16(tmp))
 		}
 		require.Panics(t, func() {
 			st.BytesAtPath(howMany)
@@ -232,7 +262,7 @@ func TestSliceTree(t *testing.T) {
 			st.BytesAtPath(1, 2, 1)
 		})
 
-		st.SetDataAtPathAt(data1[17], 0, 1, 2)
+		st.SetDataAtPathAtIdx(0, data1[17], 1, 2)
 		require.EqualValues(t, 1, st.NumElementsAtPath(1, 2))
 		dataBack = st.BytesAtPath(1, 2, 0)
 		require.EqualValues(t, data1[17], dataBack)
@@ -240,7 +270,12 @@ func TestSliceTree(t *testing.T) {
 			st.BytesAtPath(1, 2, 1)
 		})
 		require.Panics(t, func() {
-			st.BytesAtPath(1, 2, 0, 0)
+			// because by accident encoded uint16(17) is vector of 17 empty elements
+			tmp := st.BytesAtPath(1, 2, 0, 0)
+			require.EqualValues(t, 0, len(tmp))
+		})
+		require.Panics(t, func() {
+			st.BytesAtPath(1, 2, 0, 18)
 		})
 	})
 	t.Run("serialize", func(t *testing.T) {
@@ -316,7 +351,7 @@ func TestSliceTree(t *testing.T) {
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100+1000 bytes data: %d", len(s))
 
-		st.SetDataAtPathAt(dd[:500], st.NumElementsAtPath(1, 1)-1, 1, 1)
+		st.SetDataAtPathAtIdx(st.NumElementsAtPath(1, 1)-1, dd[:500], 1, 1)
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)

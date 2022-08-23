@@ -1,6 +1,7 @@
-package easyutxo
+package transaction
 
 import (
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
 )
 
@@ -11,7 +12,7 @@ const (
 
 type OutputBlock struct {
 	Script Script
-	Params SliceArray
+	Params easyutxo.SliceArray
 }
 
 type Script interface {
@@ -19,29 +20,29 @@ type Script interface {
 }
 
 type Transaction struct {
-	SliceArray
+	easyutxo.SliceArray
 	Inputs          Inputs
 	InputParameters InputParameters
 	OutputContexts  OutputContexts
 	TransactionData TransactionData
 }
 
-type Inputs SliceArray
-type InputParameters SliceArray
-type OutputContexts SliceArray
-type Output SliceArray
-type TransactionData SliceArray
+type Inputs easyutxo.SliceArray
+type InputParameters easyutxo.SliceArray
+type OutputContexts easyutxo.SliceArray
+type Output easyutxo.SliceArray
+type TransactionData easyutxo.SliceArray
 
 func TransactionFromBytes(txbytes []byte) *Transaction {
 	ret := &Transaction{
-		SliceArray: *SliceArrayFromBytes(txbytes),
+		SliceArray: *easyutxo.SliceArrayFromBytes(txbytes),
 	}
 	ret.Inputs = InputsFromBytes(ret.At(0))
 	return ret
 }
 
 func InputsFromBytes(inputsBytes []byte) Inputs {
-	return Inputs(*SliceArrayFromBytes(inputsBytes))
+	return Inputs(*easyutxo.SliceArrayFromBytes(inputsBytes))
 }
 
 //- element locator
@@ -56,7 +57,7 @@ type ElementLocation []byte
 
 type ScriptEmbedded struct {
 	LibraryRef byte
-	Data       SliceArray
+	Data       easyutxo.SliceArray
 }
 
 func (s *ScriptEmbedded) Run(tx *Transaction) {
@@ -65,7 +66,7 @@ func (s *ScriptEmbedded) Run(tx *Transaction) {
 
 type ScriptInline struct {
 	Code []byte
-	Data SliceArray
+	Data easyutxo.SliceArray
 }
 
 func (s *ScriptInline) Run(tx *Transaction) {
@@ -75,7 +76,7 @@ func (s *ScriptInline) Run(tx *Transaction) {
 type ScriptRef struct {
 	ScriptHash     [32]byte
 	ScriptLocation []byte
-	Data           SliceArray
+	Data           easyutxo.SliceArray
 }
 
 func (s *ScriptRef) Run(eng *engine.Engine, tx *Transaction) {
