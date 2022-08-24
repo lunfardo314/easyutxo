@@ -1,8 +1,8 @@
 package transaction
 
 import (
-	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
+	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
 const (
@@ -10,40 +10,37 @@ const (
 	OutputIDLength      = TransactionIDLength + 2
 )
 
+type Transaction struct {
+	ls *lazyslice.LazySliceTree
+}
+
+func NewTransaction() *Transaction {
+	ret := &Transaction{ls: lazyslice.LazySliceTreeEmpty()}
+	ret.ls.PushNewSubtreeAtPath() // input groups
+	ret.ls.PushNewSubtreeAtPath() // param groups
+	ret.ls.PushNewSubtreeAtPath() // output contexts
+	ret.ls.PushNewSubtreeAtPath() // transaction level data elements
+	return ret
+}
+
+func (tx *Transaction) Bytes() []byte {
+	return tx.ls.Bytes()
+}
+
 type OutputBlock struct {
 	Script Script
-	Params easyutxo.LazySlice
+	Params lazyslice.LazySlice
 }
 
 type Script interface {
 	Run(tx *Transaction)
 }
 
-type Transaction struct {
-	easyutxo.LazySlice
-	Inputs          Inputs
-	InputParameters InputParameters
-	OutputContexts  OutputContexts
-	TransactionData TransactionData
-}
-
-type Inputs easyutxo.LazySlice
-type InputParameters easyutxo.LazySlice
-type OutputContexts easyutxo.LazySlice
-type Output easyutxo.LazySlice
-type TransactionData easyutxo.LazySlice
-
-func TransactionFromBytes(txbytes []byte) *Transaction {
-	ret := &Transaction{
-		LazySlice: *easyutxo.LazySliceFromBytes(txbytes),
-	}
-	ret.Inputs = InputsFromBytes(ret.At(0))
-	return ret
-}
-
-func InputsFromBytes(inputsBytes []byte) Inputs {
-	return Inputs(*easyutxo.LazySliceFromBytes(inputsBytes))
-}
+type Inputs lazyslice.LazySlice
+type InputParameters lazyslice.LazySlice
+type OutputContexts lazyslice.LazySlice
+type Output lazyslice.LazySlice
+type TransactionData lazyslice.LazySlice
 
 //- element locator
 //- 1 byte transaction level (inps, unlock block, outps, txdata)
@@ -57,7 +54,7 @@ type ElementLocation []byte
 
 type ScriptEmbedded struct {
 	LibraryRef byte
-	Data       easyutxo.LazySlice
+	Data       lazyslice.LazySlice
 }
 
 func (s *ScriptEmbedded) Run(tx *Transaction) {
@@ -66,7 +63,7 @@ func (s *ScriptEmbedded) Run(tx *Transaction) {
 
 type ScriptInline struct {
 	Code []byte
-	Data easyutxo.LazySlice
+	Data lazyslice.LazySlice
 }
 
 func (s *ScriptInline) Run(tx *Transaction) {
@@ -76,7 +73,7 @@ func (s *ScriptInline) Run(tx *Transaction) {
 type ScriptRef struct {
 	ScriptHash     [32]byte
 	ScriptLocation []byte
-	Data           easyutxo.LazySlice
+	Data           lazyslice.LazySlice
 }
 
 func (s *ScriptRef) Run(eng *engine.Engine, tx *Transaction) {

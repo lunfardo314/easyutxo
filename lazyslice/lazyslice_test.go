@@ -1,4 +1,4 @@
-package easyutxo
+package lazyslice
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +18,7 @@ var data [][]byte
 func init() {
 	data = make([][]byte, howMany)
 	for i := range data {
-		data[i] = EncodeInteger(uint16(i))
+		data[i] = easyutxo.EncodeInteger(uint16(i))
 	}
 }
 
@@ -220,7 +221,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
 			tmp = st.BytesAtPath(byte(i))
-			require.EqualValues(t, uint16(i), DecodeInteger[uint16](tmp))
+			require.EqualValues(t, uint16(i), easyutxo.DecodeInteger[uint16](tmp))
 		}
 		require.Panics(t, func() {
 			st.BytesAtPath(howMany)
@@ -391,5 +392,17 @@ func TestSliceTreeSemantics(t *testing.T) {
 		st1 = LazySliceFromBytes(s1)
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100+(1000-500) bytes data: %d", len(s))
+	})
+}
+
+func TestTwoLayer(t *testing.T) {
+	t.Run("1", func(t *testing.T) {
+		st := LazySliceTreeEmpty()
+		for _, d := range data {
+			st.PushLayerTwo(d)
+		}
+		for _, d := range data {
+			st.PushLayerTwo(d)
+		}
 	})
 }

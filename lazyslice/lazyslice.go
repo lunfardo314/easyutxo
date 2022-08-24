@@ -1,10 +1,12 @@
-package easyutxo
+package lazyslice
 
 import (
 	"bytes"
 	"errors"
 	"io"
 	"math"
+
+	"github.com/lunfardo314/easyutxo"
 )
 
 // LazySlice can be interpreted two ways:
@@ -128,15 +130,15 @@ func writeData(data [][]byte, lenBytes lenBytesType, w io.Writer) error {
 	for _, d := range data {
 		switch lenBytes {
 		case ArrayLenBytes8:
-			if err := WriteInteger(w, byte(len(d))); err != nil {
+			if err := easyutxo.WriteInteger(w, byte(len(d))); err != nil {
 				return err
 			}
 		case ArrayLenBytes16:
-			if err := WriteInteger(w, uint16(len(d))); err != nil {
+			if err := easyutxo.WriteInteger(w, uint16(len(d))); err != nil {
 				return err
 			}
 		case ArrayLenBytes32:
-			if err := WriteInteger(w, uint32(len(d))); err != nil {
+			if err := easyutxo.WriteInteger(w, uint32(len(d))); err != nil {
 				return err
 			}
 		}
@@ -157,9 +159,9 @@ func decodeElement(buf []byte, dl lenBytesType) ([]byte, []byte, error) {
 	case ArrayLenBytes8:
 		sz = int(buf[0])
 	case ArrayLenBytes16:
-		sz = int(DecodeInteger[uint16](buf[:2]))
+		sz = int(easyutxo.DecodeInteger[uint16](buf[:2]))
 	case ArrayLenBytes32:
-		sz = int(DecodeInteger[uint32](buf[:4]))
+		sz = int(easyutxo.DecodeInteger[uint32](buf[:4]))
 	default:
 		return nil, nil, errors.New("wrong lenBytesType value")
 	}
@@ -327,4 +329,29 @@ func (st *LazySliceTree) NumElementsAtPath(path ...byte) byte {
 		panic("subtree cannot be nil")
 	}
 	return subtree.NumElementsAtPath(path[1:]...)
+}
+
+// PushLayerTwo is needed whe we want to have lists with more than  255 elements. The we do two leveled
+// tree and address each element with uint16 or two bytes
+func (st *LazySliceTree) PushLayerTwo(data []byte) {
+	var idxToPushFound bool
+	var idxToPush byte
+	for i := byte(0); i < st.NumElementsAtPath(); i++ {
+		if st.NumElementsAtPath(i) < 255 {
+			idxToPush = i
+			idxToPushFound = true
+			break
+		}
+	}
+	if !idxToPushFound {
+		if st.NumElementsAtPath() == 255 {
+			panic("PushLayer2: 2 layers is full")
+		}
+		st.PushNewSubtreeAtPath()
+	}
+	st.PushDataAtPath(data, idxToPush)
+}
+
+func (st *LazySliceTree) AtIdxLayerTwo(idx uint32) []byte {
+	return st.BytesAtPath(easyutxo.EncodeInteger(idx)...)
 }
