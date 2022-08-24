@@ -43,10 +43,10 @@ func TestLazySliceSemantics(t *testing.T) {
 		ls.Push(nil)
 		require.EqualValues(t, 3, ls.NumElements())
 		lsBin := ls.Bytes()
-		require.EqualValues(t, []byte{byte(ArrayLenBytes0), 3}, lsBin)
+		require.EqualValues(t, []byte{byte(DataLenBytes0), 3}, lsBin)
 		lsBack := LazySliceFromBytes(lsBin)
 		require.EqualValues(t, 3, ls.NumElements())
-		lsBack.ForEach(func(i byte, d []byte) bool {
+		lsBack.ForEach(func(i int, d []byte) bool {
 			require.EqualValues(t, 0, len(d))
 			return true
 		})
@@ -106,8 +106,8 @@ func TestLazySliceSemantics(t *testing.T) {
 			}
 		})
 		require.Panics(t, func() {
-			ls := LazySliceEmptyArray()
-			for i := 0; i < 256; i++ {
+			ls := LazySliceEmptyArray().WithMaxNumberOfElements(300)
+			for i := 0; i < 301; i++ {
 				ls.Push(data[0])
 			}
 		})
@@ -119,24 +119,24 @@ func TestLazySliceSemantics(t *testing.T) {
 		})
 	})
 	t.Run("serialize prefix", func(t *testing.T) {
-		da := LazySliceFromBytes([]byte{byte(ArrayLenBytes0), 0})
+		da := LazySliceFromBytes([]byte{byte(DataLenBytes0), 0})
 		bin := da.Bytes()
 		daBack := LazySliceFromBytes(bin)
 		require.EqualValues(t, 0, daBack.NumElements())
 		require.EqualValues(t, bin, daBack.Bytes())
 
-		da = LazySliceFromBytes([]byte{byte(ArrayLenBytes8), 0})
+		da = LazySliceFromBytes(emptyArrayPrefix.Bytes())
 		bin = da.Bytes()
 		daBack = LazySliceFromBytes(bin)
 		require.EqualValues(t, 0, daBack.NumElements())
 		require.EqualValues(t, bin, daBack.Bytes())
 
-		da = LazySliceFromBytes([]byte{byte(ArrayLenBytes0), 17})
+		da = LazySliceFromBytes([]byte{byte(DataLenBytes0), 17})
 		bin = da.Bytes()
 		daBack = LazySliceFromBytes(bin)
 		require.EqualValues(t, 17, daBack.NumElements())
 		for i := 0; i < 17; i++ {
-			require.EqualValues(t, 0, len(daBack.At(byte(i))))
+			require.EqualValues(t, 0, len(daBack.At(i)))
 		}
 		require.Panics(t, func() {
 			daBack.At(18)
@@ -149,7 +149,7 @@ func TestLazySliceSemantics(t *testing.T) {
 		}
 		lsBack := LazySliceFromBytes(ls.Bytes())
 		require.EqualValues(t, ls.NumElements(), lsBack.NumElements())
-		for i := byte(0); i < 100; i++ {
+		for i := 0; i < 100; i++ {
 			require.EqualValues(t, ls.At(i), lsBack.At(i))
 		}
 	})
@@ -161,7 +161,7 @@ func TestLazySliceSemantics(t *testing.T) {
 		daBytes := ls.Bytes()
 		daBack := LazySliceFromBytes(daBytes)
 		require.EqualValues(t, ls.NumElements(), daBack.NumElements())
-		for i := byte(0); i < 100; i++ {
+		for i := 0; i < 100; i++ {
 			require.EqualValues(t, ls.At(i), daBack.At(i))
 		}
 	})
@@ -174,7 +174,7 @@ func TestLazySliceSemantics(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			ls2.Push(bytes.Repeat(data[0], 2000))
 		}
-		for i := byte(0); i < 100; i++ {
+		for i := 0; i < 100; i++ {
 			require.EqualValues(t, ls1.At(i), ls2.At(i))
 		}
 		require.EqualValues(t, ls1.NumElements(), ls2.NumElements())
@@ -403,6 +403,15 @@ func TestTwoLayer(t *testing.T) {
 		}
 		for _, d := range data {
 			st.PushLayerTwo(d)
+		}
+		idx := uint16(0)
+		for _, d := range data {
+			require.EqualValues(t, d, st.AtIdxLayerTwo(idx))
+			idx++
+		}
+		for _, d := range data {
+			require.EqualValues(t, d, st.AtIdxLayerTwo(idx))
+			idx++
 		}
 	})
 }
