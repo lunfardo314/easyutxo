@@ -418,6 +418,7 @@ func TestTwoLayer(t *testing.T) {
 		for _, d := range data {
 			st.PushLayerTwo(d)
 		}
+		require.EqualValues(t, 2*howMany, st.NumElementsLayerTwo())
 		idx := uint16(0)
 		for _, d := range data {
 			require.EqualValues(t, d, st.AtIdxLayerTwo(idx))

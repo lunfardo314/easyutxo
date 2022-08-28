@@ -4,7 +4,7 @@ import "testing"
 
 func TestBasics(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		tx := NewTransaction()
+		tx := New()
 		t.Logf("empty tx size: %d", len(tx.Bytes()))
 	})
 }

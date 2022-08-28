@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -11,44 +12,32 @@ const (
 )
 
 type Transaction struct {
-	ls *lazyslice.Tree
+	tree *lazyslice.Tree
 }
 
-func NewTransaction() *Transaction {
-	ret := &Transaction{ls: lazyslice.TreeEmpty()}
-	ret.ls.PushNewSubtreeAtPath() // input groups
-	ret.ls.PushNewSubtreeAtPath() // param groups
-	ret.ls.PushNewSubtreeAtPath() // output contexts
-	ret.ls.PushNewSubtreeAtPath() // transaction level data elements
+func New() *Transaction {
+	ret := &Transaction{tree: lazyslice.TreeEmpty()}
+	ret.tree.PushNewSubtreeAtPath() // input groups
+	ret.tree.PushNewSubtreeAtPath() // param groups
+	ret.tree.PushNewSubtreeAtPath() // output contexts
+	ret.tree.PushNewSubtreeAtPath() // transaction level data elements
 	return ret
 }
 
+func FromBytes(data []byte) *Transaction {
+	return &Transaction{tree: lazyslice.TreeFromBytes(data)}
+}
+
 func (tx *Transaction) Bytes() []byte {
-	return tx.ls.Bytes()
+	return tx.tree.Bytes()
 }
 
-type OutputBlock struct {
-	Script Script
-	Params lazyslice.Array
+func (tx *Transaction) Validate() error {
+	return easyutxo.CatchPanic(func() {
+		tx.RunValidationScripts()
+	})
+
 }
-
-type Script interface {
-	Run(tx *Transaction)
-}
-
-type Inputs lazyslice.Array
-type InputParameters lazyslice.Array
-type OutputContexts lazyslice.Array
-type Output lazyslice.Array
-type TransactionData lazyslice.Array
-
-//- element locator
-//- 1 byte transaction level (inps, unlock block, outps, txdata)
-//    + local 0xFF byte index level, xFF-1 local byte output level
-//- 2 bytes index
-//- 1 byte output block index
-
-// script is executed in the context of input. So local context is specified by index
 
 type ElementLocation []byte
 
@@ -82,4 +71,12 @@ func (s *ScriptRef) Run(eng *engine.Engine, tx *Transaction) {
 
 func (tx *Transaction) GetElement(elemLocation []byte) ([]byte, bool) {
 	panic("implement me")
+}
+
+func (tx *Transaction) RunValidationScripts() {
+
+}
+
+func (tx *Transaction) CheckUnboundedConstraints() {
+
 }

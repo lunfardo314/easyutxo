@@ -400,20 +400,29 @@ func (st *Tree) IsFullAtPath(path ...byte) bool {
 // We do two leveled tree and address each element with uint16 or two bytes
 func (st *Tree) PushLayerTwo(data []byte) {
 	n := st.NumElementsAtPath()
-	if n > 256 {
-		panic("internal inconsistency")
-	}
-	idx := byte(0)
-	for ; int(idx) < n; idx++ {
-		if st.NumElementsAtPath(idx) < 256 {
-			st.PushDataAtPath(data, idx)
-			return
+	var idx byte
+	if n == 0 {
+		st.PushNewSubtreeAtPath()
+		idx = 0
+	} else {
+		idx = byte(n) - 1
+		if st.NumElementsAtPath(idx) >= MaxElementsLazyTree {
+			st.PushNewSubtreeAtPath()
+			idx += 1
 		}
 	}
-	st.PushNewSubtreeAtPath()
 	st.PushDataAtPath(data, idx)
 }
 
 func (st *Tree) AtIdxLayerTwo(idx uint16) []byte {
 	return st.BytesAtPath(easyutxo.EncodeInteger(idx)...)
+}
+
+func (st *Tree) NumElementsLayerTwo() int {
+	n := st.NumElementsAtPath()
+	if n == 0 {
+		return 0
+	}
+	idx := byte(n - 1)
+	return MaxElementsLazyTree*int(idx) + st.NumElementsAtPath(idx)
 }
