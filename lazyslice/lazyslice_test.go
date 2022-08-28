@@ -24,27 +24,27 @@ func init() {
 
 func TestLazySliceSemantics(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		ls := LazySliceFromBytes(nil)
+		ls := ArrayFromBytes(nil)
 		require.EqualValues(t, 0, len(ls.Bytes()))
 		require.Panics(t, func() {
 			ls.NumElements()
 		})
 	})
 	t.Run("empty", func(t *testing.T) {
-		ls := LazySliceEmptyArray()
+		ls := EmptyArray()
 		require.EqualValues(t, []byte{0, 0}, ls.Bytes())
 
 		require.EqualValues(t, 0, ls.NumElements())
 	})
 	t.Run("serialize all nil", func(t *testing.T) {
-		ls := LazySliceEmptyArray()
+		ls := EmptyArray()
 		ls.Push(nil)
 		ls.Push(nil)
 		ls.Push(nil)
 		require.EqualValues(t, 3, ls.NumElements())
 		lsBin := ls.Bytes()
 		require.EqualValues(t, []byte{byte(DataLenBytes0), 3}, lsBin)
-		lsBack := LazySliceFromBytes(lsBin)
+		lsBack := ArrayFromBytes(lsBin)
 		require.EqualValues(t, 3, ls.NumElements())
 		lsBack.ForEach(func(i int, d []byte) bool {
 			require.EqualValues(t, 0, len(d))
@@ -52,7 +52,7 @@ func TestLazySliceSemantics(t *testing.T) {
 		})
 	})
 	t.Run("serialize some nil", func(t *testing.T) {
-		ls := LazySliceEmptyArray()
+		ls := EmptyArray()
 		ls.Push(nil)
 		ls.Push(nil)
 		ls.Push(data[17])
@@ -60,7 +60,7 @@ func TestLazySliceSemantics(t *testing.T) {
 		ls.Push([]byte("1234567890"))
 		require.EqualValues(t, 5, ls.NumElements())
 		lsBin := ls.Bytes()
-		lsBack := LazySliceFromBytes(lsBin)
+		lsBack := ArrayFromBytes(lsBin)
 		require.EqualValues(t, 5, lsBack.NumElements())
 		require.EqualValues(t, 0, len(lsBack.At(0)))
 		require.EqualValues(t, 0, len(lsBack.At(1)))
@@ -68,8 +68,22 @@ func TestLazySliceSemantics(t *testing.T) {
 		require.EqualValues(t, 0, len(lsBack.At(3)))
 		require.EqualValues(t, []byte("1234567890"), lsBack.At(4))
 	})
+	t.Run("deserialize rubbish", func(t *testing.T) {
+		ls := EmptyArray()
+		ls.Push(data[17])
+		lsBin := ls.Bytes()
+		lsBack := ArrayFromBytes(lsBin)
+		require.NotPanics(t, func() {
+			require.EqualValues(t, data[17], ls.At(0))
+		})
+		lsBinWrong := append(lsBin, 1, 2, 3)
+		lsBack = ArrayFromBytes(lsBinWrong)
+		require.Panics(t, func() {
+			lsBack.At(0)
+		})
+	})
 	t.Run("push+boundaries", func(t *testing.T) {
-		ls := LazySliceFromBytes(nil)
+		ls := ArrayFromBytes(nil)
 		require.Panics(t, func() {
 			ls.Push(data[17])
 		})
@@ -80,7 +94,7 @@ func TestLazySliceSemantics(t *testing.T) {
 		require.EqualValues(t, data[17], ls.At(0))
 		require.EqualValues(t, 1, ls.NumElements())
 		ser := ls.Bytes()
-		lsBack := LazySliceFromBytes(ser)
+		lsBack := ArrayFromBytes(ser)
 		require.EqualValues(t, 1, lsBack.NumElements())
 		require.EqualValues(t, ls.At(0), lsBack.At(0))
 		require.Panics(t, func() {
@@ -92,48 +106,48 @@ func TestLazySliceSemantics(t *testing.T) {
 	})
 	t.Run("too long", func(t *testing.T) {
 		require.NotPanics(t, func() {
-			ls := LazySliceEmptyArray()
+			ls := EmptyArray()
 			ls.Push(bytes.Repeat(data[0], 256))
 		})
 		require.NotPanics(t, func() {
-			ls := LazySliceEmptyArray()
+			ls := EmptyArray()
 			ls.Push(bytes.Repeat(data[0], 257))
 		})
 		require.NotPanics(t, func() {
-			ls := LazySliceEmptyArray()
+			ls := EmptyArray()
 			for i := 0; i < 255; i++ {
 				ls.Push(data[0])
 			}
 		})
 		require.Panics(t, func() {
-			ls := LazySliceEmptyArray().WithMaxNumberOfElements(300)
+			ls := EmptyArray(300)
 			for i := 0; i < 301; i++ {
 				ls.Push(data[0])
 			}
 		})
 		require.Panics(t, func() {
-			ls := LazySliceEmptyArray()
+			ls := EmptyArray()
 			for i := 0; i < math.MaxUint16+1; i++ {
 				ls.Push(data[0])
 			}
 		})
 	})
 	t.Run("serialize prefix", func(t *testing.T) {
-		da := LazySliceFromBytes([]byte{byte(DataLenBytes0), 0})
+		da := ArrayFromBytes([]byte{byte(DataLenBytes0), 0})
 		bin := da.Bytes()
-		daBack := LazySliceFromBytes(bin)
+		daBack := ArrayFromBytes(bin)
 		require.EqualValues(t, 0, daBack.NumElements())
 		require.EqualValues(t, bin, daBack.Bytes())
 
-		da = LazySliceFromBytes(emptyArrayPrefix.Bytes())
+		da = ArrayFromBytes(emptyArrayPrefix.Bytes())
 		bin = da.Bytes()
-		daBack = LazySliceFromBytes(bin)
+		daBack = ArrayFromBytes(bin)
 		require.EqualValues(t, 0, daBack.NumElements())
 		require.EqualValues(t, bin, daBack.Bytes())
 
-		da = LazySliceFromBytes([]byte{byte(DataLenBytes0), 17})
+		da = ArrayFromBytes([]byte{byte(DataLenBytes0), 17})
 		bin = da.Bytes()
-		daBack = LazySliceFromBytes(bin)
+		daBack = ArrayFromBytes(bin)
 		require.EqualValues(t, 17, daBack.NumElements())
 		for i := 0; i < 17; i++ {
 			require.EqualValues(t, 0, len(daBack.At(i)))
@@ -143,34 +157,34 @@ func TestLazySliceSemantics(t *testing.T) {
 		})
 	})
 	t.Run("serialize short", func(t *testing.T) {
-		ls := LazySliceEmptyArray()
+		ls := EmptyArray()
 		for i := 0; i < 100; i++ {
 			ls.Push(bytes.Repeat(data[0], 100))
 		}
-		lsBack := LazySliceFromBytes(ls.Bytes())
+		lsBack := ArrayFromBytes(ls.Bytes())
 		require.EqualValues(t, ls.NumElements(), lsBack.NumElements())
 		for i := 0; i < 100; i++ {
 			require.EqualValues(t, ls.At(i), lsBack.At(i))
 		}
 	})
 	t.Run("serialization long 1", func(t *testing.T) {
-		ls := LazySliceEmptyArray()
+		ls := EmptyArray()
 		for i := 0; i < 100; i++ {
 			ls.Push(bytes.Repeat(data[0], 2000))
 		}
 		daBytes := ls.Bytes()
-		daBack := LazySliceFromBytes(daBytes)
+		daBack := ArrayFromBytes(daBytes)
 		require.EqualValues(t, ls.NumElements(), daBack.NumElements())
 		for i := 0; i < 100; i++ {
 			require.EqualValues(t, ls.At(i), daBack.At(i))
 		}
 	})
 	t.Run("serialization long 2", func(t *testing.T) {
-		ls1 := LazySliceEmptyArray()
+		ls1 := EmptyArray()
 		for i := 0; i < 100; i++ {
 			ls1.Push(bytes.Repeat(data[0], 2000))
 		}
-		ls2 := LazySliceEmptyArray()
+		ls2 := EmptyArray()
 		for i := 0; i < 100; i++ {
 			ls2.Push(bytes.Repeat(data[0], 2000))
 		}
@@ -184,39 +198,39 @@ func TestLazySliceSemantics(t *testing.T) {
 
 func TestSliceTreeSemantics(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := TreeFromBytes(nil)
 		b := st.BytesAtPath()
 		require.EqualValues(t, 0, len(b))
 	})
 	t.Run("empty", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		b := st.BytesAtPath()
 		require.EqualValues(t, []byte{0, 0}, b)
 	})
 	t.Run("nil panic", func(t *testing.T) {
-		st := LazySliceTreeFromBytes(nil)
+		st := TreeFromBytes(nil)
 		require.Panics(t, func() {
 			st.BytesAtPath(1)
 		})
 	})
 	t.Run("nonsense panic", func(t *testing.T) {
-		st := LazySliceTreeFromBytes([]byte("0123456789"))
+		st := TreeFromBytes([]byte("0123456789"))
 		require.Panics(t, func() {
 			st.BytesAtPath(0)
 		})
 	})
 	t.Run("empty panic", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		require.Panics(t, func() {
 			st.BytesAtPath(0)
 		})
 	})
 	t.Run("level 1-1", func(t *testing.T) {
-		sa := LazySliceEmptyArray()
+		sa := EmptyArray()
 		for i := 0; i < howMany; i++ {
 			sa.Push(data[i])
 		}
-		st := LazySliceTreeFromBytes(sa.Bytes())
+		st := TreeFromBytes(sa.Bytes())
 		t.Logf("ser len = %d bytes (%d x uint16)", len(sa.Bytes()), howMany)
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
@@ -228,7 +242,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 1-2", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		for i := 0; i < howMany; i++ {
 			st.PushDataAtPath(data[i])
 		}
@@ -242,13 +256,13 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 2 panic", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		require.Panics(t, func() {
 			st.PushDataAtPath(data[0], 1)
 		})
 	})
 	t.Run("level 2 panic and not", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 
 		st.PushNewSubtreeAtPath()
 		require.NotPanics(t, func() {
@@ -265,7 +279,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("level 3", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		st.PushNewSubtreeAtPath()
 		st.PushNewSubtreeAtPath()
 		st.PushNewSubtreeAtPath(0)
@@ -313,45 +327,45 @@ func TestSliceTreeSemantics(t *testing.T) {
 		})
 	})
 	t.Run("serialize", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		s := st.Bytes()
-		st1 := LazySliceFromBytes(s)
+		st1 := ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len root: %d", len(s))
 
 		st.PushNewSubtreeAtPath()
 		s = st.Bytes()
-		st1 = LazySliceFromBytes(s)
+		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 1 node: %d", len(s))
 
 		st.PushNewSubtreeAtPath()
 		s = st.Bytes()
-		st1 = LazySliceFromBytes(s)
+		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 2 nodes: %d", len(s))
 
 		st.PushNewSubtreeAtPath(0)
 		s = st.Bytes()
-		st1 = LazySliceFromBytes(s)
+		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 3 nodes: %d", len(s))
 
 		st.PushNewSubtreeAtPath(0)
 		s = st.Bytes()
-		st1 = LazySliceFromBytes(s)
+		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 4 nodes: %d", len(s))
 
 		st.PushNewSubtreeAtPath(1)
 		s = st.Bytes()
-		st1 = LazySliceFromBytes(s)
+		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 5 nodes: %d", len(s))
 
 		st.PushNewSubtreeAtPath(1)
 		s = st.Bytes()
-		st1 = LazySliceFromBytes(s)
+		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 6 nodes: %d", len(s))
 
@@ -362,7 +376,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		s = st.Bytes()
 		s1 := make([]byte, len(s))
 		copy(s1, s)
-		st1 = LazySliceFromBytes(s1)
+		st1 = ArrayFromBytes(s1)
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100 bytes data: %d", len(s))
 
@@ -370,7 +384,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
-		st1 = LazySliceFromBytes(s1)
+		st1 = ArrayFromBytes(s1)
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100 bytes data: %d", len(s))
 
@@ -381,15 +395,15 @@ func TestSliceTreeSemantics(t *testing.T) {
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
-		st1 = LazySliceFromBytes(s1)
+		st1 = ArrayFromBytes(s1)
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100+1000 bytes data: %d", len(s))
 
-		st.SetDataAtPathAtIdx(st.NumElementsAtPath(1, 1)-1, dd[:500], 1, 1)
+		st.SetDataAtPathAtIdx(byte(st.NumElementsAtPath(1, 1)-1), dd[:500], 1, 1)
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
-		st1 = LazySliceFromBytes(s1)
+		st1 = ArrayFromBytes(s1)
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100+(1000-500) bytes data: %d", len(s))
 	})
@@ -397,7 +411,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 
 func TestTwoLayer(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		st := LazySliceTreeEmpty()
+		st := TreeEmpty()
 		for _, d := range data {
 			st.PushLayerTwo(d)
 		}

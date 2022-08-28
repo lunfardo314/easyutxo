@@ -3,17 +3,18 @@ package lazyslice
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 
 	"github.com/lunfardo314/easyutxo"
 )
 
-// LazySlice can be interpreted two ways:
+// Array can be interpreted two ways:
 // - as byte slice
 // - as serialized append-only array of up to 255 byte slices
 // Serialization is optimized by analyzing maximum length of the data element
-type LazySlice struct {
+type Array struct {
 	bytes          []byte
 	parsed         [][]byte
 	maxNumElements int
@@ -63,49 +64,53 @@ func (dl lenPrefixType) Bytes() []byte {
 	return easyutxo.EncodeInteger(uint16(dl))
 }
 
-func LazySliceFromBytes(data []byte) *LazySlice {
-	return &LazySlice{
+func ArrayFromBytes(data []byte, maxNumElements ...int) *Array {
+	mx := MaxArrayLen
+	if len(maxNumElements) > 0 {
+		mx = maxNumElements[0]
+	}
+	return &Array{
 		bytes:          data,
-		maxNumElements: MaxArrayLen,
+		maxNumElements: mx,
 	}
 }
 
-func LazySliceEmptyArray() *LazySlice {
-	return LazySliceFromBytes(emptyArrayPrefix.Bytes())
+func EmptyArray(maxNumElements ...int) *Array {
+	return ArrayFromBytes(emptyArrayPrefix.Bytes(), maxNumElements...)
 }
 
-func (a *LazySlice) WithMaxNumberOfElements(m int) *LazySlice {
-	a.maxNumElements = m
-	if a.maxNumElements > MaxArrayLen {
-		a.maxNumElements = MaxArrayLen
-	}
-	return a
-}
-
-func (a *LazySlice) SetData(data []byte) {
+func (a *Array) SetData(data []byte) {
 	a.bytes = data
 	a.parsed = nil
 }
 
-func (a *LazySlice) SetEmptyArray() {
+func (a *Array) SetEmptyArray() {
 	a.SetData([]byte{0, 0})
 }
 
-func (a *LazySlice) Push(data []byte) {
+func (a *Array) IsEmpty() bool {
+	return a.NumElements() == 0
+}
+
+func (a *Array) IsFull() bool {
+	return a.NumElements() >= a.maxNumElements
+}
+
+func (a *Array) Push(data []byte) {
 	if len(a.parsed) >= a.maxNumElements {
-		panic("LazySlice.Push: too many elements")
+		panic("Array.Push: too many elements")
 	}
 	a.ensureParsed()
 	a.parsed = append(a.parsed, data)
 	a.bytes = nil // invalidate bytes
 }
 
-func (a *LazySlice) SetAtIdx(idx byte, data []byte) {
+func (a *Array) SetAtIdx(idx byte, data []byte) {
 	a.parsed[idx] = data
 	a.bytes = nil // invalidate bytes
 }
 
-func (a *LazySlice) ForEach(fun func(i int, data []byte) bool) {
+func (a *Array) ForEach(fun func(i int, data []byte) bool) {
 	for i := 0; i < a.NumElements(); i++ {
 		if !fun(i, a.At(i)) {
 			break
@@ -113,29 +118,29 @@ func (a *LazySlice) ForEach(fun func(i int, data []byte) bool) {
 	}
 }
 
-func (a *LazySlice) validBytes() bool {
+func (a *Array) validBytes() bool {
 	if len(a.bytes) > 0 {
 		return true
 	}
 	return len(a.parsed) == 0
 }
 
-func (a *LazySlice) invalidateBytes() {
+func (a *Array) invalidateBytes() {
 	a.bytes = nil
 }
 
-func (a *LazySlice) ensureParsed() {
+func (a *Array) ensureParsed() {
 	if a.parsed != nil {
 		return
 	}
 	var err error
-	a.parsed, err = parseArray(a.bytes)
+	a.parsed, err = parseArray(a.bytes, a.maxNumElements)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (a *LazySlice) ensureBytes() {
+func (a *Array) ensureBytes() {
 	if a.bytes != nil {
 		return
 	}
@@ -150,17 +155,17 @@ func (a *LazySlice) ensureBytes() {
 	a.bytes = buf.Bytes()
 }
 
-func (a *LazySlice) At(idx int) []byte {
+func (a *Array) At(idx int) []byte {
 	a.ensureParsed()
 	return a.parsed[idx]
 }
 
-func (a *LazySlice) NumElements() int {
+func (a *Array) NumElements() int {
 	a.ensureParsed()
 	return len(a.parsed)
 }
 
-func (a *LazySlice) Bytes() []byte {
+func (a *Array) Bytes() []byte {
 	a.ensureBytes()
 	return a.bytes
 }
@@ -248,6 +253,9 @@ func decodeData(data []byte, numDataLenBytes int, n int) ([][]byte, error) {
 			return nil, err
 		}
 	}
+	if len(data) != 0 {
+		return nil, errors.New("serialization error: not all bytes were consumed")
+	}
 	return ret, nil
 }
 
@@ -262,32 +270,38 @@ func encodeArray(data [][]byte, w io.Writer) error {
 	return writeData(data, prefix.DataLenBytes(), w)
 }
 
-func parseArray(data []byte) ([][]byte, error) {
+func parseArray(data []byte, maxNumElements int) ([][]byte, error) {
 	if len(data) < 2 {
 		return nil, errors.New("unexpected EOF")
 	}
 	prefix := lenPrefixType(easyutxo.DecodeInteger[uint16](data[:2]))
+	if prefix.NumElements() > maxNumElements {
+		return nil, fmt.Errorf("parseArray: number of elements in the prefix %d is larger than maxNumElements %d ",
+			prefix.NumElements(), maxNumElements)
+	}
 	return decodeData(data[2:], prefix.DataLenBytes(), prefix.NumElements())
 }
 
-type LazySliceTree struct {
-	sa       *LazySlice
-	subtrees map[byte]*LazySliceTree
+type Tree struct {
+	sa       *Array
+	subtrees map[byte]*Tree
 }
 
-func LazySliceTreeFromBytes(data []byte) *LazySliceTree {
-	return &LazySliceTree{
-		sa:       LazySliceFromBytes(data).WithMaxNumberOfElements(256), // max index is 255
-		subtrees: make(map[byte]*LazySliceTree),
+const MaxElementsLazyTree = 256
+
+func TreeFromBytes(data []byte) *Tree {
+	return &Tree{
+		sa:       ArrayFromBytes(data, MaxElementsLazyTree),
+		subtrees: make(map[byte]*Tree),
 	}
 }
 
-func LazySliceTreeEmpty() *LazySliceTree {
-	return LazySliceTreeFromBytes([]byte{0, 0})
+func TreeEmpty() *Tree {
+	return TreeFromBytes(emptyArrayPrefix.Bytes())
 }
 
 // Bytes recursively updates bytes in the tree
-func (st *LazySliceTree) Bytes() []byte {
+func (st *Tree) Bytes() []byte {
 	if st.sa.validBytes() {
 		return st.sa.Bytes()
 	}
@@ -298,16 +312,16 @@ func (st *LazySliceTree) Bytes() []byte {
 }
 
 // takes from cache or creates a subtree, if the data is ns nil
-func (st *LazySliceTree) getSubtree(idx byte) *LazySliceTree {
+func (st *Tree) getSubtree(idx byte) *Tree {
 	ret, ok := st.subtrees[idx]
 	if ok {
 		return ret
 	}
-	return LazySliceTreeFromBytes(st.sa.At(int(idx)))
+	return TreeFromBytes(st.sa.At(int(idx)))
 }
 
-// PushDataAtPath LazySlice at the end of the path must exist and must be LazySlice
-func (st *LazySliceTree) PushDataAtPath(data []byte, path ...byte) {
+// PushDataAtPath Array at the end of the path must exist and must be Array
+func (st *Tree) PushDataAtPath(data []byte, path ...byte) {
 	if len(path) == 0 {
 		st.sa.Push(data)
 		return
@@ -319,8 +333,8 @@ func (st *LazySliceTree) PushDataAtPath(data []byte, path ...byte) {
 	return
 }
 
-// SetDataAtPathAtIdx LazySlice at the end of the path must exist and must be LazySlice
-func (st *LazySliceTree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte) {
+// SetDataAtPathAtIdx Array at the end of the path must exist and must be Array
+func (st *Tree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte) {
 	if len(path) == 0 {
 		st.sa.SetAtIdx(idx, data)
 		delete(st.subtrees, idx)
@@ -332,12 +346,12 @@ func (st *LazySliceTree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte)
 	st.sa.invalidateBytes()
 }
 
-func (st *LazySliceTree) SetEmptyArrayAtPathAtIdx(idx byte, path ...byte) {
+func (st *Tree) SetEmptyArrayAtPathAtIdx(idx byte, path ...byte) {
 	st.SetDataAtPathAtIdx(idx, emptyArrayPrefix.Bytes(), path...)
 }
 
 // BytesAtPath returns serialized for of the element at path
-func (st *LazySliceTree) BytesAtPath(path ...byte) []byte {
+func (st *Tree) BytesAtPath(path ...byte) []byte {
 	if len(path) == 0 {
 		return st.Bytes()
 	}
@@ -347,7 +361,7 @@ func (st *LazySliceTree) BytesAtPath(path ...byte) []byte {
 	return ret
 }
 
-func (st *LazySliceTree) GetDataAtPathAtIdx(idx byte, path ...byte) []byte {
+func (st *Tree) GetDataAtPathAtIdx(idx byte, path ...byte) []byte {
 	if len(path) == 0 {
 		return st.sa.At(int(idx))
 	}
@@ -357,15 +371,15 @@ func (st *LazySliceTree) GetDataAtPathAtIdx(idx byte, path ...byte) []byte {
 	return ret
 }
 
-// PushNewSubtreeAtPath pushes creates a new LazySlice at the end of the path, if it exists
-func (st *LazySliceTree) PushNewSubtreeAtPath(path ...byte) {
-	st.PushDataAtPath(LazySliceFromBytes(emptyArrayPrefix.Bytes()).Bytes(), path...)
+// PushNewSubtreeAtPath pushes creates a new Array at the end of the path, if it exists
+func (st *Tree) PushNewSubtreeAtPath(path ...byte) {
+	st.PushDataAtPath(ArrayFromBytes(emptyArrayPrefix.Bytes()).Bytes(), path...)
 }
 
-// NumElementsAtPath returns number of elements of the LazySlice at the end of path
-func (st *LazySliceTree) NumElementsAtPath(path ...byte) byte {
+// NumElementsAtPath returns number of elements of the Array at the end of path
+func (st *Tree) NumElementsAtPath(path ...byte) int {
 	if len(path) == 0 {
-		return byte(st.sa.NumElements())
+		return st.sa.NumElements()
 	}
 	subtree := st.getSubtree(path[0])
 	if subtree == nil {
@@ -374,13 +388,24 @@ func (st *LazySliceTree) NumElementsAtPath(path ...byte) byte {
 	return subtree.NumElementsAtPath(path[1:]...)
 }
 
+func (st *Tree) IsEmptyAtPath(path ...byte) bool {
+	return st.NumElementsAtPath(path...) == 0
+}
+
+func (st *Tree) IsFullAtPath(path ...byte) bool {
+	return st.NumElementsAtPath(path...) >= 256
+}
+
 // PushLayerTwo is needed when we want to have lists with more than 255 elements.
 // We do two leveled tree and address each element with uint16 or two bytes
-func (st *LazySliceTree) PushLayerTwo(data []byte) {
+func (st *Tree) PushLayerTwo(data []byte) {
 	n := st.NumElementsAtPath()
+	if n > 256 {
+		panic("internal inconsistency")
+	}
 	idx := byte(0)
-	for ; idx < n; idx++ {
-		if st.NumElementsAtPath(idx) < 255 {
+	for ; int(idx) < n; idx++ {
+		if st.NumElementsAtPath(idx) < 256 {
 			st.PushDataAtPath(data, idx)
 			return
 		}
@@ -389,6 +414,6 @@ func (st *LazySliceTree) PushLayerTwo(data []byte) {
 	st.PushDataAtPath(data, idx)
 }
 
-func (st *LazySliceTree) AtIdxLayerTwo(idx uint16) []byte {
+func (st *Tree) AtIdxLayerTwo(idx uint16) []byte {
 	return st.BytesAtPath(easyutxo.EncodeInteger(idx)...)
 }
