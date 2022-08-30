@@ -3,7 +3,6 @@ package utxodb
 import (
 	"bytes"
 
-	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/transaction"
 )
 
@@ -11,12 +10,10 @@ type UtxoDB struct {
 	utxo map[string]*transaction.Output
 }
 
-func init() {
-	easyutxo.RegisterNewUTXODBConstructor(func() transaction.LedgerState {
-		return &UtxoDB{
-			utxo: make(map[string]*transaction.Output),
-		}
-	})
+func New() *UtxoDB {
+	return &UtxoDB{
+		utxo: make(map[string]*transaction.Output),
+	}
 }
 
 func (u *UtxoDB) AddTransaction(tx *transaction.Transaction) error {

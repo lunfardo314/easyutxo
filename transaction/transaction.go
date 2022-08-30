@@ -91,8 +91,8 @@ func (tx *Transaction) ForEachInput(fun func(idx uint16, o OutputID) bool) {
 	}
 }
 
-// GetValidationContext finds all inputs in the ledger state and pushes their data
-// into the validation context at long index
+// GetValidationContext finds all inputs in the ledger state.
+// Creates a tree with transaction at long index 0 and all inputs at long index 1
 func (tx *Transaction) GetValidationContext(ledgerState LedgerState) (*ValidationContext, error) {
 	var err error
 	txid := tx.ID()

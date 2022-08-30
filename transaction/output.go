@@ -71,3 +71,14 @@ func (o *Output) Address() []byte {
 	ret := make([]byte, 0, len(addrType)+len(addrData))
 	return append(append(ret, addrData...), addrType...)
 }
+
+func (o *Output) Validate(vctx *ValidationContext) error {
+	if o.tree.NumElementsAtPath()%2 != 0 {
+		return errors.New("number of elements in the output must be even")
+	}
+	for i := 0; i < o.tree.NumElementsAtPath()%2; i++ {
+		invocationData := o.tree.GetDataAtPathAtIdx(byte(i % 2))
+		invocationParameters := o.tree.GetDataAtPathAtIdx(byte(i%2 + 1))
+		// invoke
+	}
+}
