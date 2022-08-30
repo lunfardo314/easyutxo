@@ -264,7 +264,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 	t.Run("level 2 panic and not", func(t *testing.T) {
 		st := TreeEmpty()
 
-		st.PushNewSubtreeAtPath()
+		st.PushEmptySubtreeAtPath()
 		require.NotPanics(t, func() {
 			st.PushDataAtPath(data[0], 0)
 		})
@@ -273,20 +273,20 @@ func TestSliceTreeSemantics(t *testing.T) {
 			st.PushDataAtPath(data[0], 1)
 		})
 
-		st.PushNewSubtreeAtPath()
+		st.PushEmptySubtreeAtPath()
 		require.NotPanics(t, func() {
 			st.PushDataAtPath(data[0], 1)
 		})
 	})
 	t.Run("level 3", func(t *testing.T) {
 		st := TreeEmpty()
-		st.PushNewSubtreeAtPath()
-		st.PushNewSubtreeAtPath()
-		st.PushNewSubtreeAtPath(0)
-		st.PushNewSubtreeAtPath(0)
-		st.PushNewSubtreeAtPath(1)
-		st.PushNewSubtreeAtPath(1)
-		st.PushNewSubtreeAtPath(1)
+		st.PushEmptySubtreeAtPath()
+		st.PushEmptySubtreeAtPath()
+		st.PushEmptySubtreeAtPath(0)
+		st.PushEmptySubtreeAtPath(0)
+		st.PushEmptySubtreeAtPath(1)
+		st.PushEmptySubtreeAtPath(1)
+		st.PushEmptySubtreeAtPath(1)
 		require.EqualValues(t, 2, st.NumElementsAtPath())
 		require.EqualValues(t, 2, st.NumElementsAtPath(0))
 		require.EqualValues(t, 3, st.NumElementsAtPath(1))
@@ -333,37 +333,37 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len root: %d", len(s))
 
-		st.PushNewSubtreeAtPath()
+		st.PushEmptySubtreeAtPath()
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 1 node: %d", len(s))
 
-		st.PushNewSubtreeAtPath()
+		st.PushEmptySubtreeAtPath()
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 2 nodes: %d", len(s))
 
-		st.PushNewSubtreeAtPath(0)
+		st.PushEmptySubtreeAtPath(0)
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 3 nodes: %d", len(s))
 
-		st.PushNewSubtreeAtPath(0)
+		st.PushEmptySubtreeAtPath(0)
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 4 nodes: %d", len(s))
 
-		st.PushNewSubtreeAtPath(1)
+		st.PushEmptySubtreeAtPath(1)
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 5 nodes: %d", len(s))
 
-		st.PushNewSubtreeAtPath(1)
+		st.PushEmptySubtreeAtPath(1)
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
@@ -413,19 +413,19 @@ func TestTwoLayer(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		st := TreeEmpty()
 		for _, d := range data {
-			st.PushLayerTwo(d)
+			st.PushLong(d)
 		}
 		for _, d := range data {
-			st.PushLayerTwo(d)
+			st.PushLong(d)
 		}
-		require.EqualValues(t, 2*howMany, st.NumElementsLayerTwo())
+		require.EqualValues(t, 2*howMany, st.NumElementsLong())
 		idx := uint16(0)
 		for _, d := range data {
-			require.EqualValues(t, d, st.AtIdxLayerTwo(idx))
+			require.EqualValues(t, d, st.GetDataAtIdxLong(idx))
 			idx++
 		}
 		for _, d := range data {
-			require.EqualValues(t, d, st.AtIdxLayerTwo(idx))
+			require.EqualValues(t, d, st.GetDataAtIdxLong(idx))
 			idx++
 		}
 	})

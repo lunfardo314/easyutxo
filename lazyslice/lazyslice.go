@@ -371,9 +371,13 @@ func (st *Tree) GetDataAtPathAtIdx(idx byte, path ...byte) []byte {
 	return ret
 }
 
-// PushNewSubtreeAtPath pushes creates a new Array at the end of the path, if it exists
-func (st *Tree) PushNewSubtreeAtPath(path ...byte) {
-	st.PushDataAtPath(ArrayFromBytes(emptyArrayPrefix.Bytes()).Bytes(), path...)
+func (st *Tree) PushSubtreeFromBytesAtPath(data []byte, path ...byte) {
+	st.PushDataAtPath(data, path...)
+}
+
+// PushEmptySubtreeAtPath pushes creates a new Array at the end of the path, if it exists
+func (st *Tree) PushEmptySubtreeAtPath(path ...byte) {
+	st.PushSubtreeFromBytesAtPath(emptyArrayPrefix.Bytes(), path...)
 }
 
 // NumElementsAtPath returns number of elements of the Array at the end of path
@@ -396,30 +400,38 @@ func (st *Tree) IsFullAtPath(path ...byte) bool {
 	return st.NumElementsAtPath(path...) >= 256
 }
 
-// PushLayerTwo is needed when we want to have lists with more than 255 elements.
+//------------------------------------------------------------------------------
+
+// PushLong is needed when we want to have lists with more than 255 elements.
 // We do two leveled tree and address each element with uint16 or two bytes
-func (st *Tree) PushLayerTwo(data []byte) {
-	n := st.NumElementsAtPath()
+func (st *Tree) PushLong(data []byte, path ...byte) {
+	n := st.NumElementsAtPath(path...)
 	var idx byte
 	if n == 0 {
-		st.PushNewSubtreeAtPath()
+		st.PushEmptySubtreeAtPath(path...)
 		idx = 0
 	} else {
 		idx = byte(n) - 1
-		if st.NumElementsAtPath(idx) >= MaxElementsLazyTree {
-			st.PushNewSubtreeAtPath()
+		p := make([]byte, len(path), len(path)+1)
+		copy(p, path)
+		p = append(p, idx)
+		if st.NumElementsAtPath(p...) >= MaxElementsLazyTree {
+			st.PushEmptySubtreeAtPath()
 			idx += 1
 		}
 	}
 	st.PushDataAtPath(data, idx)
 }
 
-func (st *Tree) AtIdxLayerTwo(idx uint16) []byte {
-	return st.BytesAtPath(easyutxo.EncodeInteger(idx)...)
+func (st *Tree) GetDataAtIdxLong(idx uint16, path ...byte) []byte {
+	p := make([]byte, len(path), len(path)+2)
+	copy(p, path)
+	p = append(p, easyutxo.EncodeInteger(idx)...)
+	return st.BytesAtPath(p...)
 }
 
-func (st *Tree) NumElementsLayerTwo() int {
-	n := st.NumElementsAtPath()
+func (st *Tree) NumElementsLong(path ...byte) int {
+	n := st.NumElementsAtPath(path...)
 	if n == 0 {
 		return 0
 	}
