@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo"
+	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
 type OpCode uint16
@@ -34,7 +35,7 @@ func (c OpCode) String() string {
 }
 
 type instructionParser func(codeAfterOpcode []byte) (instructionRunner, []byte)
-type instructionRunner func(tx ContextAccess) bool
+type instructionRunner func(ctx *lazyslice.Tree) bool
 
 func parseOpcode(code []byte) (OpCode, []byte) {
 	var opcode OpCode
@@ -44,7 +45,7 @@ func parseOpcode(code []byte) (OpCode, []byte) {
 		parOffset = 1
 	} else {
 		if len(code) < 2 {
-			panic("unexpected end of the code")
+			panic("unexpected end of the remainingCode")
 		}
 		opcode = OpCode(easyutxo.DecodeInteger[uint16](code[:2]))
 		parOffset = 2
@@ -52,7 +53,7 @@ func parseOpcode(code []byte) (OpCode, []byte) {
 	return opcode, code[parOffset:]
 }
 
-// parseInstruction return first parsed instruction and remaining code
+// parseInstruction return first parsed instruction and remaining remainingCode
 func parseInstruction(code []byte) (instructionRunner, []byte) {
 	if len(code) == 0 {
 		return opExitRunner, code
@@ -82,6 +83,6 @@ func opExitParser(codeAfterOpcode []byte) (instructionRunner, []byte) {
 	return opExitRunner, codeAfterOpcode
 }
 
-func opExitRunner(tx ContextAccess) bool {
+func opExitRunner(ctx *lazyslice.Tree) bool {
 	return false
 }

@@ -20,6 +20,7 @@ func TestBasics(t *testing.T) {
 		require.NoError(t, err)
 		txBack := v.Transaction()
 		require.EqualValues(t, tx.Bytes(), txBack.Bytes())
+		v.ValidateOutputs()
 	})
 
 }

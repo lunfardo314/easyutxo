@@ -27,6 +27,10 @@ type ValidationContext struct {
 	tree *lazyslice.Tree
 }
 
+func (v *ValidationContext) Tree() *lazyslice.Tree {
+	return v.tree
+}
+
 const (
 	TxTreeIndexInputsLong      = byte(0)
 	TxTreeIndexParamLong       = byte(1)
@@ -91,6 +95,12 @@ func (tx *Transaction) ForEachInput(fun func(idx uint16, o OutputID) bool) {
 	}
 }
 
+func (tx *Transaction) Output(outputContext, idx byte) *Output {
+	return &Output{
+		tree: lazyslice.TreeFromBytes(tx.tree.BytesAtPath(TxTreeIndexOutputsLong, outputContext, idx)),
+	}
+}
+
 // GetValidationContext finds all inputs in the ledger state.
 // Creates a tree with transaction at long index 0 and all inputs at long index 1
 func (tx *Transaction) GetValidationContext(ledgerState LedgerState) (*ValidationContext, error) {
@@ -119,6 +129,12 @@ func (tx *Transaction) GetValidationContext(ledgerState LedgerState) (*Validatio
 
 func (v *ValidationContext) Transaction() *Transaction {
 	return FromBytes(v.tree.BytesAtPath(0))
+}
+
+func (vctx *ValidationContext) Output(outputContext byte, idx byte) *Output {
+	return &Output{
+		tree: lazyslice.TreeFromBytes(vctx.tree.BytesAtPath(0, TxTreeIndexOutputsLong, outputContext, idx)),
+	}
 }
 
 func (tx *Transaction) Validate() error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo"
+	"github.com/lunfardo314/easyutxo/engine"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -53,12 +54,12 @@ type Output struct {
 	tree *lazyslice.Tree
 }
 
-func NewOutput() *Output {
-	return &Output{lazyslice.TreeEmpty()}
-}
-
 func OutputFromBytes(data []byte) *Output {
 	return &Output{tree: lazyslice.TreeFromBytes(data)}
+}
+
+func (o *Output) Tree() *lazyslice.Tree {
+	return o.tree
 }
 
 func (o *Output) Bytes() []byte {
@@ -72,13 +73,20 @@ func (o *Output) Address() []byte {
 	return append(append(ret, addrData...), addrType...)
 }
 
-func (o *Output) Validate(vctx *ValidationContext) error {
+func (vctx *ValidationContext) ValidateOutput(outputContext, idx byte) {
+	o := vctx.Output(outputContext, idx)
 	if o.tree.NumElementsAtPath()%2 != 0 {
-		return errors.New("number of elements in the output must be even")
+		panic("number of elements in the output must be even")
 	}
 	for i := 0; i < o.tree.NumElementsAtPath()%2; i++ {
-		invocationData := o.tree.GetDataAtPathAtIdx(byte(i % 2))
-		invocationParameters := o.tree.GetDataAtPathAtIdx(byte(i%2 + 1))
-		// invoke
+		engine.Run(vctx.Tree(), 0, TxTreeIndexOutputsLong, outputContext, idx)
+	}
+}
+
+func (vctx *ValidationContext) ValidateOutputs() {
+	numOutputs := vctx.tree.NumElementsLong(0, TxTreeIndexOutputsLong)
+	for i := 0; i < numOutputs; i++ {
+		idxBin := easyutxo.EncodeInteger(uint16(i))
+		vctx.ValidateOutput(idxBin[0], idxBin[1])
 	}
 }
