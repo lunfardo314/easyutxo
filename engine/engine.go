@@ -2,8 +2,15 @@ package engine
 
 import "github.com/lunfardo314/easyutxo/lazyslice"
 
+const (
+	NumRegisters = 256
+	MaxStack     = 100
+)
+
 type engine struct {
-	stack          [][]byte
+	registers      [NumRegisters][]byte
+	stack          [MaxStack][]byte
+	stackTop       int
 	ctx            *lazyslice.Tree
 	scriptLocation []byte
 	remainingCode  []byte
@@ -13,11 +20,11 @@ type engine struct {
 // If it panics, transaction is invalid
 func Run(globalCtx *lazyslice.Tree, scriptPath ...byte) {
 	e := engine{
-		stack:          make([][]byte, 0),
 		ctx:            globalCtx,
 		scriptLocation: scriptPath,
 		remainingCode:  globalCtx.BytesAtPath(scriptPath...),
 	}
+	e.registers[0] = scriptPath
 	for e.run1Cycle() {
 	}
 }
