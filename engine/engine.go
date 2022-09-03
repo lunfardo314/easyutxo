@@ -18,11 +18,11 @@ type engine struct {
 
 // Run executes the script. If it returns, script is successful.
 // If it panics, transaction is invalid
-func Run(globalCtx *lazyslice.Tree, scriptPath ...byte) {
+func Run(globalCtx *lazyslice.Tree, scriptPath lazyslice.TreePath) {
 	e := engine{
 		ctx:            globalCtx,
 		scriptLocation: scriptPath,
-		remainingCode:  globalCtx.BytesAtPath(scriptPath...),
+		remainingCode:  globalCtx.BytesAtPath(scriptPath),
 	}
 	e.registers[0] = scriptPath
 	for e.run1Cycle() {

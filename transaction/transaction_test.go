@@ -16,7 +16,9 @@ func TestBasics(t *testing.T) {
 	t.Run("2", func(t *testing.T) {
 		ledger := utxodb.New()
 		tx := transaction.New()
-		v, err := tx.GetValidationContext(ledger)
+		require.EqualValues(t, 0, tx.NumInputs())
+		require.EqualValues(t, 0, tx.NumOutputs())
+		v, err := tx.CreateValidationContext(ledger)
 		require.NoError(t, err)
 		txBack := v.Transaction()
 		require.EqualValues(t, tx.Bytes(), txBack.Bytes())

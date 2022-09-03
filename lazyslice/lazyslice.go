@@ -17,13 +17,15 @@ import (
 type Array struct {
 	bytes          []byte
 	parsed         [][]byte
+	userBit0       bool
+	userBit1       bool
 	maxNumElements int
 }
 
 type lenPrefixType uint16
 
 // prefix of the serialized slice array are two bytes interpreted as uint16
-// The highest 2 bits (mask 0xC0) are interpreted as 4 possible DataLenBytes (0, 1, 2 and 4 bytes)
+// The highest 2 bits are interpreted as 4 possible DataLenBytes (0, 1, 2 and 4 bytes)
 // The rest is interpreted as uint16 of the number of elements in the array. Max 2^14-1 =
 // 0 byte with ArrayMaxData code, the number of bits reserved for element data length
 // 1 byte is number of elements in the array
@@ -105,9 +107,15 @@ func (a *Array) Push(data []byte) {
 	a.bytes = nil // invalidate bytes
 }
 
-func (a *Array) SetAtIdx(idx byte, data []byte) {
+func (a *Array) PutAtIdx(idx byte, data []byte) {
 	a.parsed[idx] = data
 	a.bytes = nil // invalidate bytes
+}
+
+func (a *Array) PushEmptyElements(n int) {
+	for i := 0; i < n; i++ {
+		a.Push(nil)
+	}
 }
 
 func (a *Array) ForEach(fun func(i int, data []byte) bool) {
@@ -282,10 +290,16 @@ func parseArray(data []byte, maxNumElements int) ([][]byte, error) {
 	return decodeData(data[2:], prefix.DataLenBytes(), prefix.NumElements())
 }
 
+//------------------------------------------------------------------------------
+
 type Tree struct {
-	sa       *Array
+	// bytes
+	sa *Array
+	// cache of parsed subtrees
 	subtrees map[byte]*Tree
 }
+
+type TreePath []byte
 
 const MaxElementsLazyTree = 256
 
@@ -300,18 +314,24 @@ func TreeEmpty() *Tree {
 	return TreeFromBytes(emptyArrayPrefix.Bytes())
 }
 
-// Bytes recursively updates bytes in the tree
+func Path(p ...byte) TreePath {
+	return p
+}
+
+// Bytes recursively updates bytes in the tree from leaves
 func (st *Tree) Bytes() []byte {
 	if st.sa.validBytes() {
 		return st.sa.Bytes()
 	}
-	for i, str := range st.subtrees {
-		st.sa.SetAtIdx(i, str.Bytes())
+	for i, subtree := range st.subtrees {
+		if !subtree.sa.validBytes() {
+			st.sa.PutAtIdx(i, subtree.Bytes())
+		}
 	}
 	return st.sa.Bytes()
 }
 
-// takes from cache or creates a subtree, if the data is ns nil
+// takes from cache or creates a subtree
 func (st *Tree) getSubtree(idx byte) *Tree {
 	ret, ok := st.subtrees[idx]
 	if ok {
@@ -320,121 +340,136 @@ func (st *Tree) getSubtree(idx byte) *Tree {
 	return TreeFromBytes(st.sa.At(int(idx)))
 }
 
-// PushDataAtPath Array at the end of the path must exist and must be Array
-func (st *Tree) PushDataAtPath(data []byte, path ...byte) {
+// PushData Array at the end of the path must exist and must be Array
+func (st *Tree) PushData(data []byte, path TreePath) {
 	if len(path) == 0 {
 		st.sa.Push(data)
 		return
 	}
 	subtree := st.getSubtree(path[0])
-	subtree.PushDataAtPath(data, path[1:]...)
+	subtree.PushData(data, path[1:])
 	st.subtrees[path[0]] = subtree
 	st.sa.invalidateBytes()
 	return
 }
 
-// SetDataAtPathAtIdx Array at the end of the path must exist and must be Array
-func (st *Tree) SetDataAtPathAtIdx(idx byte, data []byte, path ...byte) {
+// PutDataAtIdx Array at the end of the path must exist and must be Array
+func (st *Tree) PutDataAtIdx(idx byte, data []byte, path TreePath) {
 	if len(path) == 0 {
-		st.sa.SetAtIdx(idx, data)
+		st.sa.PutAtIdx(idx, data)
 		delete(st.subtrees, idx)
 		return
 	}
 	subtree := st.getSubtree(path[0])
-	subtree.SetDataAtPathAtIdx(idx, data, path[1:]...)
+	subtree.PutDataAtIdx(idx, data, path[1:])
 	st.subtrees[path[0]] = subtree
 	st.sa.invalidateBytes()
 }
 
-func (st *Tree) SetEmptyArrayAtPathAtIdx(idx byte, path ...byte) {
-	st.SetDataAtPathAtIdx(idx, emptyArrayPrefix.Bytes(), path...)
+func (st *Tree) SetEmptyArrayAtIdx(idx byte, path ...byte) {
+	st.PutDataAtIdx(idx, emptyArrayPrefix.Bytes(), Path(path...))
+}
+
+func (st *Tree) Subtree(path TreePath) *Tree {
+	if len(path) == 0 {
+		return st
+	}
+	subtree := st.getSubtree(path[0])
+	ret := subtree.Subtree(path[1:])
+	st.subtrees[path[0]] = subtree
+	return ret
 }
 
 // BytesAtPath returns serialized for of the element at path
-func (st *Tree) BytesAtPath(path ...byte) []byte {
+func (st *Tree) BytesAtPath(path TreePath) []byte {
 	if len(path) == 0 {
 		return st.Bytes()
 	}
 	subtree := st.getSubtree(path[0])
-	ret := subtree.BytesAtPath(path[1:]...)
+	ret := subtree.BytesAtPath(path[1:])
 	st.subtrees[path[0]] = subtree
 	return ret
 }
 
-func (st *Tree) GetDataAtPathAtIdx(idx byte, path ...byte) []byte {
-	if len(path) == 0 {
-		return st.sa.At(int(idx))
+func (st *Tree) GetDataAtIdx(idx byte, path TreePath) []byte {
+	st.BytesAtPath(path) // updates invalidated bytes
+	return st.Subtree(path).sa.At(int(idx))
+}
+
+func (st *Tree) PushSubtreeFromBytes(data []byte, path TreePath) {
+	st.PushData(data, Path(path...))
+}
+
+// PushEmptySubtrees pushes creates a new Array at the end of the path, if it exists
+func (st *Tree) PushEmptySubtrees(n int, path TreePath) {
+	for i := 0; i < n; i++ {
+		st.PushSubtreeFromBytes(emptyArrayPrefix.Bytes(), path)
 	}
-	subtree := st.getSubtree(path[0])
-	ret := subtree.GetDataAtPathAtIdx(idx, path[1:]...)
-	st.subtrees[path[0]] = subtree
-	return ret
 }
 
-func (st *Tree) PushSubtreeFromBytesAtPath(data []byte, path ...byte) {
-	st.PushDataAtPath(data, path...)
+// PushSubtree pushes data and parsed tree of that data.
+// Only correct is pushed tree is read-only (e.g. library)
+func (st *Tree) PushSubtree(tr *Tree, path TreePath) {
+	subtree := st.Subtree(path)
+	subtree.sa.Push(tr.Bytes())
+	subtree.subtrees[byte(subtree.sa.NumElements()-1)] = tr
 }
 
-// PushEmptySubtreeAtPath pushes creates a new Array at the end of the path, if it exists
-func (st *Tree) PushEmptySubtreeAtPath(path ...byte) {
-	st.PushSubtreeFromBytesAtPath(emptyArrayPrefix.Bytes(), path...)
+func (st *Tree) PutSubtreeAtIdx(tr *Tree, idx byte, path TreePath) {
+	subtree := st.Subtree(path)
+	subtree.sa.PutAtIdx(idx, tr.Bytes())
+	subtree.subtrees[idx] = tr
 }
 
-// NumElementsAtPath returns number of elements of the Array at the end of path
-func (st *Tree) NumElementsAtPath(path ...byte) int {
-	if len(path) == 0 {
-		return st.sa.NumElements()
-	}
-	subtree := st.getSubtree(path[0])
-	if subtree == nil {
-		panic("subtree cannot be nil")
-	}
-	return subtree.NumElementsAtPath(path[1:]...)
+// NumElements returns number of elements of the Array at the end of path
+func (st *Tree) NumElements(path TreePath) int {
+	return st.Subtree(path).sa.NumElements()
 }
 
-func (st *Tree) IsEmptyAtPath(path ...byte) bool {
-	return st.NumElementsAtPath(path...) == 0
+func (st *Tree) IsEmpty(path TreePath) bool {
+	return st.NumElements(path) == 0
 }
 
-func (st *Tree) IsFullAtPath(path ...byte) bool {
-	return st.NumElementsAtPath(path...) >= 256
+func (st *Tree) IsFullAtPath(path TreePath) bool {
+	return st.NumElements(path) >= 256
 }
 
 //------------------------------------------------------------------------------
 
-// PushLong is needed when we want to have lists with more than 255 elements.
+// PushLongAtPath is needed when we want to have lists with more than 255 elements.
 // We do two leveled tree and address each element with uint16 or two bytes
-func (st *Tree) PushLong(data []byte, path ...byte) {
-	n := st.NumElementsAtPath(path...)
+func (st *Tree) PushLongAtPath(data []byte, path TreePath) {
+	n := st.NumElements(path)
 	var idx byte
 	if n == 0 {
-		st.PushEmptySubtreeAtPath(path...)
+		st.PushEmptySubtrees(1, path)
 		idx = 0
 	} else {
 		idx = byte(n) - 1
 		p := make([]byte, len(path), len(path)+1)
 		copy(p, path)
 		p = append(p, idx)
-		if st.NumElementsAtPath(p...) >= MaxElementsLazyTree {
-			st.PushEmptySubtreeAtPath()
+		if st.NumElements(p) >= MaxElementsLazyTree {
+			st.PushEmptySubtrees(1, nil)
 			idx += 1
 		}
 	}
-	st.PushDataAtPath(data, idx)
+	st.PushData(data, Path(idx))
 }
 
-func (st *Tree) GetDataAtIdxLong(idx uint16, path ...byte) []byte {
+func (st *Tree) GetBytesAtIdxLong(idx uint16, path TreePath) []byte {
 	p := make([]byte, len(path), len(path)+2)
 	copy(p, path)
 	p = append(p, easyutxo.EncodeInteger(idx)...)
-	return st.BytesAtPath(p...)
+	return st.BytesAtPath(p)
 }
 
-func (st *Tree) NumElementsLong(path ...byte) int {
-	n := st.NumElementsAtPath(path...)
+func (st *Tree) NumElementsLong(path TreePath) int {
+	subtree := st.Subtree(path)
+	n := subtree.NumElements(nil)
 	if n == 0 {
 		return 0
 	}
 	idx := byte(n - 1)
-	return MaxElementsLazyTree*int(idx) + st.NumElementsAtPath(idx)
+	return MaxElementsLazyTree*int(idx) + subtree.NumElements(Path(idx))
 }

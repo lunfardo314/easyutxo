@@ -3,9 +3,12 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 )
 
 func main() {
+	fmt.Printf("MaxUint32 = %020d\n", math.MaxUint32)
+
 	nuint16 := uint16(0x0201)
 	nuint32 := uint32(0x04030201)
 	nuint64 := uint64(0x0807060504030201)

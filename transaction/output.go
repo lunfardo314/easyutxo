@@ -11,11 +11,11 @@ import (
 
 /*
 	Outputs is a lazyslice.Tree
-	1st level is pairs: (U, P) where
-	- U is script invocation
-	- P parameters of the script
-
-	The (U0 || P0) is interpreted as unlock script: the target address. It is used for indexing in the ledger state
+	1st level:
+	- at index 0 is index of validation scripts in the output. The byte value > 0 points to another element which is script
+	- all other from index 1 are data. Those which are in the index, should be invocations of scripts. The rest is just data
+	- first byte in each script invocation points to the element in the script library.
+	- The library element is a script which interprets the rest of the invocation
 */
 
 const OutputIDLength = IDLength + 2
@@ -67,26 +67,26 @@ func (o *Output) Bytes() []byte {
 }
 
 func (o *Output) Address() []byte {
-	addrType := o.tree.GetDataAtPathAtIdx(0)
-	addrData := o.tree.GetDataAtPathAtIdx(1)
+	addrType := o.tree.GetDataAtIdx(0, nil)
+	addrData := o.tree.GetDataAtIdx(1, nil)
 	ret := make([]byte, 0, len(addrType)+len(addrData))
 	return append(append(ret, addrData...), addrType...)
 }
 
-func (vctx *ValidationContext) ValidateOutput(outputContext, idx byte) {
-	o := vctx.Output(outputContext, idx)
-	if o.tree.NumElementsAtPath()%2 != 0 {
+func (v *ValidationContext) ValidateOutput(outputContext, idx byte) {
+	o := v.Output(outputContext, idx)
+	if o.tree.NumElements(nil)%2 != 0 {
 		panic("number of elements in the output must be even")
 	}
-	for i := 0; i < o.tree.NumElementsAtPath()%2; i++ {
-		engine.Run(vctx.Tree(), 0, TxTreeIndexOutputsLong, outputContext, idx)
+	for i := 0; i < o.tree.NumElements(nil)%2; i++ {
+		engine.Run(v.Tree(), Path(ValidationCtxTxIndex, TxTreeIndexOutputsLong, outputContext, idx))
 	}
 }
 
-func (vctx *ValidationContext) ValidateOutputs() {
-	numOutputs := vctx.tree.NumElementsLong(0, TxTreeIndexOutputsLong)
+func (v *ValidationContext) ValidateOutputs() {
+	numOutputs := v.tree.NumElementsLong(Path(ValidationCtxTxIndex, TxTreeIndexOutputsLong))
 	for i := 0; i < numOutputs; i++ {
 		idxBin := easyutxo.EncodeInteger(uint16(i))
-		vctx.ValidateOutput(idxBin[0], idxBin[1])
+		v.ValidateOutput(idxBin[0], idxBin[1])
 	}
 }

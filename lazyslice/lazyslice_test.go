@@ -199,30 +199,30 @@ func TestLazySliceSemantics(t *testing.T) {
 func TestSliceTreeSemantics(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		st := TreeFromBytes(nil)
-		b := st.BytesAtPath()
+		b := st.BytesAtPath(nil)
 		require.EqualValues(t, 0, len(b))
 	})
 	t.Run("empty", func(t *testing.T) {
 		st := TreeEmpty()
-		b := st.BytesAtPath()
+		b := st.BytesAtPath(nil)
 		require.EqualValues(t, []byte{0, 0}, b)
 	})
 	t.Run("nil panic", func(t *testing.T) {
 		st := TreeFromBytes(nil)
 		require.Panics(t, func() {
-			st.BytesAtPath(1)
+			st.BytesAtPath(Path(1))
 		})
 	})
 	t.Run("nonsense panic", func(t *testing.T) {
 		st := TreeFromBytes([]byte("0123456789"))
 		require.Panics(t, func() {
-			st.BytesAtPath(0)
+			st.BytesAtPath(Path(0))
 		})
 	})
 	t.Run("empty panic", func(t *testing.T) {
 		st := TreeEmpty()
 		require.Panics(t, func() {
-			st.BytesAtPath(0)
+			st.BytesAtPath(Path(0))
 		})
 	})
 	t.Run("level 1-1", func(t *testing.T) {
@@ -234,96 +234,93 @@ func TestSliceTreeSemantics(t *testing.T) {
 		t.Logf("ser len = %d bytes (%d x uint16)", len(sa.Bytes()), howMany)
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
-			tmp = st.BytesAtPath(byte(i))
+			tmp = st.BytesAtPath(Path(byte(i)))
 			require.EqualValues(t, uint16(i), easyutxo.DecodeInteger[uint16](tmp))
 		}
 		require.Panics(t, func() {
-			st.BytesAtPath(howMany)
+			st.BytesAtPath(Path(howMany))
 		})
 	})
 	t.Run("level 1-2", func(t *testing.T) {
 		st := TreeEmpty()
 		for i := 0; i < howMany; i++ {
-			st.PushDataAtPath(data[i])
+			st.PushData(data[i], nil)
 		}
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
-			tmp = st.BytesAtPath(byte(i))
+			tmp = st.BytesAtPath(Path(byte(i)))
 			require.EqualValues(t, uint16(i), binary.BigEndian.Uint16(tmp))
 		}
 		require.Panics(t, func() {
-			st.BytesAtPath(howMany)
+			st.BytesAtPath(Path(howMany))
 		})
 	})
 	t.Run("level 2 panic", func(t *testing.T) {
 		st := TreeEmpty()
 		require.Panics(t, func() {
-			st.PushDataAtPath(data[0], 1)
+			st.PushData(data[0], Path(1))
 		})
 	})
 	t.Run("level 2 panic and not", func(t *testing.T) {
 		st := TreeEmpty()
 
-		st.PushEmptySubtreeAtPath()
+		st.PushEmptySubtrees(1, nil)
 		require.NotPanics(t, func() {
-			st.PushDataAtPath(data[0], 0)
+			st.PushData(data[0], Path(0))
 		})
 
 		require.Panics(t, func() {
-			st.PushDataAtPath(data[0], 1)
+			st.PushData(data[0], Path(1))
 		})
 
-		st.PushEmptySubtreeAtPath()
+		st.PushEmptySubtrees(1, nil)
 		require.NotPanics(t, func() {
-			st.PushDataAtPath(data[0], 1)
+			st.PushData(data[0], Path(1))
 		})
 	})
 	t.Run("level 3", func(t *testing.T) {
 		st := TreeEmpty()
-		st.PushEmptySubtreeAtPath()
-		st.PushEmptySubtreeAtPath()
-		st.PushEmptySubtreeAtPath(0)
-		st.PushEmptySubtreeAtPath(0)
-		st.PushEmptySubtreeAtPath(1)
-		st.PushEmptySubtreeAtPath(1)
-		st.PushEmptySubtreeAtPath(1)
-		require.EqualValues(t, 2, st.NumElementsAtPath())
-		require.EqualValues(t, 2, st.NumElementsAtPath(0))
-		require.EqualValues(t, 3, st.NumElementsAtPath(1))
-		require.EqualValues(t, 0, st.NumElementsAtPath(0, 0))
-		require.EqualValues(t, 0, st.NumElementsAtPath(0, 1))
-		require.EqualValues(t, 0, st.NumElementsAtPath(1, 0))
-		require.EqualValues(t, 0, st.NumElementsAtPath(1, 1))
-		require.EqualValues(t, 0, st.NumElementsAtPath(1, 2))
+		st.PushEmptySubtrees(2, nil)
+		st.PushEmptySubtrees(1, Path(0))
+		st.PushEmptySubtrees(1, Path(0))
+		st.PushEmptySubtrees(3, Path(1))
+		require.EqualValues(t, 2, st.NumElements(nil))
+		require.EqualValues(t, 2, st.NumElements(Path(0)))
+		require.EqualValues(t, 3, st.NumElements(Path(1)))
+		require.EqualValues(t, 0, st.NumElements(Path(0, 0)))
+		require.EqualValues(t, 0, st.NumElements(Path(0, 1)))
+		require.EqualValues(t, 0, st.NumElements(Path(1, 0)))
+		require.EqualValues(t, 0, st.NumElements(Path(1, 1)))
+		require.EqualValues(t, 0, st.NumElements(Path(1, 2)))
 		require.Panics(t, func() {
-			st.NumElementsAtPath(0, 2)
+			st.NumElements(Path(0, 2))
 		})
 		require.Panics(t, func() {
-			st.NumElementsAtPath(1, 3)
+			st.NumElements(Path(1, 3))
 		})
 
-		st.PushDataAtPath(data[3], 1, 2)
-		require.EqualValues(t, 1, st.NumElementsAtPath(1, 2))
-		dataBack := st.BytesAtPath(1, 2, 0)
+		st.PushData(data[3], Path(1, 2))
+		require.EqualValues(t, 1, st.NumElements(Path(1, 2)))
+		dataBack := st.BytesAtPath(Path(1, 2, 0))
 		require.EqualValues(t, data[3], dataBack)
 		require.Panics(t, func() {
-			st.BytesAtPath(1, 2, 1)
+			st.BytesAtPath(Path(1, 2, 1))
 		})
 
 		bs := []byte("1234567890")
-		st.SetDataAtPathAtIdx(0, bs, 1, 2)
-		require.EqualValues(t, 1, st.NumElementsAtPath(1, 2))
-		dataBack = st.BytesAtPath(1, 2, 0)
+		st.PutDataAtIdx(0, bs, Path(1, 2))
+		require.EqualValues(t, 1, st.NumElements(Path(1, 2)))
+		dataBack = st.BytesAtPath(Path(1, 2, 0))
 		require.EqualValues(t, bs, dataBack)
 		require.Panics(t, func() {
-			st.BytesAtPath(1, 2, 1)
+			st.BytesAtPath(Path(1, 2, 1))
 		})
 		require.Panics(t, func() {
-			tmp := st.BytesAtPath(1, 2, 0, 0)
+			tmp := st.BytesAtPath(Path(1, 2, 0, 0))
 			require.EqualValues(t, 0, len(tmp))
 		})
 		require.Panics(t, func() {
-			st.BytesAtPath(1, 2, 0, 18)
+			st.BytesAtPath(Path(1, 2, 0, 18))
 		})
 	})
 	t.Run("serialize", func(t *testing.T) {
@@ -333,37 +330,37 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len root: %d", len(s))
 
-		st.PushEmptySubtreeAtPath()
+		st.PushEmptySubtrees(1, nil)
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 1 node: %d", len(s))
 
-		st.PushEmptySubtreeAtPath()
+		st.PushEmptySubtrees(1, nil)
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 2 nodes: %d", len(s))
 
-		st.PushEmptySubtreeAtPath(0)
+		st.PushEmptySubtrees(1, Path(0))
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 3 nodes: %d", len(s))
 
-		st.PushEmptySubtreeAtPath(0)
+		st.PushEmptySubtrees(1, Path(0))
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 4 nodes: %d", len(s))
 
-		st.PushEmptySubtreeAtPath(1)
+		st.PushEmptySubtrees(1, Path(1))
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 5 nodes: %d", len(s))
 
-		st.PushEmptySubtreeAtPath(1)
+		st.PushEmptySubtrees(1, Path(1))
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
@@ -372,7 +369,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		var d [100]byte
 		_, _ = rand.Read(d[:])
 
-		st.PushDataAtPath(d[:], 1, 1)
+		st.PushData(d[:], Path(1, 1))
 		s = st.Bytes()
 		s1 := make([]byte, len(s))
 		copy(s1, s)
@@ -380,7 +377,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100 bytes data: %d", len(s))
 
-		st.PushDataAtPath(d[:], 1, 1)
+		st.PushData(d[:], Path(1, 1))
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
@@ -391,7 +388,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		var dd [1000]byte
 		_, _ = rand.Read(dd[:])
 
-		st.PushDataAtPath(dd[:], 1, 1)
+		st.PushData(dd[:], Path(1, 1))
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
@@ -399,7 +396,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100+1000 bytes data: %d", len(s))
 
-		st.SetDataAtPathAtIdx(byte(st.NumElementsAtPath(1, 1)-1), dd[:500], 1, 1)
+		st.PutDataAtIdx(byte(st.NumElements(Path(1, 1))-1), dd[:500], Path(1, 1))
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
@@ -413,19 +410,19 @@ func TestTwoLayer(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		st := TreeEmpty()
 		for _, d := range data {
-			st.PushLong(d)
+			st.PushLongAtPath(d, nil)
 		}
 		for _, d := range data {
-			st.PushLong(d)
+			st.PushLongAtPath(d, nil)
 		}
-		require.EqualValues(t, 2*howMany, st.NumElementsLong())
+		require.EqualValues(t, 2*howMany, st.NumElementsLong(nil))
 		idx := uint16(0)
 		for _, d := range data {
-			require.EqualValues(t, d, st.GetDataAtIdxLong(idx))
+			require.EqualValues(t, d, st.GetBytesAtIdxLong(idx, nil))
 			idx++
 		}
 		for _, d := range data {
-			require.EqualValues(t, d, st.GetDataAtIdxLong(idx))
+			require.EqualValues(t, d, st.GetBytesAtIdxLong(idx, nil))
 			idx++
 		}
 	})
