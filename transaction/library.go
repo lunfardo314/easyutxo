@@ -13,3 +13,8 @@ func init() {
 		ScriptLibrary.PushData(scriptNA, nil)
 	}
 }
+
+const (
+	LibraryCodeReservedForLocalInvocations = byte(iota)
+	LibraryCodeReservedForInlineInvocations
+)

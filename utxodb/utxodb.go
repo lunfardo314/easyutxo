@@ -23,14 +23,14 @@ func (u *UtxoDB) AddTransaction(tx *transaction.Transaction) error {
 	}
 	// TODO run validation scripts
 	// remove spent outputs
-	tx.ForEachInput(func(idx uint16, o transaction.OutputID) bool {
+	tx.ForEachInput(func(_ uint16, o transaction.OutputID) bool {
 		delete(u.utxo, string(o[:]))
 		return true
 	})
 	// add new outputs
 	txid := tx.ID()
-	tx.ForEachOutput(func(idx uint16, o *transaction.Output) bool {
-		id := transaction.NewOutputID(txid, idx)
+	tx.ForEachOutput(func(group, idx byte, o *transaction.Output) bool {
+		id := transaction.NewOutputID(txid, group, idx)
 		u.utxo[string(id[:])] = o
 		return true
 	})

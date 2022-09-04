@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )
@@ -28,9 +27,10 @@ type Transaction struct {
 const (
 	TxTreeIndexInputsLong = byte(iota)
 	TxTreeIndexParamLong
-	TxTreeIndexOutputsLong
+	TxTreeIndexOutputGroups
 	TxTreeIndexTimestamp
 	TxTreeIndexContextCommitment
+	TxTreeIndexLocalLibrary
 	TxTreeIndexMax
 )
 
@@ -40,8 +40,9 @@ func New() *Transaction {
 	ret.tree.PushEmptySubtrees(int(TxTreeIndexMax), nil)
 	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexInputsLong))
 	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexParamLong))
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexOutputsLong))
+	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexOutputGroups))
 	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexTimestamp))
+	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexLocalLibrary))
 	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexContextCommitment))
 	return ret
 }
@@ -64,20 +65,34 @@ func (tx *Transaction) ID() ID {
 }
 
 func (tx *Transaction) NumOutputs() int {
-	return tx.tree.NumElementsLong(Path(TxTreeIndexOutputsLong))
+	return tx.tree.NumElementsLong(Path(TxTreeIndexOutputGroups))
 }
 
 func (tx *Transaction) NumInputs() int {
 	return tx.tree.NumElementsLong(Path(TxTreeIndexInputsLong))
 }
 
-func (tx *Transaction) ForEachOutput(fun func(idx uint16, o *Output) bool) {
-	for i := 0; i < tx.NumOutputs(); i++ {
-		d := tx.tree.GetBytesAtIdxLong(uint16(i), Path(TxTreeIndexOutputsLong))
-		if !fun(uint16(i), OutputFromBytes(d)) {
+func (tx *Transaction) CodeFromLocalLibrary(idx byte) []byte {
+	return tx.tree.GetDataAtIdx(idx, Path(TxTreeIndexLocalLibrary))
+}
+
+func (tx *Transaction) ForEachOutputGroup(fun func(group byte) bool) {
+	for i := 0; i < tx.tree.NumElements(Path(TxTreeIndexOutputGroups)); i++ {
+		if !fun(byte(i)) {
 			break
 		}
 	}
+}
+
+func (tx *Transaction) ForEachOutput(fun func(group, idx byte, o *Output) bool) {
+	tx.tree.ForEachSubtree(func(group byte, stGroup *lazyslice.Tree) bool {
+		var exit bool
+		stGroup.ForEachSubtree(func(idx byte, stOutput *lazyslice.Tree) bool {
+			exit = fun(group, idx, OutputFromTree(stOutput))
+			return exit
+		}, nil)
+		return exit
+	}, Path(TxTreeIndexOutputGroups))
 }
 
 func (tx *Transaction) ForEachInput(fun func(idx uint16, o OutputID) bool) {
@@ -94,45 +109,37 @@ func (tx *Transaction) ForEachInput(fun func(idx uint16, o OutputID) bool) {
 	}
 }
 
-func (tx *Transaction) Output(outputContext, idx byte) *Output {
+func (tx *Transaction) Output(group, idx byte) *Output {
 	return &Output{
-		tree: lazyslice.TreeFromBytes(tx.tree.BytesAtPath(Path(TxTreeIndexOutputsLong, outputContext, idx))),
+		tree: lazyslice.TreeFromBytes(tx.tree.BytesAtPath(Path(TxTreeIndexOutputGroups, group, idx))),
 	}
 }
 
 func (tx *Transaction) Validate() error {
-	return easyutxo.CatchPanic(func() {
-		tx.RunValidationScripts()
-	})
-}
-
-func (tx *Transaction) RunValidationScripts() {
-
-}
-
-func (tx *Transaction) CheckUnboundedConstraints() {
-
+	panic("implement me")
+	//return easyutxo.CatchPanic(func() {
+	//	tx.RunValidationScripts()
+	//})
 }
 
 // CreateValidationContext finds all inputs in the ledger state.
 // Creates a tree with transaction at long index 0 and all inputs at long index 1
+//
 func (tx *Transaction) CreateValidationContext(ledgerState LedgerState) (*ValidationContext, error) {
 	ret := &ValidationContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(ValidationCtxIndexMax), nil)
-	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTxIndex, nil)                  // #0 transaction body
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ValidationCtxtInputsIndex, nil) // #1 validation context (inputs)
-	ret.tree.PutSubtreeAtIdx(ScriptLibrary, ValidationCtxScriptLibraryIndex, nil)   // #2 script library tree
+	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTransactionIndex, nil)        // #0 transaction body
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ValidationCtxInputsIndex, nil) // #1 validation context (inputs)
+	ret.tree.PutSubtreeAtIdx(ScriptLibrary, ValidationCtxGlobalLibraryIndex, nil)  // #2 global script library tree
 
 	var err error
-	txid := tx.ID()
 	tx.ForEachInput(func(idx uint16, oid OutputID) bool {
-		outputID := NewOutputID(txid, idx)
-		od, ok := ledgerState.GetUTXO(&outputID)
+		od, ok := ledgerState.GetUTXO(&oid)
 		if !ok {
 			err = fmt.Errorf("input not found: %s", oid.String())
 			return false
 		}
-		ret.tree.PushLongAtPath(od, Path(ValidationCtxtInputsIndex))
+		ret.tree.PushLongAtPath(od, Path(ValidationCtxInputsIndex))
 		return true
 	})
 	if err != nil {

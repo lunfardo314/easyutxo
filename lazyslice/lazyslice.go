@@ -319,6 +319,10 @@ func Path(p ...byte) TreePath {
 	return p
 }
 
+func (p TreePath) String() string {
+	return fmt.Sprintf("%v", p)
+}
+
 // Bytes recursively updates bytes in the tree from leaves
 func (st *Tree) Bytes() []byte {
 	if st.sa.validBytes() {
@@ -433,6 +437,22 @@ func (st *Tree) IsEmpty(path TreePath) bool {
 
 func (st *Tree) IsFullAtPath(path TreePath) bool {
 	return st.NumElements(path) >= 256
+}
+
+func (st *Tree) ForEachIndex(fun func(i byte) bool, path TreePath) {
+	for i := 0; i < st.NumElements(path); i++ {
+		if !fun(byte(i)) {
+			break
+		}
+	}
+}
+
+func (st *Tree) ForEachSubtree(fun func(idx byte, subtree *Tree) bool, path TreePath) {
+	subtree := st.Subtree(path)
+	subtree.ForEachIndex(func(i byte) bool {
+		subtree1 := subtree.Subtree(Path(i))
+		return fun(i, subtree1)
+	}, nil)
 }
 
 //------------------------------------------------------------------------------

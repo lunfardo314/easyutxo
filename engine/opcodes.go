@@ -9,10 +9,10 @@ import (
 
 type OpCode uint16
 
-const extendedOpcodeMask = 0x80
+const ExtendedOpcodeMask = 0x80
 
 func isShortOpcode(firstByte byte) bool {
-	return firstByte&extendedOpcodeMask == 0
+	return firstByte&ExtendedOpcodeMask == 0
 }
 
 func (c OpCode) AsBytes() []byte {
@@ -37,7 +37,7 @@ func (c OpCode) String() string {
 type instructionParser func(codeAfterOpcode []byte) (instructionRunner, []byte)
 type instructionRunner func(ctx *lazyslice.Tree) bool
 
-func parseOpcode(code []byte) (OpCode, []byte) {
+func ParseOpcode(code []byte) (OpCode, []byte) {
 	var opcode OpCode
 	var parOffset int
 	if isShortOpcode(code[0]) {
@@ -58,7 +58,7 @@ func parseInstruction(code []byte) (instructionRunner, []byte) {
 	if len(code) == 0 {
 		return opExitRunner, code
 	}
-	opcode, codeAfterOpcode := parseOpcode(code)
+	opcode, codeAfterOpcode := ParseOpcode(code)
 	dscr, found := opcodes[opcode]
 	if !found {
 		panic(opcode)
