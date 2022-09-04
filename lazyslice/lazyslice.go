@@ -98,13 +98,14 @@ func (a *Array) IsFull() bool {
 	return a.NumElements() >= a.maxNumElements
 }
 
-func (a *Array) Push(data []byte) {
+func (a *Array) Push(data []byte) int {
 	if len(a.parsed) >= a.maxNumElements {
 		panic("Array.Push: too many elements")
 	}
 	a.ensureParsed()
 	a.parsed = append(a.parsed, data)
 	a.bytes = nil // invalidate bytes
+	return len(a.parsed) - 1
 }
 
 func (a *Array) PutAtIdx(idx byte, data []byte) {
@@ -341,16 +342,15 @@ func (st *Tree) getSubtree(idx byte) *Tree {
 }
 
 // PushData Array at the end of the path must exist and must be Array
-func (st *Tree) PushData(data []byte, path TreePath) {
+func (st *Tree) PushData(data []byte, path TreePath) int {
 	if len(path) == 0 {
-		st.sa.Push(data)
-		return
+		return st.sa.Push(data)
 	}
 	subtree := st.getSubtree(path[0])
-	subtree.PushData(data, path[1:])
+	ret := subtree.PushData(data, path[1:])
 	st.subtrees[path[0]] = subtree
 	st.sa.invalidateBytes()
-	return
+	return ret
 }
 
 // PutDataAtIdx Array at the end of the path must exist and must be Array
@@ -396,8 +396,8 @@ func (st *Tree) GetDataAtIdx(idx byte, path TreePath) []byte {
 	return st.Subtree(path).sa.At(int(idx))
 }
 
-func (st *Tree) PushSubtreeFromBytes(data []byte, path TreePath) {
-	st.PushData(data, Path(path...))
+func (st *Tree) PushSubtreeFromBytes(data []byte, path TreePath) int {
+	return st.PushData(data, Path(path...))
 }
 
 // PushEmptySubtrees pushes creates a new Array at the end of the path, if it exists
@@ -409,10 +409,11 @@ func (st *Tree) PushEmptySubtrees(n int, path TreePath) {
 
 // PushSubtree pushes data and parsed tree of that data.
 // Only correct is pushed tree is read-only (e.g. library)
-func (st *Tree) PushSubtree(tr *Tree, path TreePath) {
+func (st *Tree) PushSubtree(tr *Tree, path TreePath) int {
 	subtree := st.Subtree(path)
-	subtree.sa.Push(tr.Bytes())
+	ret := subtree.sa.Push(tr.Bytes())
 	subtree.subtrees[byte(subtree.sa.NumElements()-1)] = tr
+	return ret
 }
 
 func (st *Tree) PutSubtreeAtIdx(tr *Tree, idx byte, path TreePath) {
@@ -438,7 +439,7 @@ func (st *Tree) IsFullAtPath(path TreePath) bool {
 
 // PushLongAtPath is needed when we want to have lists with more than 255 elements.
 // We do two leveled tree and address each element with uint16 or two bytes
-func (st *Tree) PushLongAtPath(data []byte, path TreePath) {
+func (st *Tree) PushLongAtPath(data []byte, path TreePath) int {
 	n := st.NumElements(path)
 	var idx byte
 	if n == 0 {
@@ -455,6 +456,7 @@ func (st *Tree) PushLongAtPath(data []byte, path TreePath) {
 		}
 	}
 	st.PushData(data, Path(idx))
+	return st.NumElementsLong(path) - 1
 }
 
 func (st *Tree) GetBytesAtIdxLong(idx uint16, path TreePath) []byte {
