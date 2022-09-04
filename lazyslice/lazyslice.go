@@ -439,6 +439,7 @@ func (st *Tree) IsFullAtPath(path TreePath) bool {
 
 // PushLongAtPath is needed when we want to have lists with more than 255 elements.
 // We do two leveled tree and address each element with uint16 or two bytes
+// Return long index of the pushed element
 func (st *Tree) PushLongAtPath(data []byte, path TreePath) int {
 	n := st.NumElements(path)
 	var idx byte
