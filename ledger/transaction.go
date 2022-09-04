@@ -1,4 +1,4 @@
-package transaction
+package ledger
 
 import (
 	"encoding/hex"
@@ -34,7 +34,7 @@ const (
 	TxTreeIndexMax
 )
 
-// New empty transaction skeleton
+// New empty ledger skeleton
 func New() *Transaction {
 	ret := &Transaction{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(TxTreeIndexMax), nil)
@@ -47,7 +47,7 @@ func New() *Transaction {
 	return ret
 }
 
-// FromBytes transaction from bytes
+// FromBytes ledger from bytes
 func FromBytes(data []byte) *Transaction {
 	return &Transaction{tree: lazyslice.TreeFromBytes(data)}
 }
@@ -123,12 +123,12 @@ func (tx *Transaction) Validate() error {
 }
 
 // CreateValidationContext finds all inputs in the ledger state.
-// Creates a tree with transaction at long index 0 and all inputs at long index 1
+// Creates a tree with ledger at long index 0 and all inputs at long index 1
 //
 func (tx *Transaction) CreateValidationContext(ledgerState LedgerState) (*ValidationContext, error) {
 	ret := &ValidationContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(ValidationCtxIndexMax), nil)
-	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTransactionIndex, nil)        // #0 transaction body
+	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTransactionIndex, nil)        // #0 ledger body
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ValidationCtxInputsIndex, nil) // #1 validation context (inputs)
 	ret.tree.PutSubtreeAtIdx(ScriptLibrary, ValidationCtxGlobalLibraryIndex, nil)  // #2 global script library tree
 

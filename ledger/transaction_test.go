@@ -1,24 +1,24 @@
-package transaction_test
+package ledger_test
 
 import (
 	"testing"
 
-	"github.com/lunfardo314/easyutxo/transaction"
-	"github.com/lunfardo314/easyutxo/utxodb"
+	"github.com/lunfardo314/easyutxo/ledger"
+	"github.com/lunfardo314/easyutxo/ledger/utxodb"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBasics(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		tx := transaction.New()
+		tx := ledger.New()
 		t.Logf("empty tx size: %d", len(tx.Bytes()))
 	})
 	t.Run("2", func(t *testing.T) {
-		ledger := utxodb.New()
-		tx := transaction.New()
+		utxodb := utxodb.New()
+		tx := ledger.New()
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())
-		v, err := tx.CreateValidationContext(ledger)
+		v, err := tx.CreateValidationContext(utxodb)
 		require.NoError(t, err)
 		txBack := v.Transaction()
 		require.EqualValues(t, tx.Bytes(), txBack.Bytes())

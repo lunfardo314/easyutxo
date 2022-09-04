@@ -9,37 +9,70 @@ const (
 	MaxStack     = 100
 )
 
-type engine struct {
-	registers [NumRegisters][]byte
-	stack     [MaxStack][]byte
-	stackTop  int
-	ctx       *lazyslice.Tree
-}
+type (
+	Engine interface {
+		Push(data []byte)
+		Pop()
+	}
+	engine struct {
+		opcodes   Opcodes
+		registers [NumRegisters][]byte
+		stack     [MaxStack][]byte
+		stackTop  int
+		ctx       *lazyslice.Tree
+	}
+	OpCode interface {
+		Bytes() []byte
+		Uint16() uint16
+		String() string
+		Name() string
+	}
+	Opcodes interface {
+		// ParseInstruction return first parsed instruction and remaining remainingCode
+		ParseInstruction(code []byte) (InstructionRunner, []byte)
+	}
+
+	InstructionParser func(codeAfterOpcode []byte) (InstructionRunner, []byte)
+	InstructionRunner func(e Engine) bool
+)
 
 const (
 	RegInvocationPath = byte(iota)
-	RegInvocationData
 	RegRemainingCode
 )
 
 // Run executes the script. If it returns, script is successful.
-// If it panics, transaction is invalid
+// If it panics, ledger is invalid
 // invocationFullPath starts from validation root:
 //  (a) (inputs, idx1, idx0, idxInsideOutput)
 //  (b) (tx, context, idx, idxInsideOutput)
-func Run(ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, code, data []byte) {
+func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, code, data []byte) {
 	e := engine{
-		ctx: ctx,
+		opcodes: opcodes,
+		ctx:     ctx,
 	}
 	e.registers[RegInvocationPath] = invocationFullPath
 	e.registers[RegRemainingCode] = code
-	e.registers[RegInvocationData] = data
+	e.Push(data)
 	for e.run1Cycle() {
 	}
 }
 
+func (e *engine) Push(data []byte) {
+	e.stack[e.stackTop] = data
+	e.stackTop++
+}
+
+func (e *engine) Pop() {
+	if e.stackTop == 0 {
+		panic("Pop: stack is empty")
+	}
+	e.stackTop--
+	e.stack[e.stackTop] = nil // for GC
+}
+
 func (e *engine) run1Cycle() bool {
-	var instrRunner instructionRunner
-	instrRunner, e.registers[RegRemainingCode] = parseInstruction(e.registers[RegRemainingCode])
-	return instrRunner(e.ctx)
+	var instrRunner InstructionRunner
+	instrRunner, e.registers[RegRemainingCode] = e.opcodes.ParseInstruction(e.registers[RegRemainingCode])
+	return instrRunner(e)
 }

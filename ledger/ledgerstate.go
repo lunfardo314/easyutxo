@@ -1,4 +1,4 @@
-package transaction
+package ledger
 
 type LedgerState interface {
 	GetUTXO(id *OutputID) (OutputData, bool)

@@ -1,4 +1,4 @@
-package transaction
+package ledger
 
 import "github.com/lunfardo314/easyutxo/lazyslice"
 

@@ -1,4 +1,4 @@
-package transaction
+package ledger
 
 import (
 	"errors"
@@ -18,7 +18,7 @@ const (
 	OutputIndexAddress
 )
 
-// Output represents output (UTXO) in the transaction
+// Output represents output (UTXO) in the ledger
 type Output struct {
 	tree *lazyslice.Tree
 }
@@ -67,16 +67,16 @@ func (o *Output) Address() []byte {
 	return o.tree.GetDataAtIdx(OutputIndexAddress, nil)
 }
 
-// ValidateOutput invokes all invokable scripts in the output in the context of transaction (not input)
+// ValidateOutput invokes all invokable scripts in the output in the context of ledger (not input)
 func (v *ValidationContext) ValidateOutput(outputContext, idx byte) {
 	o := v.Output(outputContext, idx)
 	invocationList := o.tree.GetDataAtIdx(0, nil)
 	for _, invokeAtIdx := range invocationList {
-		v.Invoke(Path(ValidationCtxTransactionIndex, TxTreeIndexOutputGroups, outputContext, idx, invokeAtIdx))
+		v.RunScript(Path(ValidationCtxTransactionIndex, TxTreeIndexOutputGroups, outputContext, idx, invokeAtIdx))
 	}
 }
 
-// ValidateOutputs traverses all outputs in the transaction and validates each
+// ValidateOutputs traverses all outputs in the ledger and validates each
 func (v *ValidationContext) ValidateOutputs() {
 
 }

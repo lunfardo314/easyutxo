@@ -1,8 +1,9 @@
-package transaction
+package ledger
 
 import (
 	"github.com/lunfardo314/easyutxo/engine"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/opcodes"
 )
 
 type ValidationContext struct {
@@ -49,14 +50,14 @@ func (v *ValidationContext) ParseInvocation(invocationFullPath lazyslice.TreePat
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	switch invocation[0] {
 	case LibraryCodeReservedForLocalInvocations:
-		return v.CodeFromLocalLibrary(invocation[1]), invocation[1:]
+		return v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
 	case LibraryCodeReservedForInlineInvocations:
 		return invocation[1:], nil
 	}
 	return v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
 }
 
-func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) {
+func (v *ValidationContext) RunScript(invocationPath lazyslice.TreePath) {
 	code, data := v.ParseInvocation(v.tree.BytesAtPath(invocationPath))
-	engine.Run(v.Tree(), invocationPath, code, data)
+	engine.Run(opcodes.Library, v.Tree(), invocationPath, code, data)
 }
