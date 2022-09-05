@@ -10,11 +10,17 @@ const (
 	OPS_NOP = OpCode(iota)
 	OPS_EXIT
 	OPS_POP
-	OPS_CHECK_LEN8
-	OPS_PUSH_REG
+	OPS_EQUAL_LEN8
+	OPS_LOAD_FROM_REG
+	OPS_SAVE_TO_REG
+	OPS_PUSH_FALSE
 	// control
+	OPS_JUMP8_ON_INPUT_CTX
+	OPS_JUMP16_ON_INPUT_CTX
 	OPS_JUMP8_ON_TRUE
+	OPS_JUMP16_ON_TRUE
 	OPS_JUMP8_ON_FALSE
+	OPS_JUMP16_ON_FALSE
 	// other
 	OPS_SIGLOCK_ED25519
 )
@@ -24,62 +30,103 @@ const (
 )
 
 var All = allOpcodes{
-	OPS_NOP:             {"OPS_NOP", noParamParser(nopRunner)},
-	OPS_EXIT:            {"OPS_EXIT", noParamParser(exitRunner)},
-	OPS_POP:             {"OPS_POP", noParamParser(popRunner)},
-	OPS_CHECK_LEN8:      {"OPS_CHECK_LEN8", oneByteParameterParser(checkLen8Runner)},
-	OPS_PUSH_REG:        {"OPS_PUSH_REG", oneByteParameterParser(pushRegRunner)},
+	OPS_NOP:           {"OPS_NOP", noParamParser(runNOP)},
+	OPS_EXIT:          {"OPS_EXIT", noParamParser(runExit)},
+	OPS_POP:           {"OPS_POP", noParamParser(runPop)},
+	OPS_EQUAL_LEN8:    {"OPS_EQUAL_LEN8", oneByteParameterParser(runEqual8)},
+	OPS_LOAD_FROM_REG: {"OPS_LOAD_FROM_REG", oneByteParameterParser(runLoadFromReg)},
+	OPS_SAVE_TO_REG:   {"OPS_SAVE_TO_REG", saveToRegisterParser()},
+	OPS_PUSH_FALSE:    {"OPS_PUSH_FALSE", noParamParser(runPushFalse)},
+	// flow control
+	OPS_JUMP8_ON_INPUT_CTX:  {"OPS_JUMP8_ON_INPUT_CTX", oneByteParameterParser(runJump8OnInputContext)},
+	OPS_JUMP16_ON_INPUT_CTX: {"OPS_JUMP16_ON_INPUT_CTX", twoByteParameterParser(runJump16OnInputContext)},
+	OPS_JUMP8_ON_TRUE:       {"OPS_JUMP8_ON_TRUE", oneByteParameterParser(runJump8OnTrue)},
+	OPS_JUMP16_ON_TRUE:      {"OPS_JUMP16_ON_TRUE", twoByteParameterParser(runJump16OnTrue)},
+	OPS_JUMP8_ON_FALSE:      {"OPS_JUMP8_ON_FALSE", oneByteParameterParser(runJump8OnFalse)},
+	OPS_JUMP16_ON_FALSE:     {"OPS_JUMP16_ON_FALSE", twoByteParameterParser(runJump16OnFalse)},
+	// other
 	OPS_SIGLOCK_ED25519: {"OPS_SIGLOCK_ED25519", noParamParser(opSigED25519Runner)},
-	OPL_RESERVED126:     {"reserved long opcode", noParamParser(reservedOpcodeRunner)},
+	OPL_RESERVED126:     {"reserved long opcode", noParamParser(runReservedOpcode)},
 }
 
 func mustParLen(par []byte, n int) {
 	if len(par) != n {
-		panic(fmt.Errorf("instruction parameter must be #%d bytes long", n))
+		panic(fmt.Errorf("instruction parameter must be %d bytes long", n))
 	}
 }
 
-func noParamParser(runner engine.InstructionRunner) engine.InstructionParser {
+// parsers
+
+func noParamParser(runner engine.InstructionRunner) engine.InstructionParameterParser {
 	return func(codeAfterOpcode []byte) (engine.InstructionRunner, []byte) {
 		return runner, nil
 	}
 }
 
-func oneByteParameterParser(runner engine.InstructionRunner) engine.InstructionParser {
+func oneByteParameterParser(runner engine.InstructionRunner) engine.InstructionParameterParser {
 	return func(codeAfterOpcode []byte) (engine.InstructionRunner, []byte) {
-		return runner, []byte{codeAfterOpcode[0]}
+		return runner, codeAfterOpcode[:1]
 	}
 }
 
-func nopRunner(_ *engine.Engine, d []byte) bool {
-	mustParLen(d, 0)
-	return true
+func twoByteParameterParser(runner engine.InstructionRunner) engine.InstructionParameterParser {
+	return func(codeAfterOpcode []byte) (engine.InstructionRunner, []byte) {
+		return runner, codeAfterOpcode[:2]
+	}
 }
 
-func exitRunner(_ *engine.Engine, d []byte) bool {
-	mustParLen(d, 0)
-	return false
+func saveToRegisterParser() engine.InstructionParameterParser {
+	return func(codeAfterOpcode []byte) (engine.InstructionRunner, []byte) {
+		return runSaveToRegister, codeAfterOpcode[:2+codeAfterOpcode[1]]
+	}
 }
 
-func reservedOpcodeRunner(_ *engine.Engine, _ []byte) bool {
+// runners
+
+func runNOP(e *engine.Engine, d []byte) {
+	mustParLen(d, 0)
+	e.Move(1)
+}
+
+func runExit(e *engine.Engine, d []byte) {
+	mustParLen(d, 0)
+	e.Exit()
+}
+
+func runReservedOpcode(_ *engine.Engine, _ []byte) {
 	panic("reserved opcode")
 }
 
-func popRunner(e *engine.Engine, d []byte) bool {
+func runPop(e *engine.Engine, d []byte) {
 	mustParLen(d, 0)
 	e.Pop()
-	return false
+	e.Move(1)
 }
 
-// checkLen8Runner pushes true/false if length of data at the stack top  equals to the byte parameter of the instruction
-func checkLen8Runner(e *engine.Engine, d []byte) bool {
+// runEqual8 pushes true/false if length of data at the stack top equals to the byte parameter of the instruction
+func runEqual8(e *engine.Engine, d []byte) {
 	mustParLen(d, 1)
 	e.PushBool(len(e.Top()) == int(d[0]))
-	return true
+	e.Move(1 + 1)
 }
 
-func pushRegRunner(e *engine.Engine, d []byte) bool {
+func runLoadFromReg(e *engine.Engine, d []byte) {
 	mustParLen(d, 1)
-	e.PushReg(d[0])
-	return true
+	e.PushFromReg(d[0])
+	e.Move(1 + 1)
+}
+
+func runSaveToRegister(e *engine.Engine, d []byte) {
+	if len(d) < 2 {
+		panic("instruction parameter expected to be at least 2 bytes long")
+	}
+	mustParLen(d[2:], int(d[1]))
+	e.PutToReg(d[0], d[2:])
+	e.Move(2 + int(d[1]))
+}
+
+func runPushFalse(e *engine.Engine, d []byte) {
+	mustParLen(d, 0)
+	e.PushBool(false)
+	e.Move(1)
 }

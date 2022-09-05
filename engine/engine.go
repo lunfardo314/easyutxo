@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -11,11 +13,14 @@ const (
 
 type (
 	Engine struct {
-		opcodes   Opcodes
-		registers [NumRegisters][]byte
-		stack     [MaxStack][]byte
-		stackTop  int
-		ctx       *lazyslice.Tree
+		opcodes      Opcodes
+		code         []byte
+		instrCounter int
+		registers    [NumRegisters][]byte
+		stack        [MaxStack][]byte
+		stackTop     int
+		ctx          *lazyslice.Tree
+		exit         bool
 	}
 	OpCode interface {
 		Bytes() []byte
@@ -24,18 +29,18 @@ type (
 		Name() string
 	}
 	Opcodes interface {
-		// ParseInstruction return first parsed instruction and remaining remainingCode
+		// ParseInstruction returns instruction runner, opcode length and instruction parameters
 		ParseInstruction(code []byte) (InstructionRunner, []byte)
 		ValidateOpcode(oc OpCode) error
 	}
-	InstructionParser func(codeAfterOpcode []byte) (InstructionRunner, []byte)
-	InstructionRunner func(e *Engine, paramBytes []byte) bool
+	InstructionParameterParser func(codeAfterOpcode []byte) (InstructionRunner, []byte)
+	InstructionRunner          func(e *Engine, paramBytes []byte)
 )
 
 const (
 	RegInvocationPath = byte(iota)
 	RegInvocationData
-	RegRemainingCode
+	FirstWriteableRegister
 )
 
 // Run executes the script. If it returns, script is successful.
@@ -45,14 +50,22 @@ const (
 //  (b) (tx, context, idx, idxInsideOutput)
 func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, code, data []byte) {
 	e := Engine{
+		code:    code,
 		opcodes: opcodes,
 		ctx:     ctx,
 	}
 	e.registers[RegInvocationPath] = invocationFullPath
 	e.registers[RegInvocationData] = data
-	e.registers[RegRemainingCode] = code
 	for e.run1Cycle() {
 	}
+}
+
+func (e *Engine) Exit() {
+	e.exit = true
+}
+
+func (e *Engine) RegValue(reg byte) []byte {
+	return e.registers[reg]
 }
 
 func (e *Engine) Push(data []byte) {
@@ -60,8 +73,15 @@ func (e *Engine) Push(data []byte) {
 	e.stackTop++
 }
 
-func (e *Engine) PushReg(reg byte) {
+func (e *Engine) PushFromReg(reg byte) {
 	e.Push(e.registers[reg])
+}
+
+func (e *Engine) PutToReg(reg byte, data []byte) {
+	if reg < FirstWriteableRegister {
+		panic(fmt.Errorf("attept to write to read-only register #%d", reg))
+	}
+	e.registers[reg] = data
 }
 
 func (e *Engine) Pop() {
@@ -91,21 +111,12 @@ func (e *Engine) Top() []byte {
 	return e.stack[e.stackTop-1]
 }
 
-func (e *Engine) Jump8(offset byte) bool {
-	e.registers[RegRemainingCode] = e.registers[RegRemainingCode][offset:]
-	return true
-}
-
-func (e *Engine) Jump16(offset uint16) bool {
-	e.registers[RegRemainingCode] = e.registers[RegRemainingCode][offset:]
-	return true
+func (e *Engine) Move(offset int) {
+	e.instrCounter += offset
 }
 
 func (e *Engine) run1Cycle() bool {
-	var instrRunner InstructionRunner
-	var paramData []byte
-	instrRunner, paramData = e.opcodes.ParseInstruction(e.registers[RegRemainingCode])
-	// TODO negerai
-	e.registers[RegRemainingCode] = e.registers[RegRemainingCode][len(paramData):]
-	return instrRunner(e, paramData)
+	instrRunner, paramData := e.opcodes.ParseInstruction(e.code[e.instrCounter:])
+	instrRunner(e, paramData)
+	return !e.exit
 }

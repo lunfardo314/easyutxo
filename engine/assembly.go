@@ -32,12 +32,13 @@ func NewProgram(opcodes Opcodes) *Program {
 // OP starts new instruction
 func (p *Program) OP(c OpCode) *Program {
 	if err := p.opcodes.ValidateOpcode(c); err != nil {
-		panic(fmt.Errorf("error at instruction #%d: %v", len(p.instructions), err))
+		panic(fmt.Errorf("error @ instruction #%d: %v", len(p.instructions), err))
 	}
 	p.label = false
 	p.instructions = append(p.instructions, instruction{
 		bytes:      make([]byte, 0, 10),
 		shortJumps: make(map[byte]string),
+		longJumps:  make(map[byte]string),
 	})
 	p.append(c.Bytes()...)
 	return p
@@ -66,7 +67,7 @@ func (p *Program) JL(label string) *Program {
 		panic("label in wrong position")
 	}
 	p.markToResolveLong(label)
-	p.append(easyutxo.EncodeInteger(uint16(0))...)
+	p.append(0, 0)
 	return p
 }
 
@@ -151,10 +152,10 @@ func (p *Program) append(b ...byte) {
 
 func (p *Program) markToResolveShort(label string) {
 	last := len(p.instructions) - 1
-	p.instructions[last].shortJumps[byte(len(p.instructions))] = label
+	p.instructions[last].shortJumps[byte(len(p.instructions[last].bytes))] = label
 }
 
 func (p *Program) markToResolveLong(label string) {
 	last := len(p.instructions) - 1
-	p.instructions[last].longJumps[byte(len(p.instructions))] = label
+	p.instructions[last].longJumps[byte(len(p.instructions[last].bytes))] = label
 }

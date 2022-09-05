@@ -320,7 +320,7 @@ func Path(p ...byte) TreePath {
 }
 
 func (p TreePath) String() string {
-	return fmt.Sprintf("%v", p)
+	return fmt.Sprintf("%v", []byte(p))
 }
 
 // Bytes recursively updates bytes in the tree from leaves

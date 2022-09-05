@@ -11,21 +11,22 @@ type (
 	OpCode           uint16
 	opcodeDescriptor struct {
 		name   string
-		parser engine.InstructionParser
+		parser engine.InstructionParameterParser
 	}
 	allOpcodes map[OpCode]opcodeDescriptor
 )
 
 func (lib allOpcodes) ParseInstruction(code []byte) (engine.InstructionRunner, []byte) {
 	if len(code) == 0 {
-		return exitRunner, code
+		return runExit, code
 	}
-	opcode, codeAfterOpcode := ParseOpcode(code)
+	opcode, offs := ParseOpcode(code)
 	dscr, found := lib[opcode]
 	if !found {
 		panic(opcode)
 	}
-	return dscr.parser(codeAfterOpcode)
+	runner, par := dscr.parser(code[offs:])
+	return runner, par
 }
 
 func (lib allOpcodes) ValidateOpcode(oc engine.OpCode) error {
@@ -70,7 +71,7 @@ func (c OpCode) IsShort() bool {
 	return uint16(c) <= MaxShortOpcode
 }
 
-func ParseOpcode(code []byte) (OpCode, []byte) {
+func ParseOpcode(code []byte) (OpCode, int) {
 	var op OpCode
 	var retOffset int
 	if isShortOpcodeByte(code[0]) {
@@ -83,7 +84,7 @@ func ParseOpcode(code []byte) (OpCode, []byte) {
 		op = OpCode(uint16(code[0]) + uint16(code[1])<<8)
 		retOffset = 2
 	}
-	return op, code[retOffset:]
+	return op, retOffset
 }
 
 func GenProgram(fun func(p *engine.Program)) ([]byte, error) {
