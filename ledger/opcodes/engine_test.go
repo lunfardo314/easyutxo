@@ -13,17 +13,17 @@ import (
 func TestOpcodes(t *testing.T) {
 	t.Run("opcodes1", func(t *testing.T) {
 		require.True(t, opcodes.OPS_EXIT.IsShort())
-		require.True(t, opcodes.OPS_SIG_ED25519.IsShort())
-		require.False(t, opcodes.OPL_L1.IsShort())
+		require.True(t, opcodes.OPS_SIGLOCK_ED25519.IsShort())
+		require.False(t, opcodes.OPL_RESERVED126.IsShort())
 		oc := opcodes.OpCode(0)
 		t.Logf("%s", oc)
 		oc = opcodes.OPS_EXIT
 		t.Logf("%s", oc)
-		oc = opcodes.OPS_SIG_ED25519
+		oc = opcodes.OPS_SIGLOCK_ED25519
 		t.Logf("%s", oc)
 		oc = opcodes.OpCode(31)
 		t.Logf("%s", oc)
-		oc = opcodes.OPL_L1
+		oc = opcodes.OPL_RESERVED126
 		t.Logf("%s", oc)
 	})
 	t.Run("opcodes2", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestBasic(t *testing.T) {
 		tx := ledger.New()
 		v, err := tx.CreateValidationContext(utxodb.New())
 		require.NoError(t, err)
-		engine.Run(opcodes.Library, v.Tree(), nil, nil, nil)
+		engine.Run(opcodes.All, v.Tree(), nil, nil, nil)
 	})
 
 }

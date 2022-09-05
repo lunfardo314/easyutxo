@@ -3,6 +3,7 @@ package opcodes
 import (
 	"fmt"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
 )
 
@@ -12,12 +13,12 @@ type (
 		name   string
 		parser engine.InstructionParser
 	}
-	library map[OpCode]opcodeDescriptor
+	allOpcodes map[OpCode]opcodeDescriptor
 )
 
-func (lib library) ParseInstruction(code []byte) (engine.InstructionRunner, []byte) {
+func (lib allOpcodes) ParseInstruction(code []byte) (engine.InstructionRunner, []byte) {
 	if len(code) == 0 {
-		return opExitRunner, code
+		return exitRunner, code
 	}
 	opcode, codeAfterOpcode := ParseOpcode(code)
 	dscr, found := lib[opcode]
@@ -25,6 +26,13 @@ func (lib library) ParseInstruction(code []byte) (engine.InstructionRunner, []by
 		panic(opcode)
 	}
 	return dscr.parser(codeAfterOpcode)
+}
+
+func (lib allOpcodes) ValidateOpcode(oc engine.OpCode) error {
+	if _, found := lib[oc.(OpCode)]; !found {
+		return fmt.Errorf("wrong opcode %d", oc)
+	}
+	return nil
 }
 
 const (
@@ -48,7 +56,7 @@ func (c OpCode) String() string {
 }
 
 func (c OpCode) Name() string {
-	if dscr, ok := Library[c]; ok {
+	if dscr, ok := All[c]; ok {
 		return dscr.name
 	}
 	return "(wrong OpCode)"
@@ -76,4 +84,29 @@ func ParseOpcode(code []byte) (OpCode, []byte) {
 		retOffset = 2
 	}
 	return op, code[retOffset:]
+}
+
+func GenProgram(fun func(p *engine.Program)) ([]byte, error) {
+	p := engine.NewProgram(All)
+	var compileErr error
+	var ret []byte
+	err := easyutxo.CatchPanic(func() {
+		fun(p)
+		ret, compileErr = p.Compile()
+	})
+	if err != nil {
+		return nil, err
+	}
+	if compileErr != nil {
+		return nil, compileErr
+	}
+	return ret, nil
+}
+
+func MustGenProgram(fun func(p *engine.Program)) []byte {
+	ret, err := GenProgram(fun)
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }

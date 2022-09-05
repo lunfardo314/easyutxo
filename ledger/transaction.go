@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -128,9 +129,9 @@ func (tx *Transaction) Validate() error {
 func (tx *Transaction) CreateValidationContext(ledgerState LedgerState) (*ValidationContext, error) {
 	ret := &ValidationContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(ValidationCtxIndexMax), nil)
-	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTransactionIndex, nil)        // #0 ledger body
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ValidationCtxInputsIndex, nil) // #1 validation context (inputs)
-	ret.tree.PutSubtreeAtIdx(ScriptLibrary, ValidationCtxGlobalLibraryIndex, nil)  // #2 global script library tree
+	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTransactionIndex, nil)               // #0 ledger body
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ValidationCtxInputsIndex, nil)        // #1 validation context (inputs)
+	ret.tree.PutSubtreeAtIdx(library.ScriptLibrary, ValidationCtxGlobalLibraryIndex, nil) // #2 global script library tree
 
 	var err error
 	tx.ForEachInput(func(idx uint16, oid OutputID) bool {

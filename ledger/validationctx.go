@@ -3,6 +3,7 @@ package ledger
 import (
 	"github.com/lunfardo314/easyutxo/engine"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/opcodes"
 )
 
@@ -49,9 +50,9 @@ func (v *ValidationContext) CodeFromLocalLibrary(idx byte) []byte {
 func (v *ValidationContext) ParseInvocation(invocationFullPath lazyslice.TreePath) ([]byte, []byte) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	switch invocation[0] {
-	case LibraryCodeReservedForLocalInvocations:
+	case library.CodeReservedForLocalInvocations:
 		return v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
-	case LibraryCodeReservedForInlineInvocations:
+	case library.CodeReservedForInlineInvocations:
 		return invocation[1:], nil
 	}
 	return v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
@@ -59,5 +60,5 @@ func (v *ValidationContext) ParseInvocation(invocationFullPath lazyslice.TreePat
 
 func (v *ValidationContext) RunScript(invocationPath lazyslice.TreePath) {
 	code, data := v.ParseInvocation(v.tree.BytesAtPath(invocationPath))
-	engine.Run(opcodes.Library, v.Tree(), invocationPath, code, data)
+	engine.Run(opcodes.All, v.Tree(), invocationPath, code, data)
 }
