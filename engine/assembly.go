@@ -44,7 +44,7 @@ func (p *Program) OP(c OpCode) *Program {
 	return p
 }
 
-func (p *Program) P(b ...byte) *Program {
+func (p *Program) B(b ...byte) *Program {
 	if p.label {
 		panic("label in wrong position")
 	}
@@ -52,8 +52,8 @@ func (p *Program) P(b ...byte) *Program {
 	return p
 }
 
-// JS jump short
-func (p *Program) JS(label string) *Program {
+// TargetShort jump short
+func (p *Program) TargetShort(label string) *Program {
 	if p.label {
 		panic("label in wrong position")
 	}
@@ -62,7 +62,7 @@ func (p *Program) JS(label string) *Program {
 	return p
 }
 
-func (p *Program) JL(label string) *Program {
+func (p *Program) TargetLong(label string) *Program {
 	if p.label {
 		panic("label in wrong position")
 	}
@@ -71,7 +71,7 @@ func (p *Program) JL(label string) *Program {
 	return p
 }
 
-func (p *Program) L(label string) {
+func (p *Program) Label(label string) {
 	if _, already := p.resolve[label]; already {
 		panic("repeating label name")
 	}

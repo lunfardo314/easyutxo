@@ -26,25 +26,34 @@ const (
 )
 
 var (
-	GlobalInputsLong       = lazyslice.Path(ValidationCtxInputsIndex)
-	GlobalTransaction      = lazyslice.Path(ValidationCtxTransactionIndex)
-	GlobalOutputGroups     = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexOutputGroups)
-	GlobalInputIDsLong     = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexInputIDsLong)
-	GlobalUnlockParamsLong = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexUnlockParamsLong)
+	GlobalInputsLong        = lazyslice.Path(ValidationCtxInputsIndex)
+	GlobalTransaction       = lazyslice.Path(ValidationCtxTransactionIndex)
+	GlobalOutputGroups      = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexOutputGroups)
+	GlobalInputIDsLong      = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexInputIDsLong)
+	GlobalTimestamp         = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexTimestamp)
+	GlobalContextCommitment = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexContextCommitment)
+	GlobalUnlockParamsLong  = lazyslice.Path(ValidationCtxTransactionIndex, TxTreeIndexUnlockParamsLong)
 )
 
 func GlobalOutput(outputGroup, idx byte) lazyslice.TreePath {
-	return lazyslice.PathAppend(GlobalOutputGroups, outputGroup, idx)
+	return lazyslice.PathMakeAppend(GlobalOutputGroups, outputGroup, idx)
 }
 
 func GlobalInput(idx uint16) lazyslice.TreePath {
-	return lazyslice.PathAppend(GlobalInputsLong, easyutxo.EncodeInteger(idx)...)
+	return lazyslice.PathMakeAppend(GlobalInputsLong, easyutxo.EncodeInteger(idx)...)
 }
 
-func IsGlobalInputPath(path []byte) bool {
-	return path[0] == ValidationCtxInputsIndex
+func IsGlobalInputContext(path lazyslice.TreePath) bool {
+	return len(path) >= 3 && path[0] == ValidationCtxInputsIndex
 }
 
-func IsGlobalOutputPath(path []byte) bool {
-	return path[0] == ValidationCtxTransactionIndex
+func IsGlobalOutputContext(path lazyslice.TreePath) bool {
+	return len(path) >= 4 && path[0] == ValidationCtxTransactionIndex && path[1] == TxTreeIndexOutputGroups
+}
+
+func UnlockBlockPathFromInputInvocationPath(invocationPath lazyslice.TreePath) lazyslice.TreePath {
+	if !IsGlobalInputContext(invocationPath) {
+		panic("not the input invocation context")
+	}
+	return lazyslice.PathMakeAppend(GlobalUnlockParamsLong, invocationPath[1], invocationPath[2])
 }

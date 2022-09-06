@@ -84,12 +84,14 @@ func (e *Engine) PutToReg(reg byte, data []byte) {
 	e.registers[reg] = data
 }
 
-func (e *Engine) Pop() {
+func (e *Engine) Pop() []byte {
 	if e.stackTop == 0 {
 		panic("Pop: stack is empty")
 	}
 	e.stackTop--
+	ret := e.stack[e.stackTop]
 	e.stack[e.stackTop] = nil // for GC
+	return ret
 }
 
 func (e *Engine) PushBool(yn bool) {
@@ -113,6 +115,14 @@ func (e *Engine) Top() []byte {
 
 func (e *Engine) Move(offset int) {
 	e.instrCounter += offset
+}
+
+func (e *Engine) BytesAtPath(p lazyslice.TreePath) []byte {
+	return e.ctx.BytesAtPath(p)
+}
+
+func (e *Engine) GetDataAtIdx(idx byte, p lazyslice.TreePath) []byte {
+	return e.ctx.GetDataAtIdx(idx, p)
 }
 
 func (e *Engine) run1Cycle() bool {

@@ -15,7 +15,7 @@ func init() {
 		ScriptLibrary.PushData(scriptNA, nil)
 	}
 
-	ScriptLibrary.PutDataAtIdx(LibScriptSigLockED25519, AddressED25519SigLock, nil)
+	ScriptLibrary.PutDataAtIdx(LibScriptSigLockED25519, SigLockED25519, nil)
 }
 
 const (

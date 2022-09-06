@@ -29,7 +29,7 @@ func TestAssembly(t *testing.T) {
 		code, err := GenProgram(func(p *engine.Program) {
 			p.OP(OpsNOP)
 			p.OP(OpsExit)
-			p.L("dummy")
+			p.Label("dummy")
 			p.OP(OpsSigLockED25519)
 			p.OP(OplReserved126)
 		})
@@ -39,7 +39,7 @@ func TestAssembly(t *testing.T) {
 	t.Run("wrong instruction", func(t *testing.T) {
 		_, err := GenProgram(func(p *engine.Program) {
 			p.OP(OpsNOP)
-			p.OP(OpCode(15))
+			p.OP(OpCode(100))
 		})
 		require.Error(t, err)
 		require.True(t, strings.Contains(err.Error(), "wrong opcode"))
