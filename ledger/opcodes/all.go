@@ -31,7 +31,7 @@ const (
 	OpsJumpShortOnFalse
 	OpsJumpLongOnFalse
 	// other
-	OpsSigLockED25519
+	OpsVerifySigED25519
 	OpsBlake2b
 )
 
@@ -61,9 +61,9 @@ var All = allOpcodes{
 	OpsJumpShortOnFalse:        {"OpsJumpShortOnFalse", oneByteParameterParser(runJumpShortOnFalse)},
 	OpsJumpLongOnFalse:         {"OpsJumpLongOnFalse", twoByteParameterParser(runJumpLongOnFalse)},
 	// other
-	OpsSigLockED25519: {"OpsSigLockED25519", noParamParser(runSigLockED25519)},
-	OpsBlake2b:        {"OpsBlake2b", noParamParser(runBlake2b)},
-	OplReserved126:    {"reserved long opcode", noParamParser(runReservedOpcode)},
+	OpsVerifySigED25519: {"OpsVerifySigED25519", noParamParser(runSigLockED25519)},
+	OpsBlake2b:          {"OpsBlake2b", noParamParser(runBlake2b)},
+	OplReserved126:      {"reserved long opcode", noParamParser(runReservedOpcode)},
 }
 
 func mustParLen(par []byte, n int) {

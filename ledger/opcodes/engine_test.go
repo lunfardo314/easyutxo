@@ -13,13 +13,13 @@ import (
 func TestOpcodes(t *testing.T) {
 	t.Run("opcodes1", func(t *testing.T) {
 		require.True(t, opcodes.OpsExit.IsShort())
-		require.True(t, opcodes.OpsSigLockED25519.IsShort())
+		require.True(t, opcodes.OpsVerifySigED25519.IsShort())
 		require.False(t, opcodes.OplReserved126.IsShort())
 		oc := opcodes.OpCode(0)
 		t.Logf("%s", oc)
 		oc = opcodes.OpsExit
 		t.Logf("%s", oc)
-		oc = opcodes.OpsSigLockED25519
+		oc = opcodes.OpsVerifySigED25519
 		t.Logf("%s", oc)
 		oc = opcodes.OpCode(31)
 		t.Logf("%s", oc)

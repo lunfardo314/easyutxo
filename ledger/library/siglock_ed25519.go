@@ -21,7 +21,7 @@ var SigLockED25519 = opcodes.MustGenProgram(func(p *engine.Program) {
 	p.OP(opcodes.OpsPushBytesFromPathAndIndex).B(engine.FirstWriteableRegister, 2) // push #2 element of the unlock-block with public key
 	p.OP(opcodes.OpsPushBytesFromPathAndIndex).B(engine.FirstWriteableRegister, 1) // push #1 element of the unlock-block with signature
 	p.OP(opcodes.OpsPushTransactionEssenceBytes)                                   // push essence bytes
-	p.OP(opcodes.OpsSigLockED25519)                                                // check signature
+	p.OP(opcodes.OpsVerifySigED25519)                                              // check signature
 	p.OP(opcodes.OpsJumpLongOnTrue).TargetShort("sigok")                           // jumps to 'sigok' if signature correct
 	p.OP(opcodes.OpsExit)                                                          // ends script here. Fails if signature is invalid
 	p.Label("sigok")
@@ -39,3 +39,9 @@ var SigLockED25519 = opcodes.MustGenProgram(func(p *engine.Program) {
 // Each input ID has an input under ths same long index
 // Each input has unlock block under the same long index
 // Each unlock block is LazyTree, interpreted up to scripts
+
+var SigLockED25519Script = `
+	pushReg 1 							; load address into the stack
+	jumpShortIfInputContext checksig    ; Jump to 'checksig' if input context (signature checking)
+	>>> checksig  						; here we have input invocation context
+`
