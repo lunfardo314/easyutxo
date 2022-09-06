@@ -52,12 +52,12 @@ var all = map[OpCode]*opcodeDescriptor1{
 	OpsMakeUnlockBlockPathToReg:    {"unlockBlockPath", "make and save unlock-block path to register", "S", "register#", runMakeUnlockBlockPathToReg},
 	OpsPushTransactionEssenceBytes: {"pushTxEssence", "push transaction essence bytes", "", "", runPushTransactionEssenceBytes},
 	// flow control
-	OpsJumpShortOnInputContext: {"jumpShortIfInputContext", "jump short if invocation is input context", "JS", "target-short", runJumpShortOnInputContext},
-	OpsJumpLongOnInputContext:  {"jumpLongIfInputContext", "jump long if invocation is input context", "JL", "target-long", runJumpLongOnInputContext},
-	OpsJumpShortOnTrue:         {"jumpShortIfTrue", "jump short if stack top is true", "JS", "target-short", runJumpShortOnTrue},
-	OpsJumpLongOnTrue:          {"jumpLongIfTrue", "jump long if stack top is true", "JL", "target-long", runJumpLongOnTrue},
-	OpsJumpShortOnFalse:        {"jumpShortIfFalse", "jump short if stack top is false", "JS", "target-short", runJumpShortOnFalse},
-	OpsJumpLongOnFalse:         {"jumpLongIfFalse", "jump long if stack top is false", "JL", "target-long", runJumpLongOnFalse},
+	OpsJumpShortOnInputContext: {"ifInputContext->", "jump short if invocation is input context", "JS", "target-short", runJumpShortOnInputContext},
+	OpsJumpLongOnInputContext:  {"ifInputContext>>>", "jump long if invocation is input context", "JL", "target-long", runJumpLongOnInputContext},
+	OpsJumpShortOnTrue:         {"ifTrue->", "jump short if stack top is true", "JS", "target-short", runJumpShortOnTrue},
+	OpsJumpLongOnTrue:          {"ifTrue>>>", "jump long if stack top is true", "JL", "target-long", runJumpLongOnTrue},
+	OpsJumpShortOnFalse:        {"ifFalse->", "jump short if stack top is false", "JS", "target-short", runJumpShortOnFalse},
+	OpsJumpLongOnFalse:         {"ifFalse>>>", "jump long if stack top is false", "JL", "target-long", runJumpLongOnFalse},
 	// other
 	OpsVerifySigED25519: {"verifySigED25519", "verify ED25519 signature", "", "", runSigLockED25519},
 	OpsBlake2b:          {"blake2b", "hash blake2b", "", "", runBlake2b},
@@ -118,8 +118,8 @@ func CompileSource(sourceCode string) ([]byte, error) {
 			continue
 		}
 		instr = strings.TrimSpace(instr)
-		if strings.HasPrefix(instr, ">>>") {
-			instr = strings.TrimPrefix(instr, ">>>")
+		if strings.HasPrefix(instr, ">") {
+			instr = strings.TrimPrefix(instr, ">")
 			instr = strings.TrimSpace(instr)
 			fmt.Printf("%2d: label: '%s'\n", lineno, instr)
 		} else {

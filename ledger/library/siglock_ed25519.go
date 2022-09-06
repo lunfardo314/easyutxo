@@ -41,7 +41,7 @@ var SigLockED25519 = opcodes.MustGenProgram(func(p *engine.Program) {
 // Each unlock block is LazyTree, interpreted up to scripts
 
 var SigLockED25519Script = `
-	pushReg 1 							; load address into the stack
-	jumpShortIfInputContext checksig    ; Jump to 'checksig' if input context (signature checking)
-	>>> checksig  						; here we have input invocation context
+	pushReg 1 					; load address into the stack
+	ifInputContext-> checksig   ; Jump to 'checksig' if input context (signature checking)
+	> checksig  				; here we have input invocation context
 `
