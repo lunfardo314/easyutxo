@@ -12,18 +12,18 @@ import (
 
 func TestOpcodes(t *testing.T) {
 	t.Run("opcodes1", func(t *testing.T) {
-		require.True(t, opcodes.OPS_EXIT.IsShort())
-		require.True(t, opcodes.OPS_SIGLOCK_ED25519.IsShort())
-		require.False(t, opcodes.OPL_RESERVED126.IsShort())
+		require.True(t, opcodes.OpsExit.IsShort())
+		require.True(t, opcodes.OpsSigLockED25519.IsShort())
+		require.False(t, opcodes.OplReserved126.IsShort())
 		oc := opcodes.OpCode(0)
 		t.Logf("%s", oc)
-		oc = opcodes.OPS_EXIT
+		oc = opcodes.OpsExit
 		t.Logf("%s", oc)
-		oc = opcodes.OPS_SIGLOCK_ED25519
+		oc = opcodes.OpsSigLockED25519
 		t.Logf("%s", oc)
 		oc = opcodes.OpCode(31)
 		t.Logf("%s", oc)
-		oc = opcodes.OPL_RESERVED126
+		oc = opcodes.OplReserved126
 		t.Logf("%s", oc)
 	})
 	t.Run("opcodes2", func(t *testing.T) {

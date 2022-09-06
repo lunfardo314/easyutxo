@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/path"
 )
 
 const OutputIDLength = IDLength + 2
@@ -72,7 +73,7 @@ func (v *ValidationContext) ValidateOutput(outputContext, idx byte) {
 	o := v.Output(outputContext, idx)
 	invocationList := o.tree.GetDataAtIdx(0, nil)
 	for _, invokeAtIdx := range invocationList {
-		v.RunScript(Path(ValidationCtxTransactionIndex, TxTreeIndexOutputGroups, outputContext, idx, invokeAtIdx))
+		v.RunScript(Path(path.ValidationCtxTransactionIndex, path.TxTreeIndexOutputGroups, outputContext, idx, invokeAtIdx))
 	}
 }
 

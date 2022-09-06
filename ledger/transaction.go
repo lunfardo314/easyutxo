@@ -6,6 +6,7 @@ import (
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/easyutxo/ledger/path"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -25,26 +26,16 @@ type Transaction struct {
 	tree *lazyslice.Tree
 }
 
-const (
-	TxTreeIndexInputsLong = byte(iota)
-	TxTreeIndexParamLong
-	TxTreeIndexOutputGroups
-	TxTreeIndexTimestamp
-	TxTreeIndexContextCommitment
-	TxTreeIndexLocalLibrary
-	TxTreeIndexMax
-)
-
 // New empty ledger skeleton
 func New() *Transaction {
 	ret := &Transaction{tree: lazyslice.TreeEmpty()}
-	ret.tree.PushEmptySubtrees(int(TxTreeIndexMax), nil)
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexInputsLong))
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexParamLong))
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexOutputGroups))
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexTimestamp))
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexLocalLibrary))
-	ret.tree.PushEmptySubtrees(1, Path(TxTreeIndexContextCommitment))
+	ret.tree.PushEmptySubtrees(int(path.TxTreeIndexMax), nil)
+	ret.tree.PushEmptySubtrees(1, Path(path.TxTreeIndexInputIDsLong))
+	ret.tree.PushEmptySubtrees(1, Path(path.TxTreeIndexUnlockParamsLong))
+	ret.tree.PushEmptySubtrees(1, Path(path.TxTreeIndexOutputGroups))
+	ret.tree.PushEmptySubtrees(1, Path(path.TxTreeIndexTimestamp))
+	ret.tree.PushEmptySubtrees(1, Path(path.TxTreeIndexLocalLibrary))
+	ret.tree.PushEmptySubtrees(1, Path(path.TxTreeIndexContextCommitment))
 	return ret
 }
 
@@ -66,19 +57,19 @@ func (tx *Transaction) ID() ID {
 }
 
 func (tx *Transaction) NumOutputs() int {
-	return tx.tree.NumElementsLong(Path(TxTreeIndexOutputGroups))
+	return tx.tree.NumElementsLong(Path(path.TxTreeIndexOutputGroups))
 }
 
 func (tx *Transaction) NumInputs() int {
-	return tx.tree.NumElementsLong(Path(TxTreeIndexInputsLong))
+	return tx.tree.NumElementsLong(Path(path.TxTreeIndexInputIDsLong))
 }
 
 func (tx *Transaction) CodeFromLocalLibrary(idx byte) []byte {
-	return tx.tree.GetDataAtIdx(idx, Path(TxTreeIndexLocalLibrary))
+	return tx.tree.GetDataAtIdx(idx, Path(path.TxTreeIndexLocalLibrary))
 }
 
 func (tx *Transaction) ForEachOutputGroup(fun func(group byte) bool) {
-	for i := 0; i < tx.tree.NumElements(Path(TxTreeIndexOutputGroups)); i++ {
+	for i := 0; i < tx.tree.NumElements(Path(path.TxTreeIndexOutputGroups)); i++ {
 		if !fun(byte(i)) {
 			break
 		}
@@ -93,14 +84,14 @@ func (tx *Transaction) ForEachOutput(fun func(group, idx byte, o *Output) bool) 
 			return exit
 		}, nil)
 		return exit
-	}, Path(TxTreeIndexOutputGroups))
+	}, Path(path.TxTreeIndexOutputGroups))
 }
 
-func (tx *Transaction) ForEachInput(fun func(idx uint16, o OutputID) bool) {
+func (tx *Transaction) ForEachInputID(fun func(idx uint16, o OutputID) bool) {
 	var oid OutputID
 	var err error
 	for i := 0; i < tx.NumInputs(); i++ {
-		d := tx.tree.GetBytesAtIdxLong(uint16(i), Path(TxTreeIndexInputsLong))
+		d := tx.tree.GetBytesAtIdxLong(uint16(i), Path(path.TxTreeIndexInputIDsLong))
 		if oid, err = OutputIDFromBytes(d); err != nil {
 			panic(err)
 		}
@@ -112,7 +103,7 @@ func (tx *Transaction) ForEachInput(fun func(idx uint16, o OutputID) bool) {
 
 func (tx *Transaction) Output(group, idx byte) *Output {
 	return &Output{
-		tree: lazyslice.TreeFromBytes(tx.tree.BytesAtPath(Path(TxTreeIndexOutputGroups, group, idx))),
+		tree: lazyslice.TreeFromBytes(tx.tree.BytesAtPath(Path(path.TxTreeIndexOutputGroups, group, idx))),
 	}
 }
 
@@ -128,19 +119,19 @@ func (tx *Transaction) Validate() error {
 //
 func (tx *Transaction) CreateValidationContext(ledgerState LedgerState) (*ValidationContext, error) {
 	ret := &ValidationContext{tree: lazyslice.TreeEmpty()}
-	ret.tree.PushEmptySubtrees(int(ValidationCtxIndexMax), nil)
-	ret.tree.PutSubtreeAtIdx(tx.Tree(), ValidationCtxTransactionIndex, nil)               // #0 ledger body
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ValidationCtxInputsIndex, nil)        // #1 validation context (inputs)
-	ret.tree.PutSubtreeAtIdx(library.ScriptLibrary, ValidationCtxGlobalLibraryIndex, nil) // #2 global script library tree
+	ret.tree.PushEmptySubtrees(int(path.ValidationCtxIndexMax), nil)
+	ret.tree.PutSubtreeAtIdx(tx.Tree(), path.ValidationCtxTransactionIndex, nil)               // #0 ledger body
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), path.ValidationCtxInputsIndex, nil)        // #1 validation context (inputs)
+	ret.tree.PutSubtreeAtIdx(library.ScriptLibrary, path.ValidationCtxGlobalLibraryIndex, nil) // #2 global script library tree
 
 	var err error
-	tx.ForEachInput(func(idx uint16, oid OutputID) bool {
+	tx.ForEachInputID(func(idx uint16, oid OutputID) bool {
 		od, ok := ledgerState.GetUTXO(&oid)
 		if !ok {
 			err = fmt.Errorf("input not found: %s", oid.String())
 			return false
 		}
-		ret.tree.PushLongAtPath(od, Path(ValidationCtxInputsIndex))
+		ret.tree.PushLongAtPath(od, path.GlobalInputsLong)
 		return true
 	})
 	if err != nil {

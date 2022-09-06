@@ -5,42 +5,35 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/opcodes"
+	"github.com/lunfardo314/easyutxo/ledger/path"
 )
 
 type ValidationContext struct {
 	tree *lazyslice.Tree
 }
 
-// indices of ValidationContext parts
-const (
-	ValidationCtxTransactionIndex = byte(iota)
-	ValidationCtxInputsIndex
-	ValidationCtxGlobalLibraryIndex
-	ValidationCtxIndexMax
-)
-
 func (v *ValidationContext) Tree() *lazyslice.Tree {
 	return v.tree
 }
 
 func (v *ValidationContext) Transaction() *Transaction {
-	return FromBytes(v.tree.BytesAtPath(Path(ValidationCtxTransactionIndex)))
+	return FromBytes(v.tree.BytesAtPath(path.GlobalTransaction))
 }
 
-func (v *ValidationContext) Output(outputContext byte, idx byte) *Output {
+func (v *ValidationContext) Output(outputGroup byte, idx byte) *Output {
 	return &Output{
-		tree: lazyslice.TreeFromBytes(v.tree.BytesAtPath(Path(ValidationCtxTransactionIndex, TxTreeIndexOutputGroups, outputContext, idx))),
+		tree: lazyslice.TreeFromBytes(v.tree.BytesAtPath(path.GlobalOutput(outputGroup, idx))),
 	}
 }
 
 func (v *ValidationContext) ConsumedOutput(idx uint16) *Output {
 	return &Output{
-		tree: lazyslice.TreeFromBytes(v.tree.GetBytesAtIdxLong(idx, Path(ValidationCtxInputsIndex))),
+		tree: lazyslice.TreeFromBytes(v.tree.GetBytesAtIdxLong(idx, path.GlobalInputsLong)),
 	}
 }
 
 func (v *ValidationContext) CodeFromGlobalLibrary(idx byte) []byte {
-	return v.tree.GetDataAtIdx(idx, Path(ValidationCtxGlobalLibraryIndex))
+	return v.tree.GetDataAtIdx(idx, path.GlobalInputsLong)
 }
 
 func (v *ValidationContext) CodeFromLocalLibrary(idx byte) []byte {

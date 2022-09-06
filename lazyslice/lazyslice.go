@@ -319,6 +319,12 @@ func Path(p ...byte) TreePath {
 	return p
 }
 
+func PathAppend(p TreePath, b ...byte) TreePath {
+	ret := make(TreePath, len(p), len(p)+len(b))
+	copy(ret, p)
+	return append(ret, b...)
+}
+
 func (p TreePath) String() string {
 	return fmt.Sprintf("%v", []byte(p))
 }
@@ -481,10 +487,7 @@ func (st *Tree) PushLongAtPath(data []byte, path TreePath) int {
 }
 
 func (st *Tree) GetBytesAtIdxLong(idx uint16, path TreePath) []byte {
-	p := make([]byte, len(path), len(path)+2)
-	copy(p, path)
-	p = append(p, easyutxo.EncodeInteger(idx)...)
-	return st.BytesAtPath(p)
+	return st.BytesAtPath(PathAppend(path, easyutxo.EncodeInteger(idx)...))
 }
 
 func (st *Tree) NumElementsLong(path TreePath) int {

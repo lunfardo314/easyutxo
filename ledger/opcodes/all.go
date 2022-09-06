@@ -7,46 +7,46 @@ import (
 )
 
 const (
-	OPS_NOP = OpCode(iota)
-	OPS_EXIT
-	OPS_POP
-	OPS_EQUAL_LEN8
-	OPS_LOAD_FROM_REG
-	OPS_SAVE_TO_REG
-	OPS_PUSH_FALSE
+	OpsNOP = OpCode(iota)
+	OpsExit
+	OpsPop
+	OpsEqualLenShort
+	OpsLoadFromReg
+	OpsSaveParamToReg
+	OpsPushFalse
 	// control
-	OPS_JUMP8_ON_INPUT_CTX
-	OPS_JUMP16_ON_INPUT_CTX
-	OPS_JUMP8_ON_TRUE
-	OPS_JUMP16_ON_TRUE
-	OPS_JUMP8_ON_FALSE
-	OPS_JUMP16_ON_FALSE
+	OpsJumpShortOnInputContext
+	OpsJumpLongOnInputContext
+	OpsJumpShortOnTrue
+	OpsJumpLongOnTrue
+	OpsJumpShortOnFalse
+	OpsJumpLongOnFalse
 	// other
-	OPS_SIGLOCK_ED25519
+	OpsSigLockED25519
 )
 
 const (
-	OPL_RESERVED126 = OpCode(iota + MaxShortOpcode + 1)
+	OplReserved126 = OpCode(iota + MaxShortOpcode + 1)
 )
 
 var All = allOpcodes{
-	OPS_NOP:           {"OPS_NOP", noParamParser(runNOP)},
-	OPS_EXIT:          {"OPS_EXIT", noParamParser(runExit)},
-	OPS_POP:           {"OPS_POP", noParamParser(runPop)},
-	OPS_EQUAL_LEN8:    {"OPS_EQUAL_LEN8", oneByteParameterParser(runEqual8)},
-	OPS_LOAD_FROM_REG: {"OPS_LOAD_FROM_REG", oneByteParameterParser(runLoadFromReg)},
-	OPS_SAVE_TO_REG:   {"OPS_SAVE_TO_REG", saveToRegisterParser()},
-	OPS_PUSH_FALSE:    {"OPS_PUSH_FALSE", noParamParser(runPushFalse)},
+	OpsNOP:            {"OpsNOP", noParamParser(runNOP)},
+	OpsExit:           {"OpsExit", noParamParser(runExit)},
+	OpsPop:            {"OpsPop", noParamParser(runPop)},
+	OpsEqualLenShort:  {"OpsEqualLenShort", oneByteParameterParser(runEqualLenShort)},
+	OpsLoadFromReg:    {"OpsLoadFromReg", oneByteParameterParser(runLoadFromReg)},
+	OpsSaveParamToReg: {"OpsSaveParamToReg", saveParamToRegisterParser()},
+	OpsPushFalse:      {"OpsPushFalse", noParamParser(runPushFalse)},
 	// flow control
-	OPS_JUMP8_ON_INPUT_CTX:  {"OPS_JUMP8_ON_INPUT_CTX", oneByteParameterParser(runJump8OnInputContext)},
-	OPS_JUMP16_ON_INPUT_CTX: {"OPS_JUMP16_ON_INPUT_CTX", twoByteParameterParser(runJump16OnInputContext)},
-	OPS_JUMP8_ON_TRUE:       {"OPS_JUMP8_ON_TRUE", oneByteParameterParser(runJump8OnTrue)},
-	OPS_JUMP16_ON_TRUE:      {"OPS_JUMP16_ON_TRUE", twoByteParameterParser(runJump16OnTrue)},
-	OPS_JUMP8_ON_FALSE:      {"OPS_JUMP8_ON_FALSE", oneByteParameterParser(runJump8OnFalse)},
-	OPS_JUMP16_ON_FALSE:     {"OPS_JUMP16_ON_FALSE", twoByteParameterParser(runJump16OnFalse)},
+	OpsJumpShortOnInputContext: {"OpsJumpShortOnInputContext", oneByteParameterParser(runJumpShortOnInputContext)},
+	OpsJumpLongOnInputContext:  {"OpsJumpLongOnInputContext", twoByteParameterParser(runJumpLongOnInputContext)},
+	OpsJumpShortOnTrue:         {"OpsJumpShortOnTrue", oneByteParameterParser(runJumpShortOnTrue)},
+	OpsJumpLongOnTrue:          {"OpsJumpLongOnTrue", twoByteParameterParser(runJumpLongOnTrue)},
+	OpsJumpShortOnFalse:        {"OpsJumpShortOnFalse", oneByteParameterParser(runJumpShortOnFalse)},
+	OpsJumpLongOnFalse:         {"OpsJumpLongOnFalse", twoByteParameterParser(runJumpLongOnFalse)},
 	// other
-	OPS_SIGLOCK_ED25519: {"OPS_SIGLOCK_ED25519", noParamParser(opSigED25519Runner)},
-	OPL_RESERVED126:     {"reserved long opcode", noParamParser(runReservedOpcode)},
+	OpsSigLockED25519: {"OpsSigLockED25519", noParamParser(runSigLogED25519)},
+	OplReserved126:    {"reserved long opcode", noParamParser(runReservedOpcode)},
 }
 
 func mustParLen(par []byte, n int) {
@@ -75,7 +75,7 @@ func twoByteParameterParser(runner engine.InstructionRunner) engine.InstructionP
 	}
 }
 
-func saveToRegisterParser() engine.InstructionParameterParser {
+func saveParamToRegisterParser() engine.InstructionParameterParser {
 	return func(codeAfterOpcode []byte) (engine.InstructionRunner, []byte) {
 		return runSaveToRegister, codeAfterOpcode[:2+codeAfterOpcode[1]]
 	}
@@ -103,8 +103,8 @@ func runPop(e *engine.Engine, d []byte) {
 	e.Move(1)
 }
 
-// runEqual8 pushes true/false if length of data at the stack top equals to the byte parameter of the instruction
-func runEqual8(e *engine.Engine, d []byte) {
+// runEqualLenShort pushes true/false if length of data at the stack top equals to the byte parameter of the instruction
+func runEqualLenShort(e *engine.Engine, d []byte) {
 	mustParLen(d, 1)
 	e.PushBool(len(e.Top()) == int(d[0]))
 	e.Move(1 + 1)

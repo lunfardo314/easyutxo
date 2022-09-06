@@ -23,7 +23,7 @@ func (u *UtxoDB) AddTransaction(tx *ledger.Transaction) error {
 	}
 	// TODO run validation scripts
 	// remove spent outputs
-	tx.ForEachInput(func(_ uint16, o ledger.OutputID) bool {
+	tx.ForEachInputID(func(_ uint16, o ledger.OutputID) bool {
 		delete(u.utxo, string(o[:]))
 		return true
 	})
