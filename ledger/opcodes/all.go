@@ -4,72 +4,44 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
 	"github.com/lunfardo314/easyutxo/ledger/path"
 )
 
-const (
-	OpsNOP = OpCode(iota)
-	OpsExit
-	OpsPop
-	OpsEqualLenShort
-	OpsEqualStackTop
-	OpsPushFromReg
-	OpsSaveParamToReg
-	OpsPushFalse
+var allRaw1Byte = []*opcodeDescriptor{
+	{"nop", "no operation", "", "", runNOP},
+	{"exit", "exit script", "", "", runExit},
+	{"pop", "pop stack", "", "", runPop},
+	{"<-reg", "push value from register to stack", "S", "register#-with-value", runPushFromReg},
+	{"reg<-", "save parameter to register", "S,V", "register#,var-value", runSaveToRegister},
+	{"<-", "push parameter to stack", "V", "var-value", runPushParameterToStack},
+	{"<-size", "push 2 bytes uint16 size of value at top", "", "", runSize},
+	{"==", "2 top stack values equal", "", "", runEqualStackTop},
+
+	// --------------------------------------------------------
 	// tree path/data manipulation
-
-	OpsPushBytesFromPath
-	OpsPushBytesFromPathAndIndex
-	OpsPushTransactionEssenceBytes
-
-	OpsMakeUnlockBlockPathToReg
-	// control
-
-	OpsJumpShortOnInputContext
-	OpsJumpLongOnInputContext
-	OpsJumpShortOnTrue
-	OpsJumpLongOnTrue
-	OpsJumpShortOnFalse
-	OpsJumpLongOnFalse
-	// other
-
-	OpsVerifySigED25519
-	OpsBlake2b
-)
-
-const (
-	OplReserved126 = OpCode(iota + MaxShortOpcode + 1)
-)
-
-var allRaw = map[OpCode]*opcodeDescriptor{
-	OpsNOP:            {"nop", "no operation", "", "", runNOP},
-	OpsExit:           {"exit", "exit script", "", "", runExit},
-	OpsPop:            {"pop", "pop stack", "", "", runPop},
-	OpsEqualLenShort:  {"len==", "length of register value is equal to parameter", "S", "register#-with-value", runEqualLenShort},
-	OpsEqualStackTop:  {"==", "2 top stack values equal", "", "", runEqualStackTop},
-	OpsPushFromReg:    {"pushReg", "push value from register", "S", "register#-with-value", runPushFromReg},
-	OpsSaveParamToReg: {"saveToReg", "save parameter to register", "S,V", "register#,var-value", runSaveToRegister},
-	OpsPushFalse:      {"false", "push false", "", "", runPushFalse},
-	// tree path/data manipulation
-	OpsPushBytesFromPath:           {"pushFromPath", "push value from path", "S", "register#-with-path", runOpsPushBytesFromPath},
-	OpsPushBytesFromPathAndIndex:   {"pushFromPathIndex", "push value from path and index", "S,S", "register#-with-path, element_index", runOpsLoadBytesFromPathAndIndex},
-	OpsMakeUnlockBlockPathToReg:    {"unlockBlockPath", "make and save unlock-block path to register", "S", "register#", runMakeUnlockBlockPathToReg},
-	OpsPushTransactionEssenceBytes: {"pushTxEssence", "push transaction essence bytes", "", "", runPushTransactionEssenceBytes},
+	{"pushFromPath", "push value from path", "S", "register#-with-path", runOpsPushBytesFromPath},
+	{"pushFromPathIndex", "push value from path and index", "S,S", "register#-with-path, element_index", runOpsLoadBytesFromPathAndIndex},
+	{"makeUnlockBlockPath", "make and save unlock-block path to register", "S", "register#", runMakeUnlockBlockPathToReg},
+	{"pushTxEssence", "push transaction essence bytes", "", "", runPushTransactionEssenceBytes},
 	// flow control
-	OpsJumpShortOnInputContext: {"ifInputContext->", "jump short if invocation is input context", "JS", "target-short", runJumpShortOnInputContext},
-	OpsJumpLongOnInputContext:  {"ifInputContext>>>", "jump long if invocation is input context", "JL", "target-long", runJumpLongOnInputContext},
-	OpsJumpShortOnTrue:         {"ifTrue->", "jump short if stack top is true", "JS", "target-short", runJumpShortOnTrue},
-	OpsJumpLongOnTrue:          {"ifTrue>>>", "jump long if stack top is true", "JL", "target-long", runJumpLongOnTrue},
-	OpsJumpShortOnFalse:        {"ifFalse->", "jump short if stack top is false", "JS", "target-short", runJumpShortOnFalse},
-	OpsJumpLongOnFalse:         {"ifFalse>>>", "jump long if stack top is false", "JL", "target-long", runJumpLongOnFalse},
+	{"ifInputContext>", "jump short if invocation is input context", "JS", "target-short", runJumpShortOnInputContext},
+	{"ifInputContext>>>", "jump long if invocation is input context", "JL", "target-long", runJumpLongOnInputContext},
+	{"ifTrue>", "jump short if stack top is true", "JS", "target-short", runJumpShortOnTrue},
+	{"ifTrue>>>", "jump long if stack top is true", "JL", "target-long", runJumpLongOnTrue},
+	{"ifFalse>", "jump short if stack top is false", "JS", "target-short", runJumpShortOnFalse},
+	{"ifFalse>>>", "jump long if stack top is false", "JL", "target-long", runJumpLongOnFalse},
 	// other
-	OpsVerifySigED25519: {"verifySigED25519", "verify ED25519 signature", "", "", runSigLockED25519},
-	OpsBlake2b:          {"blake2b", "hash blake2b", "", "", runBlake2b},
-	OplReserved126:      {"reserved126", "fake opcode", "", "", runReservedOpcode},
+	{"verifySigED25519", "verify ED25519 signature", "", "", runSigLockED25519},
+	{"blake2b", "hash blake2b", "", "", runBlake2b},
 }
 
-var All, allLookup = mustPreCompileOpcodes(allRaw)
+var allRaw12Byte = []*opcodeDescriptor{
+	{"reserved126", "fake opcode", "", "", runReservedOpcode},
+}
+
+var All, allSymLookup = mustPreCompileOpcodes(allRaw1Byte, allRaw12Byte)
 
 func mustParLen(par []byte, n int) {
 	if len(par) != n {
@@ -127,9 +99,18 @@ func runSaveToRegister(e *engine.Engine, d []byte) {
 	e.Move(2 + int(d[1]))
 }
 
-func runPushFalse(e *engine.Engine, d []byte) {
+func runPushParameterToStack(e *engine.Engine, d []byte) {
+	if len(d) < 1 {
+		panic("instruction parameter expected to be at least 2 bytes long")
+	}
+	mustParLen(d[1:], int(d[0]))
+	e.Push(d[1:])
+	e.Move(1 + int(d[1]))
+}
+
+func runSize(e *engine.Engine, d []byte) {
 	mustParLen(d, 0)
-	e.PushBool(false)
+	e.Push(easyutxo.EncodeInteger(uint16(len(e.Top()))))
 	e.Move(1)
 }
 

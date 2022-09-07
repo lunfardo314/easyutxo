@@ -11,21 +11,21 @@ import (
 )
 
 func TestOpcodes(t *testing.T) {
-	t.Run("opcodes1", func(t *testing.T) {
-		require.True(t, opcodes.OpsExit.IsShort())
-		require.True(t, opcodes.OpsVerifySigED25519.IsShort())
-		require.False(t, opcodes.OplReserved126.IsShort())
-		oc := opcodes.OpCode(0)
-		t.Logf("%s", oc)
-		oc = opcodes.OpsExit
-		t.Logf("%s", oc)
-		oc = opcodes.OpsVerifySigED25519
-		t.Logf("%s", oc)
-		oc = opcodes.OpCode(31)
-		t.Logf("%s", oc)
-		oc = opcodes.OplReserved126
-		t.Logf("%s", oc)
-	})
+	//t.Run("opcodes1", func(t *testing.T) {
+	//	require.True(t, opcodes.OpsExit.IsShort())
+	//	require.True(t, opcodes.OpsVerifySigED25519.IsShort())
+	//	require.False(t, opcodes.OplReserved126.IsShort())
+	//	oc := opcodes.OpCode(0)
+	//	t.Logf("%s", oc)
+	//	oc = opcodes.OpsExit
+	//	t.Logf("%s", oc)
+	//	oc = opcodes.OpsVerifySigED25519
+	//	t.Logf("%s", oc)
+	//	oc = opcodes.OpCode(31)
+	//	t.Logf("%s", oc)
+	//	oc = opcodes.OplReserved126
+	//	t.Logf("%s", oc)
+	//})
 	t.Run("opcodes2", func(t *testing.T) {
 		d := []byte{200}
 		require.Panics(t, func() {
@@ -44,7 +44,7 @@ func TestBasic(t *testing.T) {
 		tx := ledger.New()
 		v, err := tx.CreateValidationContext(utxodb.New())
 		require.NoError(t, err)
-		engine.Run(opcodes.All, v.Tree(), nil, nil, nil)
+		engine.Run(opcodes.All, v.Tree(), nil, 0, nil, nil)
 	})
 
 }

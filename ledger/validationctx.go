@@ -51,7 +51,7 @@ func (v *ValidationContext) ParseInvocation(invocationFullPath lazyslice.TreePat
 	return v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
 }
 
-func (v *ValidationContext) RunScript(invocationPath lazyslice.TreePath) {
+func (v *ValidationContext) RunScript(invocationPath lazyslice.TreePath, invocationIndex byte) {
 	code, data := v.ParseInvocation(v.tree.BytesAtPath(invocationPath))
-	engine.Run(opcodes.All, v.Tree(), invocationPath, code, data)
+	engine.Run(opcodes.All, v.Tree(), invocationPath, invocationIndex, code, data)
 }

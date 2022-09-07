@@ -43,6 +43,7 @@ type (
 const (
 	RegInvocationPath = byte(iota)
 	RegInvocationData
+	RegInvocationIndex
 	FirstWriteableRegister
 )
 
@@ -51,7 +52,7 @@ const (
 // invocationFullPath starts from validation root:
 //  (a) (inputs, idx1, idx0, idxInsideOutput)
 //  (b) (tx, context, idx, idxInsideOutput)
-func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, code, data []byte, trace ...bool) {
+func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, invocationIdx byte, code, data []byte, trace ...bool) {
 	e := Engine{
 		code:    code,
 		opcodes: opcodes,
@@ -62,6 +63,7 @@ func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.Tree
 	}
 	e.registers[RegInvocationPath] = invocationFullPath
 	e.registers[RegInvocationData] = data
+	e.registers[RegInvocationIndex] = []byte{invocationIdx}
 	for e.run1Cycle() {
 	}
 }

@@ -106,8 +106,8 @@ func (c OpCode) String() string {
 }
 
 func (c OpCode) Name() string {
-	if dscr, ok := allRaw[c]; ok {
-		return dscr.symName
+	if dscr, ok := All[c]; ok {
+		return dscr.dscr.symName
 	}
 	return "(wrong OpCode)"
 }
@@ -129,44 +129,55 @@ func throwErr(format string, args ...interface{}) {
 	panic(fmt.Errorf("pre-compile error: "+format+"\n", args...))
 }
 
-func mustPreCompileOpcodes(ocRaw map[OpCode]*opcodeDescriptor) (allOpcodesPreCompiled, map[string]*opcodeDescriptorCompiled) {
-	retPrecompiled := make(allOpcodesPreCompiled)
-	retLookup := make(map[string]*opcodeDescriptorCompiled)
-	for oc, dscr := range ocRaw {
-		trimmed := strings.TrimSpace(dscr.paramPattern)
-		parNum := 0
-		var splitN, splitP []string
-		if len(trimmed) > 0 {
-			splitP = strings.Split(dscr.paramPattern, ",")
-			splitN = strings.Split(dscr.paramNames, ",")
-			if len(splitP) != len(splitN) {
-				throwErr("number of parameter patterns not equal to number of parameter names @ '%s' (%s)", dscr.symName, dscr.description)
-			}
-			parNum = len(splitP)
-		}
-		if _, already := retLookup[dscr.symName]; already {
-			throwErr("repeating opcode name: '%s' (%s)", dscr.symName, dscr.description)
-		}
-
-		retPrecompiled[oc] = &opcodeDescriptorCompiled{
-			opcode: oc,
-			dscr:   dscr,
-			params: make([]paramsTemplateCompiled, parNum),
-		}
-		retLookup[dscr.symName] = retPrecompiled[oc]
-
-		for i := range retLookup[dscr.symName].params {
-			retLookup[dscr.symName].params[i].paramName = strings.TrimSpace(splitN[i])
-			retLookup[dscr.symName].params[i].paramType = splitP[i]
-			if len(retLookup[dscr.symName].params[i].paramName) == 0 {
-				throwErr("opcode parameter name can't be empty @ '%s' (%s)", dscr.symName, dscr.description)
-			}
-			switch retLookup[dscr.symName].params[i].paramType {
-			case paramType8, paramType16, paramTypeVariable, paramTypeShortTarget, paramTypeLongTarget:
-			default:
-				throwErr("wrong parameter pattern '%s' @ '%s' (%s)", splitP[i], dscr.symName, dscr.description)
-			}
-		}
+func mustPreCompileOpcodes(ocRaw1Byte, ocRaw2Byte []*opcodeDescriptor) (allOpcodesPreCompiled, map[string]*opcodeDescriptorCompiled) {
+	if len(ocRaw1Byte) > 127 {
+		panic("can't be more than 127 one-byte opcodes")
 	}
-	return retPrecompiled, retLookup
+	retPrecompiled := make(allOpcodesPreCompiled)
+	retSymLookup := make(map[string]*opcodeDescriptorCompiled)
+	// for both table do the same
+	for tableNo, table := range [][]*opcodeDescriptor{ocRaw1Byte, ocRaw2Byte} {
+		for oc, dscr := range table {
+			if dscr == nil {
+				continue // reserved
+			}
+			trimmed := strings.TrimSpace(dscr.paramPattern)
+			parNum := 0
+			var splitN, splitP []string
+			if len(trimmed) > 0 {
+				splitP = strings.Split(dscr.paramPattern, ",")
+				splitN = strings.Split(dscr.paramNames, ",")
+				if len(splitP) != len(splitN) {
+					throwErr("number of parameter patterns not equal to number of parameter names @ '%s' (%s)", dscr.symName, dscr.description)
+				}
+				parNum = len(splitP)
+			}
+			if _, already := retSymLookup[dscr.symName]; already {
+				throwErr("repeating opcode name: '%s' (%s)", dscr.symName, dscr.description)
+			}
+
+			opcode := OpCode(oc + 127*tableNo)
+			retPrecompiled[opcode] = &opcodeDescriptorCompiled{
+				opcode: opcode,
+				dscr:   dscr,
+				params: make([]paramsTemplateCompiled, parNum),
+			}
+			retSymLookup[dscr.symName] = retPrecompiled[opcode]
+
+			for i := range retSymLookup[dscr.symName].params {
+				retSymLookup[dscr.symName].params[i].paramName = strings.TrimSpace(splitN[i])
+				retSymLookup[dscr.symName].params[i].paramType = splitP[i]
+				if len(retSymLookup[dscr.symName].params[i].paramName) == 0 {
+					throwErr("opcode parameter name can't be empty @ '%s' (%s)", dscr.symName, dscr.description)
+				}
+				switch retSymLookup[dscr.symName].params[i].paramType {
+				case paramType8, paramType16, paramTypeVariable, paramTypeShortTarget, paramTypeLongTarget:
+				default:
+					throwErr("wrong parameter pattern '%s' @ '%s' (%s)", splitP[i], dscr.symName, dscr.description)
+				}
+			}
+		}
+
+	}
+	return retPrecompiled, retSymLookup
 }

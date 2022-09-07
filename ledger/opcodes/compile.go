@@ -56,7 +56,7 @@ func CompileSource(sourceCode string) ([]byte, error) {
 		} else {
 			opcode, params, _ := strings.Cut(instr, " ")
 			opcode = strings.TrimSpace(opcode)
-			dscr, found := allLookup[opcode]
+			dscr, found := allSymLookup[opcode]
 			if !found {
 				return nil, fmt.Errorf("wrong opcode '%s' @ line %d: '%s'", opcode, lineno, strings.TrimSpace(line))
 			}
@@ -77,6 +77,14 @@ func CompileSource(sourceCode string) ([]byte, error) {
 		}
 	}
 	return prog.Assemble()
+}
+
+func MustCompileSource(sourceCode string) []byte {
+	ret, err := CompileSource(sourceCode)
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 func assembleParams(prog *engine.Program, params []string, templates []paramsTemplateCompiled) error {
@@ -104,12 +112,9 @@ func assembleParams(prog *engine.Program, params []string, templates []paramsTem
 			}
 			prog.ParamBytes(easyutxo.EncodeInteger(uint16(r))...)
 		case paramTypeVariable:
-			r, err := hex.DecodeString(p)
+			r, err := parseVarLenParameter(p)
 			if err != nil {
 				return err
-			}
-			if len(r) > math.MaxUint8 {
-				return errors.New("too long value")
 			}
 			prog.ParamBytes(byte(len(r)))
 			prog.ParamBytes(r...)
@@ -122,6 +127,56 @@ func assembleParams(prog *engine.Program, params []string, templates []paramsTem
 		}
 	}
 	return nil
+}
+
+func parseVarLenParameter(p string) ([]byte, error) {
+	var ret []byte
+	var err error
+	var n int
+	switch {
+	case p == "nil":
+		ret = nil
+	case strings.HasPrefix(p, "hex/"):
+		ret, err = hex.DecodeString(strings.TrimPrefix(p, "hex/"))
+		if err != nil {
+			return nil, err
+		}
+	case strings.HasPrefix(p, "u8/"):
+		n, err = strconv.Atoi(strings.TrimPrefix(p, "u8."))
+		if err != nil {
+			return nil, err
+		}
+		if n < 0 || n > math.MaxUint8 {
+			return nil, errors.New("wrong u8 value")
+		}
+		ret = []byte{byte(n)}
+	case strings.HasPrefix(p, "u16/"):
+		n, err = strconv.Atoi(strings.TrimPrefix(p, "u16."))
+		if err != nil {
+			return nil, err
+		}
+		if n < 0 || n > math.MaxUint16 {
+			return nil, errors.New("wrong u16 value")
+		}
+		ret = easyutxo.EncodeInteger(uint16(n))
+	case strings.HasPrefix(p, "u32/"):
+		n, err = strconv.Atoi(strings.TrimPrefix(p, "u32."))
+		if err != nil {
+			return nil, err
+		}
+		if n < 0 || n > math.MaxUint16 {
+			return nil, errors.New("wrong u32 value")
+		}
+		ret = easyutxo.EncodeInteger(uint32(n))
+	default:
+		// treat it as string
+		ret = []byte(p)
+
+	}
+	if len(ret) > math.MaxUint8 {
+		return nil, errors.New("too long value")
+	}
+	return ret, nil
 }
 
 func splitLines(s string) []string {
