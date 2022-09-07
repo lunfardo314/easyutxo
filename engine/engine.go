@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -15,11 +16,13 @@ type (
 	Engine struct {
 		opcodes      Opcodes
 		code         []byte
+		currentPos   int
 		instrCounter int
 		registers    [NumRegisters][]byte
 		stack        [MaxStack][]byte
 		stackTop     int
 		ctx          *lazyslice.Tree
+		trace        bool
 		exit         bool
 	}
 	OpCode interface {
@@ -27,11 +30,11 @@ type (
 		Uint16() uint16
 		String() string
 		Name() string
+		Valid() bool
 	}
 	Opcodes interface {
 		// ParseInstruction returns instruction runner, opcode length and instruction parameters
 		ParseInstruction(code []byte) (InstructionRunner, []byte)
-		ValidateOpcode(oc OpCode) error
 	}
 	InstructionParameterParser func(codeAfterOpcode []byte) (InstructionRunner, []byte)
 	InstructionRunner          func(e *Engine, paramBytes []byte)
@@ -48,11 +51,14 @@ const (
 // invocationFullPath starts from validation root:
 //  (a) (inputs, idx1, idx0, idxInsideOutput)
 //  (b) (tx, context, idx, idxInsideOutput)
-func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, code, data []byte) {
+func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, code, data []byte, trace ...bool) {
 	e := Engine{
 		code:    code,
 		opcodes: opcodes,
 		ctx:     ctx,
+	}
+	if len(trace) > 0 {
+		e.trace = trace[0]
 	}
 	e.registers[RegInvocationPath] = invocationFullPath
 	e.registers[RegInvocationData] = data
@@ -114,7 +120,7 @@ func (e *Engine) Top() []byte {
 }
 
 func (e *Engine) Move(offset int) {
-	e.instrCounter += offset
+	e.currentPos += offset
 }
 
 func (e *Engine) BytesAtPath(p lazyslice.TreePath) []byte {
@@ -125,8 +131,26 @@ func (e *Engine) GetDataAtIdx(idx byte, p lazyslice.TreePath) []byte {
 	return e.ctx.GetDataAtIdx(idx, p)
 }
 
+func (e *Engine) traceString() string {
+	if !e.trace {
+		return "(no trace available)"
+	}
+	return "(tracing not implemented)"
+}
+
 func (e *Engine) run1Cycle() bool {
-	instrRunner, paramData := e.opcodes.ParseInstruction(e.code[e.instrCounter:])
-	instrRunner(e, paramData)
+	var instrRunner InstructionRunner
+	var paramData []byte
+	err := easyutxo.CatchPanic(func() {
+		instrRunner, paramData = e.opcodes.ParseInstruction(e.code[e.currentPos:])
+	})
+	if err != nil {
+		panic(fmt.Errorf("cannot parse instruction after instuction %d @ script position %d. Trace:\n%s",
+			e.instrCounter, e.currentPos, e.traceString()))
+	}
+	err = easyutxo.CatchPanic(func() {
+		instrRunner(e, paramData)
+	})
+	e.instrCounter++
 	return !e.exit
 }

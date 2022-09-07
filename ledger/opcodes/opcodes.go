@@ -2,6 +2,7 @@ package opcodes
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/lunfardo314/easyutxo/engine"
 )
@@ -16,6 +17,7 @@ type (
 		run          engine.InstructionRunner
 	}
 	opcodeDescriptorCompiled struct {
+		opcode OpCode
 		dscr   *opcodeDescriptor
 		params []paramsTemplateCompiled
 	}
@@ -67,13 +69,6 @@ func parseParams(code []byte, templates []paramsTemplateCompiled) []byte {
 	return code[:offs]
 }
 
-func (all allOpcodesPreCompiled) ValidateOpcode(oc engine.OpCode) error {
-	if _, found := all[oc.(OpCode)]; !found {
-		return fmt.Errorf("wrong opcode %d", oc)
-	}
-	return nil
-}
-
 func ParseOpcode(code []byte) (OpCode, int) {
 	var op OpCode
 	var retOffset int
@@ -121,6 +116,57 @@ func (c OpCode) Uint16() uint16 {
 	return uint16(c)
 }
 
+func (c OpCode) Valid() bool {
+	_, found := All[c]
+	return found
+}
+
 func (c OpCode) IsShort() bool {
 	return uint16(c) <= MaxShortOpcode
+}
+
+func throwErr(format string, args ...interface{}) {
+	panic(fmt.Errorf("pre-compile error: "+format+"\n", args...))
+}
+
+func mustPreCompileOpcodes(ocRaw map[OpCode]*opcodeDescriptor) (allOpcodesPreCompiled, map[string]*opcodeDescriptorCompiled) {
+	retPrecompiled := make(allOpcodesPreCompiled)
+	retLookup := make(map[string]*opcodeDescriptorCompiled)
+	for oc, dscr := range ocRaw {
+		trimmed := strings.TrimSpace(dscr.paramPattern)
+		parNum := 0
+		var splitN, splitP []string
+		if len(trimmed) > 0 {
+			splitP = strings.Split(dscr.paramPattern, ",")
+			splitN = strings.Split(dscr.paramNames, ",")
+			if len(splitP) != len(splitN) {
+				throwErr("number of parameter patterns not equal to number of parameter names @ '%s' (%s)", dscr.symName, dscr.description)
+			}
+			parNum = len(splitP)
+		}
+		if _, already := retLookup[dscr.symName]; already {
+			throwErr("repeating opcode name: '%s' (%s)", dscr.symName, dscr.description)
+		}
+
+		retPrecompiled[oc] = &opcodeDescriptorCompiled{
+			opcode: oc,
+			dscr:   dscr,
+			params: make([]paramsTemplateCompiled, parNum),
+		}
+		retLookup[dscr.symName] = retPrecompiled[oc]
+
+		for i := range retLookup[dscr.symName].params {
+			retLookup[dscr.symName].params[i].paramName = strings.TrimSpace(splitN[i])
+			retLookup[dscr.symName].params[i].paramType = splitP[i]
+			if len(retLookup[dscr.symName].params[i].paramName) == 0 {
+				throwErr("opcode parameter name can't be empty @ '%s' (%s)", dscr.symName, dscr.description)
+			}
+			switch retLookup[dscr.symName].params[i].paramType {
+			case paramType8, paramType16, paramTypeVariable, paramTypeShortTarget, paramTypeLongTarget:
+			default:
+				throwErr("wrong parameter pattern '%s' @ '%s' (%s)", splitP[i], dscr.symName, dscr.description)
+			}
+		}
+	}
+	return retPrecompiled, retLookup
 }

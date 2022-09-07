@@ -3,7 +3,6 @@ package opcodes
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/lunfardo314/easyutxo/engine"
 	"github.com/lunfardo314/easyutxo/ledger/path"
@@ -19,12 +18,14 @@ const (
 	OpsSaveParamToReg
 	OpsPushFalse
 	// tree path/data manipulation
+
 	OpsPushBytesFromPath
 	OpsPushBytesFromPathAndIndex
 	OpsPushTransactionEssenceBytes
 
 	OpsMakeUnlockBlockPathToReg
 	// control
+
 	OpsJumpShortOnInputContext
 	OpsJumpLongOnInputContext
 	OpsJumpShortOnTrue
@@ -32,6 +33,7 @@ const (
 	OpsJumpShortOnFalse
 	OpsJumpLongOnFalse
 	// other
+
 	OpsVerifySigED25519
 	OpsBlake2b
 )
@@ -44,14 +46,14 @@ var allRaw = map[OpCode]*opcodeDescriptor{
 	OpsNOP:            {"nop", "no operation", "", "", runNOP},
 	OpsExit:           {"exit", "exit script", "", "", runExit},
 	OpsPop:            {"pop", "pop stack", "", "", runPop},
-	OpsEqualLenShort:  {"==len", "length of register value is equal to parameter", "S", "register#-with-value", runEqualLenShort},
+	OpsEqualLenShort:  {"len==", "length of register value is equal to parameter", "S", "register#-with-value", runEqualLenShort},
 	OpsEqualStackTop:  {"==", "2 top stack values equal", "", "", runEqualStackTop},
 	OpsPushFromReg:    {"pushReg", "push value from register", "S", "register#-with-value", runPushFromReg},
 	OpsSaveParamToReg: {"saveToReg", "save parameter to register", "S,V", "register#,var-value", runSaveToRegister},
 	OpsPushFalse:      {"false", "push false", "", "", runPushFalse},
 	// tree path/data manipulation
 	OpsPushBytesFromPath:           {"pushFromPath", "push value from path", "S", "register#-with-path", runOpsPushBytesFromPath},
-	OpsPushBytesFromPathAndIndex:   {"pushFromPathIndex", "push value from path and index", "S", "register#-with-path", runOpsLoadBytesFromPathAndIndex},
+	OpsPushBytesFromPathAndIndex:   {"pushFromPathIndex", "push value from path and index", "S,S", "register#-with-path, element_index", runOpsLoadBytesFromPathAndIndex},
 	OpsMakeUnlockBlockPathToReg:    {"unlockBlockPath", "make and save unlock-block path to register", "S", "register#", runMakeUnlockBlockPathToReg},
 	OpsPushTransactionEssenceBytes: {"pushTxEssence", "push transaction essence bytes", "", "", runPushTransactionEssenceBytes},
 	// flow control
@@ -68,51 +70,6 @@ var allRaw = map[OpCode]*opcodeDescriptor{
 }
 
 var All, allLookup = mustPreCompileOpcodes(allRaw)
-
-func throwErr(format string, args ...interface{}) {
-	panic(fmt.Errorf("pre-compile error: "+format+"\n", args...))
-}
-
-func mustPreCompileOpcodes(ocRaw map[OpCode]*opcodeDescriptor) (allOpcodesPreCompiled, map[string]*opcodeDescriptorCompiled) {
-	retPrecompiled := make(allOpcodesPreCompiled)
-	retLookup := make(map[string]*opcodeDescriptorCompiled)
-	for oc, dscr := range ocRaw {
-		trimmed := strings.TrimSpace(dscr.paramPattern)
-		parNum := 0
-		var splitN, splitP []string
-		if len(trimmed) > 0 {
-			splitP = strings.Split(dscr.paramPattern, ",")
-			splitN = strings.Split(dscr.paramNames, ",")
-			if len(splitP) != len(splitN) {
-				throwErr("number of parameter patterns not equal to number of parameter names @ '%s' (%s)", dscr.symName, dscr.description)
-			}
-			parNum = len(splitP)
-		}
-		if _, already := retLookup[dscr.symName]; already {
-			throwErr("repeating opcode name: '%s' (%s)", dscr.symName, dscr.description)
-		}
-
-		retPrecompiled[oc] = &opcodeDescriptorCompiled{
-			dscr:   dscr,
-			params: make([]paramsTemplateCompiled, parNum),
-		}
-		retLookup[dscr.symName] = retPrecompiled[oc]
-
-		for i := range retLookup[dscr.symName].params {
-			retLookup[dscr.symName].params[i].paramName = strings.TrimSpace(splitN[i])
-			retLookup[dscr.symName].params[i].paramType = splitP[i]
-			if len(retLookup[dscr.symName].params[i].paramName) == 0 {
-				throwErr("opcode parameter name can't be empty @ '%s' (%s)", dscr.symName, dscr.description)
-			}
-			switch retLookup[dscr.symName].params[i].paramType {
-			case paramType8, paramType16, paramTypeVariable, paramTypeShortTarget, paramTypeLongTarget:
-			default:
-				throwErr("wrong parameter pattern '%s' @ '%s' (%s)", splitP[i], dscr.symName, dscr.description)
-			}
-		}
-	}
-	return retPrecompiled, retLookup
-}
 
 func mustParLen(par []byte, n int) {
 	if len(par) != n {

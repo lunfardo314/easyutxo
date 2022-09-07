@@ -6,31 +6,31 @@ import (
 )
 
 var SigLockED25519 = opcodes.MustGenProgram(func(p *engine.Program) {
-	p.OP(opcodes.OpsPushFromReg).B(engine.RegInvocationData)         // load address into the stack
-	p.OP(opcodes.OpsJumpShortOnInputContext).TargetShort("checksig") // Jump to 'checksig' if input context (signature checking)
+	p.Opcode(opcodes.OpsPushFromReg).ParamBytes(engine.RegInvocationData) // load address into the stack
+	p.Opcode(opcodes.OpsJumpShortOnInputContext).TargetShort("checksig")  // Jump to 'checksig' if input context (signature checking)
 	// --- Continues on transaction context
-	p.OP(opcodes.OpsEqualLenShort).B(32) // Checks if the length of invocation data is equal to 32
-	p.OP(opcodes.OpsExit)                // ends script here. Fails if length is wrong
+	p.Opcode(opcodes.OpsEqualLenShort).ParamBytes(32) // Checks if the length of invocation data is equal to 32
+	p.Opcode(opcodes.OpsExit)                         // ends script here. Fails if length is wrong
 	p.Label("checksig")
 	// ---- here we have invocation context inputs
-	p.OP(opcodes.OpsMakeUnlockBlockPathToReg).B(engine.FirstWriteableRegister)     // make path of the corresponding unlock-block into the register
-	p.OP(opcodes.OpsPushBytesFromPathAndIndex).B(engine.FirstWriteableRegister, 0) // push #0 element of the unlock-block
-	p.OP(opcodes.OpsEqualLenShort).B(0)                                            // Checks if the first element is zero length
-	p.OP(opcodes.OpsJumpLongOnFalse).TargetShort("refinput")                       // jumps to 'refinput' is first element not 0
+	p.Opcode(opcodes.OpsMakeUnlockBlockPathToReg).ParamBytes(engine.FirstWriteableRegister)     // make path of the corresponding unlock-block into the register
+	p.Opcode(opcodes.OpsPushBytesFromPathAndIndex).ParamBytes(engine.FirstWriteableRegister, 0) // push #0 element of the unlock-block
+	p.Opcode(opcodes.OpsEqualLenShort).ParamBytes(0)                                            // Checks if the first element is zero length
+	p.Opcode(opcodes.OpsJumpShortOnFalse).TargetShort("refinput")                               // jumps to 'refinput' is first element not 0
 	// ---- here we are checking the signature
-	p.OP(opcodes.OpsPushBytesFromPathAndIndex).B(engine.FirstWriteableRegister, 2) // push #2 element of the unlock-block with public key
-	p.OP(opcodes.OpsPushBytesFromPathAndIndex).B(engine.FirstWriteableRegister, 1) // push #1 element of the unlock-block with signature
-	p.OP(opcodes.OpsPushTransactionEssenceBytes)                                   // push essence bytes
-	p.OP(opcodes.OpsVerifySigED25519)                                              // check signature
-	p.OP(opcodes.OpsJumpLongOnTrue).TargetShort("sigok")                           // jumps to 'sigok' if signature correct
-	p.OP(opcodes.OpsExit)                                                          // ends script here. Fails if signature is invalid
+	p.Opcode(opcodes.OpsPushBytesFromPathAndIndex).ParamBytes(engine.FirstWriteableRegister, 2) // push #2 element of the unlock-block with public key
+	p.Opcode(opcodes.OpsPushBytesFromPathAndIndex).ParamBytes(engine.FirstWriteableRegister, 1) // push #1 element of the unlock-block with signature
+	p.Opcode(opcodes.OpsPushTransactionEssenceBytes)                                            // push essence bytes
+	p.Opcode(opcodes.OpsVerifySigED25519)                                                       // check signature
+	p.Opcode(opcodes.OpsJumpShortOnTrue).TargetShort("sigok")                                   // jumps to 'sigok' if signature correct
+	p.Opcode(opcodes.OpsExit)                                                                   // ends script here. Fails if signature is invalid
 	p.Label("sigok")
 	// --- here signature is valid
-	p.OP(opcodes.OpsPop)           // remove essence bytes. Signature and public key is left
-	p.OP(opcodes.OpsPop)           // remove signature. Public key is left
-	p.OP(opcodes.OpsBlake2b)       // has the public key. Replace with hash. Now 2 top elements of the stack are hash and address
-	p.OP(opcodes.OpsEqualStackTop) // compares public key hash with address
-	p.OP(opcodes.OpsExit)          // ends script here. Fails if public key has not equal to address
+	p.Opcode(opcodes.OpsPop)           // remove essence bytes. Signature and public key is left
+	p.Opcode(opcodes.OpsPop)           // remove signature. Public key is left
+	p.Opcode(opcodes.OpsBlake2b)       // has the public key. Replace with hash. Now 2 top elements of the stack are hash and address
+	p.Opcode(opcodes.OpsEqualStackTop) // compares public key hash with address
+	p.Opcode(opcodes.OpsExit)          // ends script here. Fails if public key has not equal to address
 	p.Label("refinput")
 	// ---- unlock block contains reference to another
 	// TODO
@@ -40,8 +40,31 @@ var SigLockED25519 = opcodes.MustGenProgram(func(p *engine.Program) {
 // Each input has unlock block under the same long index
 // Each unlock block is LazyTree, interpreted up to scripts
 
-var SigLockED25519Script = `
-	pushReg 1 					; load address into the stack
+var SigLockED25519Source = `
+	pushReg 1 					; load address from register #1 into the stack
 	ifInputContext-> checksig   ; Jump to 'checksig' if input context (signature checking)
-	> checksig  				; here we have input invocation context
+	len== 32					; push true/false if the length of stack top value (address) is equal to 32
+	exit						; ends script here. Fails if length is wrong
+	> checksig					
+	; -------------------------- here we have input invocation context
+	unlockBlockPath 2			; make path of the corresponding unlock-block into the register #2
+	pushFromPathIndex 2,0       ; push 0 element of the unlock-block in register #2
+	len== 0						; checks if the 0 element of the unlock-block in is zero length
+	ifFalse-> refinput          ; jumps to 'refinput' is first element not 0, i.e. if it unlock-block is reference
+	; -------------------------- here we are checking the signature
+	pushFromPathIndex 2,2       ; push #2 element of the unlock-block with public key
+	pushFromPathIndex 2,1       ; push #1 element of the unlock-block with signature
+	pushTxEssence               ; push transaction essence bytes
+	verifySigED25519            ; verify the signature of essence against public key
+	ifTrue-> sigok				; check if signature was ok
+	exit                        ; signature not ok, leave with false (fail)
+	> sigok
+	; --------------------------- here siganture is ok, now checking if it is the right public key
+	pop                         ; remove essence bytes. Signature and public key is left
+	pop                         ; remove signature. Public key is left
+	blake2b                     ; hash the public key, replace. Now 2 top elements of the stack are hash and address
+    ==                          ; compares public key hash with address
+	exit                        ; ends script here. Fails if public key has not equal to address
+	> refinput  				
+	; --------------------------- here we are checking referenced input if it unlocks the current one
 `

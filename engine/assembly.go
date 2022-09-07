@@ -29,10 +29,10 @@ func NewProgram(opcodes Opcodes) *Program {
 	}
 }
 
-// OP starts new instruction
-func (p *Program) OP(c OpCode) *Program {
-	if err := p.opcodes.ValidateOpcode(c); err != nil {
-		panic(fmt.Errorf("error @ instruction #%d: %v", len(p.instructions), err))
+// Opcode starts new instruction
+func (p *Program) Opcode(c OpCode) *Program {
+	if !c.Valid() {
+		panic(fmt.Errorf("invalid opcode %s @ instruction #%d", c, len(p.instructions)))
 	}
 	p.label = false
 	p.instructions = append(p.instructions, instruction{
@@ -44,7 +44,7 @@ func (p *Program) OP(c OpCode) *Program {
 	return p
 }
 
-func (p *Program) B(b ...byte) *Program {
+func (p *Program) ParamBytes(b ...byte) *Program {
 	if p.label {
 		panic("label in wrong position")
 	}
@@ -83,7 +83,7 @@ func (p *Program) Label(label string) {
 	p.label = true
 }
 
-func (p *Program) Compile() ([]byte, error) {
+func (p *Program) Assemble() ([]byte, error) {
 	var buf bytes.Buffer
 	currentPosition := 0
 	for currentInstruction := range p.instructions {
@@ -100,8 +100,8 @@ func (p *Program) Compile() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (p *Program) MustCompile() []byte {
-	ret, err := p.Compile()
+func (p *Program) MustAssemble() []byte {
+	ret, err := p.Assemble()
 	if err != nil {
 		panic(err)
 	}

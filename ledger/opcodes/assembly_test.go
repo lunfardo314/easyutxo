@@ -19,37 +19,40 @@ func TestAssembly(t *testing.T) {
 	})
 	t.Run("first program", func(t *testing.T) {
 		code, err := opcodes.GenProgram(func(p *engine.Program) {
-			p.OP(opcodes.OpsNOP)
-			p.OP(opcodes.OpsExit)
-			p.OP(opcodes.OpsVerifySigED25519)
-			p.OP(opcodes.OplReserved126)
+			p.Opcode(opcodes.OpsNOP)
+			p.Opcode(opcodes.OpsExit)
+			p.Opcode(opcodes.OpsVerifySigED25519)
+			p.Opcode(opcodes.OplReserved126)
 		})
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 	})
 	t.Run("with dummy label", func(t *testing.T) {
 		code, err := opcodes.GenProgram(func(p *engine.Program) {
-			p.OP(opcodes.OpsNOP)
-			p.OP(opcodes.OpsExit)
+			p.Opcode(opcodes.OpsNOP)
+			p.Opcode(opcodes.OpsExit)
 			p.Label("dummy")
-			p.OP(opcodes.OpsVerifySigED25519)
-			p.OP(opcodes.OplReserved126)
+			p.Opcode(opcodes.OpsVerifySigED25519)
+			p.Opcode(opcodes.OplReserved126)
 		})
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 	})
 	t.Run("wrong instruction", func(t *testing.T) {
 		_, err := opcodes.GenProgram(func(p *engine.Program) {
-			p.OP(opcodes.OpsNOP)
-			p.OP(opcodes.OpCode(100))
+			p.Opcode(opcodes.OpsNOP)
+			p.Opcode(opcodes.OpCode(100))
 		})
 		require.Error(t, err)
-		require.True(t, strings.Contains(err.Error(), "wrong opcode"))
+		require.True(t, strings.Contains(err.Error(), "invalid opcode"))
 	})
 }
 
 func TestCompiler(t *testing.T) {
-	t.Run("SigLockED25519Script", func(t *testing.T) {
-		_, _ = opcodes.CompileSource(library.SigLockED25519Script)
+	t.Run("SigLockED25519Source", func(t *testing.T) {
+		code, err := opcodes.CompileSource(library.SigLockED25519Source)
+		require.NoError(t, err)
+		t.Logf("code len = %d", len(code))
+		require.EqualValues(t, code, library.SigLockED25519)
 	})
 }
