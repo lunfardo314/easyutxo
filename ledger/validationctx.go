@@ -42,20 +42,29 @@ func (v *GlobalContext) CodeFromLocalLibrary(idx byte) []byte {
 	return v.Transaction().CodeFromLocalLibrary(idx)
 }
 
-func (v *GlobalContext) ParseInvocation(invocationFullPath lazyslice.TreePath) ([]byte, []byte) {
+func (v *GlobalContext) ParseInvocation(invocationFullPath lazyslice.TreePath) (byte, []byte, []byte) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	switch invocation[0] {
 	case library.CodeReservedForLocalInvocations:
-		return v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
+		return invocation[1], v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
 	case library.CodeReservedForInlineInvocations:
-		return invocation[1:], nil
+		return invocation[1], invocation[1:], nil
 	}
-	return v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
+	return invocation[1], v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
 }
 
 func (v *GlobalContext) RunScript(invocationPath lazyslice.TreePath, invocationIndex byte) {
-	code, data := v.ParseInvocation(v.tree.BytesAtPath(invocationPath))
-	engine.Run(opcodes.All, v.Tree(), invocationPath, invocationIndex, code, data)
+	invocationCode, code, data := v.ParseInvocation(v.tree.BytesAtPath(invocationPath))
+	engine.Run(&engine.ScriptInvocationContext{
+		Opcodes:            opcodes.All,
+		Ctx:                v.Tree(),
+		InvocationCode:     invocationCode,
+		InvocationFullPath: invocationPath,
+		InvocationIdx:      invocationIndex,
+		Code:               code,
+		Data:               data,
+		Trace:              false,
+	})
 }
 
 // CreateGlobalContext finds all inputs in the ledger state.

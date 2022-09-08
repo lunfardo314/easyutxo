@@ -14,15 +14,12 @@ const (
 
 type (
 	Engine struct {
-		opcodes      Opcodes
-		code         []byte
+		par          *ScriptInvocationContext
 		currentPos   int
 		instrCounter int
 		registers    [NumRegisters][]byte
 		stack        [MaxStack][]byte
 		stackTop     int
-		ctx          *lazyslice.Tree
-		trace        bool
 		exit         bool
 	}
 	OpCode interface {
@@ -47,23 +44,38 @@ const (
 	FirstWriteableRegister
 )
 
+type ScriptInvocationContext struct {
+	// opcode definition
+	Opcodes Opcodes
+	// global context
+	Ctx *lazyslice.Tree
+	// library index
+	InvocationCode byte
+	// global path of the consumed output or transaction output where script was invoked
+	InvocationFullPath lazyslice.TreePath
+	// element index of the script invocation
+	InvocationIdx byte
+	// script code
+	Code []byte
+	// invocation Data
+	Data []byte
+	// trace y/n
+	Trace bool
+}
+
 // Run executes the script. If it returns, script is successful.
 // If it panics, ledger is invalid
 // invocationFullPath starts from validation root:
 //  (a) (inputs, idx1, idx0, idxInsideOutput)
 //  (b) (tx, context, idx, idxInsideOutput)
-func Run(opcodes Opcodes, ctx *lazyslice.Tree, invocationFullPath lazyslice.TreePath, invocationIdx byte, code, data []byte, trace ...bool) {
+func Run(par *ScriptInvocationContext) {
 	e := Engine{
-		code:    code,
-		opcodes: opcodes,
-		ctx:     ctx,
+		par: par,
 	}
-	if len(trace) > 0 {
-		e.trace = trace[0]
-	}
-	e.registers[RegInvocationPath] = invocationFullPath
-	e.registers[RegInvocationData] = data
-	e.registers[RegInvocationIndex] = []byte{invocationIdx}
+	e.registers[RegInvocationPath] = par.InvocationFullPath
+	e.registers[RegInvocationData] = par.Data
+	e.registers[RegInvocationIndex] = []byte{par.InvocationIdx}
+	e.registers[RegScriptIndex] = []byte{par.InvocationCode}
 	for e.run1Cycle() {
 	}
 }
@@ -126,15 +138,15 @@ func (e *Engine) Move(offset int) {
 }
 
 func (e *Engine) BytesAtPath(p lazyslice.TreePath) []byte {
-	return e.ctx.BytesAtPath(p)
+	return e.par.Ctx.BytesAtPath(p)
 }
 
 func (e *Engine) GetDataAtIdx(idx byte, p lazyslice.TreePath) []byte {
-	return e.ctx.GetDataAtIdx(idx, p)
+	return e.par.Ctx.GetDataAtIdx(idx, p)
 }
 
 func (e *Engine) traceString() string {
-	if !e.trace {
+	if !e.par.Trace {
 		return "(no trace available)"
 	}
 	return "(tracing not implemented)"
@@ -144,7 +156,7 @@ func (e *Engine) run1Cycle() bool {
 	var instrRunner InstructionRunner
 	var params [][]byte
 	err := easyutxo.CatchPanic(func() {
-		instrRunner, params = e.opcodes.ParseInstruction(e.code[e.currentPos:])
+		instrRunner, params = e.par.Opcodes.ParseInstruction(e.par.Code[e.currentPos:])
 	})
 	if err != nil {
 		panic(fmt.Errorf("cannot parse instruction after instuction %d @ script position %d. Trace:\n%s",

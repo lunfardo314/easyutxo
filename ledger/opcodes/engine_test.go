@@ -44,7 +44,10 @@ func TestBasic(t *testing.T) {
 		tx := ledger.New()
 		v, err := ledger.CreateGlobalContext(tx, utxodb.New())
 		require.NoError(t, err)
-		engine.Run(opcodes.All, v.Tree(), nil, 0, nil, nil)
+		engine.Run(&engine.ScriptInvocationContext{
+			Opcodes: opcodes.All,
+			Ctx:     v.Tree(),
+		})
 	})
 
 }
