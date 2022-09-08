@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"github.com/lunfardo314/easyutxo/ledger/path"
+	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 )
 
 const OutputIDLength = IDLength + 2
@@ -67,17 +67,23 @@ func (o *Output) Bytes() []byte {
 func (o *Output) Address() []byte {
 	return o.tree.GetDataAtIdx(OutputIndexAddress, nil)
 }
-
-// ValidateOutput invokes all invokable scripts in the output in the context of ledger (not input)
-func (v *ValidationContext) ValidateOutput(outputContext, idx byte) {
-	o := v.Output(outputContext, idx)
+func (v *GlobalContext) ValidateConsumedOutput(outputGroup, idx byte) {
+	o := v.Output(outputGroup, idx)
 	invocationList := o.tree.GetDataAtIdx(0, nil)
 	for _, invokeAtIdx := range invocationList {
-		v.RunScript(Path(path.ValidationCtxTransactionIndex, path.TxTreeIndexOutputGroups, outputContext, idx), invokeAtIdx)
+		v.RunScript(globalpath.TransactionOutput(outputGroup, idx), invokeAtIdx)
+	}
+}
+
+func (v *GlobalContext) ValidateTransactionOutput(idx uint16) {
+	o := v.ConsumedOutput(idx)
+	invocationList := o.tree.GetDataAtIdx(0, nil)
+	for _, invokeAtIdx := range invocationList {
+		v.RunScript(globalpath.ConsumedOutput(idx), invokeAtIdx)
 	}
 }
 
 // ValidateOutputs traverses all outputs in the ledger and validates each
-func (v *ValidationContext) ValidateOutputs() {
+func (v *GlobalContext) ValidateOutputs() {
 
 }

@@ -352,7 +352,7 @@ func (st *Tree) getSubtree(idx byte) *Tree {
 	return TreeFromBytes(st.sa.At(int(idx)))
 }
 
-// PushData Array at the end of the path must exist and must be Array
+// PushData Array at the end of the globalpath must exist and must be Array
 func (st *Tree) PushData(data []byte, path TreePath) int {
 	if len(path) == 0 {
 		return st.sa.Push(data)
@@ -364,7 +364,7 @@ func (st *Tree) PushData(data []byte, path TreePath) int {
 	return ret
 }
 
-// PutDataAtIdx Array at the end of the path must exist and must be Array
+// PutDataAtIdx Array at the end of the globalpath must exist and must be Array
 func (st *Tree) PutDataAtIdx(idx byte, data []byte, path TreePath) {
 	if len(path) == 0 {
 		st.sa.PutAtIdx(idx, data)
@@ -391,7 +391,7 @@ func (st *Tree) Subtree(path TreePath) *Tree {
 	return ret
 }
 
-// BytesAtPath returns serialized for of the element at path
+// BytesAtPath returns serialized for of the element at globalpath
 func (st *Tree) BytesAtPath(path TreePath) []byte {
 	if len(path) == 0 {
 		return st.Bytes()
@@ -411,7 +411,7 @@ func (st *Tree) PushSubtreeFromBytes(data []byte, path TreePath) int {
 	return st.PushData(data, Path(path...))
 }
 
-// PushEmptySubtrees pushes creates a new Array at the end of the path, if it exists
+// PushEmptySubtrees pushes creates a new Array at the end of the globalpath, if it exists
 func (st *Tree) PushEmptySubtrees(n int, path TreePath) {
 	for i := 0; i < n; i++ {
 		st.PushSubtreeFromBytes(emptyArrayPrefix.Bytes(), path)
@@ -433,7 +433,7 @@ func (st *Tree) PutSubtreeAtIdx(tr *Tree, idx byte, path TreePath) {
 	subtree.subtrees[idx] = tr
 }
 
-// NumElements returns number of elements of the Array at the end of path
+// NumElements returns number of elements of the Array at the end of globalpath
 func (st *Tree) NumElements(path TreePath) int {
 	return st.Subtree(path).sa.NumElements()
 }

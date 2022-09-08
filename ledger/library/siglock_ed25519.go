@@ -14,7 +14,7 @@ var SigLockED25519 = opcodes.MustCompileSource(SigLockED25519Source)
 //	p.Opcode(opcodes.OpsExit)                         // ends script here. Fails if length is wrong
 //	p.Label("checksig")
 //	// ---- here we have invocation context inputs
-//	p.Opcode(opcodes.OpsMakeUnlockBlockPathToReg).ParamBytes(engine.FirstWriteableRegister)     // make path of the corresponding unlock-block into the register
+//	p.Opcode(opcodes.OpsMakeUnlockBlockPathToReg).ParamBytes(engine.FirstWriteableRegister)     // make globalpath of the corresponding unlock-block into the register
 //	p.Opcode(opcodes.OpsPushBytesFromPathAndIndex).ParamBytes(engine.FirstWriteableRegister, 0) // push #0 element of the unlock-block
 //	p.Opcode(opcodes.OpsEqualLenShort).ParamBytes(0)                                            // Checks if the first element is zero length
 //	p.Opcode(opcodes.OpsJumpShortOnFalse).TargetShort("refinput")                               // jumps to 'refinput' is first element not 0
@@ -51,8 +51,8 @@ var SigLockED25519Source = `
 	exit						; ends script here. Fails if false is at the top, i.e. length is not 32
 	> checksig					
 	; -------------------------- here we have input invocation context
-	makeUnlockBlockPath 2		; make path of the corresponding unlock-block into the register #2
-	pushFromPathIndex 2,0       ; push 0 element of the unlock-block path in register #2
+	makeUnlockBlockPath 2		; make globalpath of the corresponding unlock-block into the register #2
+	pushFromPathIndex 2,0       ; push 0 element of the unlock-block globalpath in register #2
 	len== 0						; checks if the 0 element of the unlock-block in is zero length
 	ifFalse-> refinput          ; jumps to 'refinput' is first element not 0, i.e. if it unlock-block is reference
 	; -------------------------- here we are checking the signature

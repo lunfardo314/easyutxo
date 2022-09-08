@@ -17,7 +17,7 @@ func New() *UtxoDB {
 }
 
 func (u *UtxoDB) AddTransaction(tx *ledger.Transaction) error {
-	_, err := tx.CreateValidationContext(u)
+	_, err := ledger.CreateGlobalContext(tx, u)
 	if err != nil {
 		return err
 	}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
-	"github.com/lunfardo314/easyutxo/ledger/path"
+	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 )
 
 var allRaw1Byte = []*opcodeDescriptor{
@@ -20,11 +20,11 @@ var allRaw1Byte = []*opcodeDescriptor{
 	{"==", "2 top stack values equal", "", "", runEqualStackTop},
 
 	// --------------------------------------------------------
-	// tree path/data manipulation
-	{"pushFromPath", "push value from path", "S", "register#-with-path", runOpsPushBytesFromPath},
-	{"pushFromPathIndex", "push value from path and index", "S,S", "register#-with-path, element_index", runOpsLoadBytesFromPathAndIndex},
-	{"makeUnlockBlockPath", "make and save unlock-block path to register", "S", "register#", runMakeUnlockBlockPathToReg},
-	{"pushTxEssence", "push transaction essence bytes", "", "", runPushTransactionEssenceBytes},
+	// tree globalpath/data manipulation
+	{"pushFromPath", "push value from globalpath", "S", "register#-with-globalpath", runOpsPushBytesFromPath},
+	{"pushFromPathIndex", "push value from globalpath and index", "S,S", "register#-with-globalpath, element_index", runOpsLoadBytesFromPathAndIndex},
+	{"makeUnlockBlockPath", "make and save unlock-block globalpath to register", "S", "register#", runMakeUnlockBlockPathToReg},
+	{"pushTxEssence", "push transaction essence bytes", "", "", nil},
 	// flow control
 	{"ifInputContext>", "jump short if invocation is input context", "JS", "target-short", runJumpShortOnInputContext},
 	{"ifInputContext>>>", "jump long if invocation is input context", "JL", "target-long", runJumpLongOnInputContext},
@@ -116,21 +116,9 @@ func runSize(e *engine.Engine, d []byte) {
 
 func runMakeUnlockBlockPathToReg(e *engine.Engine, d []byte) {
 	mustParLen(d, 1)
-	unlockBlockPath := path.UnlockBlockPathFromInputInvocationPath(e.RegValue(engine.RegInvocationPath))
+	unlockBlockPath := globalpath.UnlockBlockPathFromInputPath(e.RegValue(engine.RegInvocationPath))
 	e.PutToReg(d[0], unlockBlockPath)
 	e.Move(1 + 1)
-}
-
-func runPushTransactionEssenceBytes(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
-	var buf bytes.Buffer
-
-	buf.Write(e.BytesAtPath(path.GlobalInputIDsLong))
-	buf.Write(e.BytesAtPath(path.GlobalOutputGroups))
-	buf.Write(e.BytesAtPath(path.GlobalTimestamp))
-	buf.Write(e.BytesAtPath(path.GlobalContextCommitment))
-	e.Push(buf.Bytes())
-	e.Move(1)
 }
 
 func runOpsPushBytesFromPath(e *engine.Engine, d []byte) {

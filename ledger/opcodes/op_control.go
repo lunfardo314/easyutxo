@@ -3,12 +3,12 @@ package opcodes
 import (
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
-	"github.com/lunfardo314/easyutxo/ledger/path"
+	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 )
 
 func runJumpShortOnInputContext(e *engine.Engine, d []byte) {
 	mustParLen(d, 1)
-	if path.IsGlobalInputContext(e.RegValue(engine.RegInvocationPath)) {
+	if globalpath.IsConsumedOutputContext(e.RegValue(engine.RegInvocationPath)) {
 		e.Move(int(d[0]))
 	} else {
 		e.Move(1)
@@ -17,7 +17,7 @@ func runJumpShortOnInputContext(e *engine.Engine, d []byte) {
 
 func runJumpLongOnInputContext(e *engine.Engine, d []byte) {
 	mustParLen(d, 2)
-	if path.IsGlobalInputContext(e.RegValue(engine.RegInvocationPath)) {
+	if globalpath.IsConsumedOutputContext(e.RegValue(engine.RegInvocationPath)) {
 		e.Move(int(easyutxo.DecodeInteger[uint16](d[:2])))
 	} else {
 		e.Move(1 + 1)

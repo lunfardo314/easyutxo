@@ -42,7 +42,7 @@ func TestOpcodes(t *testing.T) {
 func TestBasic(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		tx := ledger.New()
-		v, err := tx.CreateValidationContext(utxodb.New())
+		v, err := tx.CreateGlobalContext(utxodb.New())
 		require.NoError(t, err)
 		engine.Run(opcodes.All, v.Tree(), nil, 0, nil, nil)
 	})
