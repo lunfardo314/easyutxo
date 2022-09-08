@@ -2,7 +2,6 @@ package opcodes
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/engine"
@@ -12,17 +11,21 @@ import (
 var allRaw1Byte = []*opcodeDescriptor{
 	{"nop", "no operation", "", "", runNOP},
 	{"exit", "exit script", "", "", runExit},
-	{"pop", "pop stack", "", "", runPop},
-	{"<-reg", "push value from register to stack", "S", "register#-with-value", runPushFromReg},
-	{"reg<-", "save parameter to register", "S,V", "register#,var-value", runSaveToRegister},
-	{"<-", "push parameter to stack", "V", "var-value", runPushParameterToStack},
-	{"<-size", "push 2 bytes uint16 size of value at top", "", "", runSize},
+	{"drop", "drop elements from stack stack", "S", "num-elements", runDrop},
+	{"reg->stack", "push value from register to stack", "S", "register#-with-value", runPushFromReg},
+	{"param->reg", "save parameter to register", "S,V", "register#,var-value", runSaveParamToRegister},
+	{"param->stack", "push parameter to stack", "V", "var-value", runPushParameterToStack},
+	{"stack->reg", "save stack top to register", "S", "register#", runSaveStackToRegister},
+	{"[:]", "push slice of the top element", "S,S", "from_index,to_index", runSlice},
+	{"size16->stack", "push 2 bytes uint16 size of value at top", "", "", runSize},
 	{"==", "2 top stack values equal", "", "", runEqualStackTop},
+	{"==[:]param", "compares slice of the stack top with param", "S,S,V", "from-idx,to-idx,const", runEqualSliceWithParam},
+	{"concat", "concatenate several elements and replace the top", "S", "S", runConcat},
 
 	// --------------------------------------------------------
 	// tree globalpath/data manipulation
 	{"pushFromPath", "push value from globalpath", "S", "register#-with-globalpath", runOpsPushBytesFromPath},
-	{"pushFromPathIndex", "push value from globalpath and index", "S,S", "register#-with-globalpath, element_index", runOpsLoadBytesFromPathAndIndex},
+	{"pushFromPathIndex", "push value from globalpath and index", "S,S", "register#-with-globalpath, element_index", runOpsPushBytesFromPathAndIndex},
 	{"makeUnlockBlockPath", "make and save unlock-block globalpath to register", "S", "register#", runMakeUnlockBlockPathToReg},
 	{"pushTxEssence", "push transaction essence bytes", "", "", nil},
 	// flow control
@@ -43,91 +46,86 @@ var allRaw12Byte = []*opcodeDescriptor{
 
 var All, allSymLookup = mustPreCompileOpcodes(allRaw1Byte, allRaw12Byte)
 
-func mustParLen(par []byte, n int) {
-	if len(par) != n {
-		panic(fmt.Errorf("instruction parameter must be %d bytes long", n))
-	}
-}
-
-func runNOP(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
+func runNOP(e *engine.Engine, p [][]byte) {
 	e.Move(1)
 }
 
-func runExit(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
+func runExit(e *engine.Engine, p [][]byte) {
 	e.Exit()
 }
 
-func runReservedOpcode(_ *engine.Engine, _ []byte) {
+func runReservedOpcode(_ *engine.Engine, _ [][]byte) {
 	panic("reserved opcode")
 }
 
-func runPop(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
-	e.Pop()
-	e.Move(1)
-}
-
-// runEqualLenShort pushes true/false if length of data at the stack top equals to the byte parameter of the instruction
-// Leaves data on the stack
-func runEqualLenShort(e *engine.Engine, d []byte) {
-	mustParLen(d, 1)
-	e.PushBool(len(e.Top()) == int(d[0]))
+func runDrop(e *engine.Engine, p [][]byte) {
+	for i := 0; i < int(p[0][0]); i++ {
+		e.Pop()
+	}
 	e.Move(1 + 1)
 }
 
-// runEqualStackTop compares two top stack elements and removes thjem
-func runEqualStackTop(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
-	e.PushBool(bytes.Equal(e.Pop(), e.Pop()))
+// runEqualStackTop compares two top stack elements
+func runEqualStackTop(e *engine.Engine, p [][]byte) {
+	e.PushBool(bytes.Equal(e.Top(), e.Top()))
 	e.Move(1)
 }
 
-func runPushFromReg(e *engine.Engine, d []byte) {
-	mustParLen(d, 1)
-	e.PushFromReg(d[0])
+func runEqualSliceWithParam(e *engine.Engine, p [][]byte) {
+	e.PushBool(bytes.Equal(e.Top()[p[0][0]:p[1][0]], p[2]))
+	e.Move(1 + 2 + len(p[2]) + 1)
+}
+
+func runPushFromReg(e *engine.Engine, p [][]byte) {
+	e.PushFromReg(p[0][0])
 	e.Move(1 + 1)
 }
 
-func runSaveToRegister(e *engine.Engine, d []byte) {
-	if len(d) < 2 {
-		panic("instruction parameter expected to be at least 2 bytes long")
-	}
-	mustParLen(d[2:], int(d[1]))
-	e.PutToReg(d[0], d[2:])
-	e.Move(2 + int(d[1]))
+func runSaveParamToRegister(e *engine.Engine, p [][]byte) {
+	e.PutToReg(p[0][0], p[1])
+	e.Move(1 + len(p[1]) + 1)
 }
 
-func runPushParameterToStack(e *engine.Engine, d []byte) {
-	if len(d) < 1 {
-		panic("instruction parameter expected to be at least 2 bytes long")
-	}
-	mustParLen(d[1:], int(d[0]))
-	e.Push(d[1:])
-	e.Move(1 + int(d[1]))
+func runPushParameterToStack(e *engine.Engine, p [][]byte) {
+	e.Push(p[0])
+	e.Move(1 + len(p[0]) + 1)
 }
 
-func runSize(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
+func runSaveStackToRegister(e *engine.Engine, p [][]byte) {
+	e.PutToReg(p[0][0], e.Top())
+	e.Move(1 + 1)
+}
+
+func runSlice(e *engine.Engine, p [][]byte) {
+	e.Push(e.Top()[p[0][0]:p[1][0]])
+	e.Move(1 + 2)
+}
+
+func runConcat(e *engine.Engine, p [][]byte) {
+	var buf bytes.Buffer
+	for i := 0; i < int(p[0][0]); i++ {
+		buf.Write(e.Pop())
+	}
+	e.Push(buf.Bytes())
+	e.Move(1 + 1)
+}
+
+func runSize(e *engine.Engine, p [][]byte) {
 	e.Push(easyutxo.EncodeInteger(uint16(len(e.Top()))))
 	e.Move(1)
 }
 
-func runMakeUnlockBlockPathToReg(e *engine.Engine, d []byte) {
-	mustParLen(d, 1)
+func runMakeUnlockBlockPathToReg(e *engine.Engine, p [][]byte) {
 	unlockBlockPath := globalpath.UnlockBlockPathFromInputPath(e.RegValue(engine.RegInvocationPath))
-	e.PutToReg(d[0], unlockBlockPath)
+	e.PutToReg(p[0][0], unlockBlockPath)
 	e.Move(1 + 1)
 }
 
-func runOpsPushBytesFromPath(e *engine.Engine, d []byte) {
-	mustParLen(d, 1)
-	e.Push(e.BytesAtPath(e.RegValue(d[0])))
+func runOpsPushBytesFromPath(e *engine.Engine, p [][]byte) {
+	e.Push(e.BytesAtPath(e.RegValue(p[0][0])))
 }
 
-func runOpsLoadBytesFromPathAndIndex(e *engine.Engine, d []byte) {
-	mustParLen(d, 2)
-	e.Push(e.GetDataAtIdx(d[1], e.RegValue(d[0])))
+func runOpsPushBytesFromPathAndIndex(e *engine.Engine, p [][]byte) {
+	e.Push(e.GetDataAtIdx(p[1][0], e.RegValue(p[0][0])))
 	e.Move(1 + 1)
 }

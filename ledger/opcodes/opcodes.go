@@ -36,9 +36,9 @@ const (
 	paramTypeLongTarget  = "JL"
 )
 
-func (all allOpcodesPreCompiled) ParseInstruction(code []byte) (engine.InstructionRunner, []byte) {
+func (all allOpcodesPreCompiled) ParseInstruction(code []byte) (engine.InstructionRunner, [][]byte) {
 	if len(code) == 0 {
-		return runExit, code
+		return runExit, nil
 	}
 	opcode, offs := ParseOpcode(code)
 	dscr, found := all[opcode]
@@ -48,25 +48,31 @@ func (all allOpcodesPreCompiled) ParseInstruction(code []byte) (engine.Instructi
 	return dscr.dscr.run, parseParams(code[offs:], dscr.params)
 }
 
-func parseParams(code []byte, templates []paramsTemplateCompiled) []byte {
+func parseParams(code []byte, templates []paramsTemplateCompiled) [][]byte {
+	ret := make([][]byte, 0)
 	offs := 0
 	for _, t := range templates {
 		switch t.paramType {
 		case paramType8:
-			offs++
+			ret = append(ret, code[offs:offs+1])
+			offs += 1
 		case paramType16:
+			ret = append(ret, code[offs:offs+2])
 			offs += 2
 		case paramTypeVariable:
-			offs += int(code[offs])
+			ret = append(ret, code[offs+1:offs+int(code[offs])+1])
+			offs += int(code[offs]) + 1
 		case paramTypeShortTarget:
+			ret = append(ret, code[offs:offs+1])
 			offs++
 		case paramTypeLongTarget:
+			ret = append(ret, code[offs:offs+2])
 			offs += 2
 		default:
 			panic("parseParams: wrong param template")
 		}
 	}
-	return code[:offs]
+	return ret
 }
 
 func ParseOpcode(code []byte) (OpCode, int) {

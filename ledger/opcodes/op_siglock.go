@@ -9,8 +9,7 @@ import (
 // - essence bytes -> removed
 // - signature -> removed
 // - public key -> not removed
-func runSigLockED25519(e *engine.Engine, d []byte) {
-	mustParLen(d, 0)
+func runSigLockED25519(e *engine.Engine, _ [][]byte) {
 	essence := e.Pop()
 	signature := e.Pop()
 	pubKey := ed25519.PublicKey(e.Top())

@@ -42,11 +42,13 @@ var SigLockED25519 = opcodes.MustCompileSource(SigLockED25519Source)
 // Each unlock block is LazyTree, interpreted up to scripts
 
 var SigLockED25519Source = `
-	<-reg 1 					; load address from register #1 into the stack
-	ifInputContext> checksig    ; Jump to 'checksig' if input context (signature checking)
+	reg->stack 1 				; push address from register #1 into the stack
+	reg->stack 0                ; push invocation path
+	==[:]param 0,1,u8/1          ; checks if the 0 byte of the invocation path is equal to 1 (consumed context) 
+	ifInputContext> checksig    ; Jump to 'checksig' if it is consumed context (signature checking)
 	; -------------------------- here just check if invocation data is 32 byte-long 
-	<-size		   				; push size to stack as uint16
-	<- u16.32  	 		        ; push value 32 as uint16 to stack
+	size16->stack				; push size to stack as uint16
+	param->stack u16.32         ; push value 32 as uint16 to stack
 	==                          ; compare 2 stack top elements. 
 	exit						; ends script here. Fails if false is at the top, i.e. length is not 32
 	> checksig					
@@ -64,8 +66,7 @@ var SigLockED25519Source = `
 	exit                        ; signature not ok, leave with false (fail)
 	> sigok
 	; --------------------------- here signature is ok, now checking if it is the right public key
-	pop                         ; remove essence bytes. Signature and public key is left
-	pop                         ; remove signature. Public key is left
+	drop 2                      ; remove essence and signature bytes. Signature and public key is left
 	blake2b                     ; hash the public key, replace. Now 2 top elements of the stack are hash and address
     ==                          ; compares public key hash with address
 	exit                        ; ends script here. Fails if public key has not equal to address

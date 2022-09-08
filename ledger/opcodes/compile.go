@@ -142,7 +142,7 @@ func parseVarLenParameter(p string) ([]byte, error) {
 			return nil, err
 		}
 	case strings.HasPrefix(p, "u8/"):
-		n, err = strconv.Atoi(strings.TrimPrefix(p, "u8."))
+		n, err = strconv.Atoi(strings.TrimPrefix(p, "u8/"))
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +151,7 @@ func parseVarLenParameter(p string) ([]byte, error) {
 		}
 		ret = []byte{byte(n)}
 	case strings.HasPrefix(p, "u16/"):
-		n, err = strconv.Atoi(strings.TrimPrefix(p, "u16."))
+		n, err = strconv.Atoi(strings.TrimPrefix(p, "u16/"))
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +160,7 @@ func parseVarLenParameter(p string) ([]byte, error) {
 		}
 		ret = easyutxo.EncodeInteger(uint16(n))
 	case strings.HasPrefix(p, "u32/"):
-		n, err = strconv.Atoi(strings.TrimPrefix(p, "u32."))
+		n, err = strconv.Atoi(strings.TrimPrefix(p, "u32/"))
 		if err != nil {
 			return nil, err
 		}

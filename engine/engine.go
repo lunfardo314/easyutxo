@@ -34,10 +34,9 @@ type (
 	}
 	Opcodes interface {
 		// ParseInstruction returns instruction runner, opcode length and instruction parameters
-		ParseInstruction(code []byte) (InstructionRunner, []byte)
+		ParseInstruction(code []byte) (InstructionRunner, [][]byte)
 	}
-	InstructionParameterParser func(codeAfterOpcode []byte) (InstructionRunner, []byte)
-	InstructionRunner          func(e *Engine, paramBytes []byte)
+	InstructionRunner func(e *Engine, params [][]byte)
 )
 
 const (
@@ -142,16 +141,16 @@ func (e *Engine) traceString() string {
 
 func (e *Engine) run1Cycle() bool {
 	var instrRunner InstructionRunner
-	var paramData []byte
+	var params [][]byte
 	err := easyutxo.CatchPanic(func() {
-		instrRunner, paramData = e.opcodes.ParseInstruction(e.code[e.currentPos:])
+		instrRunner, params = e.opcodes.ParseInstruction(e.code[e.currentPos:])
 	})
 	if err != nil {
 		panic(fmt.Errorf("cannot parse instruction after instuction %d @ script position %d. Trace:\n%s",
 			e.instrCounter, e.currentPos, e.traceString()))
 	}
 	err = easyutxo.CatchPanic(func() {
-		instrRunner(e, paramData)
+		instrRunner(e, params)
 	})
 	e.instrCounter++
 	return !e.exit
