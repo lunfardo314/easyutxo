@@ -183,7 +183,11 @@ func splitLines(s string) []string {
 	var lines []string
 	sc := bufio.NewScanner(strings.NewReader(s))
 	for sc.Scan() {
-		lines = append(lines, sc.Text())
+		lines = append(lines, enforceSpaces(sc.Text()))
 	}
 	return lines
+}
+
+func enforceSpaces(s string) string {
+	return strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(s)
 }

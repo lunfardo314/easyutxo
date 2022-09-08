@@ -43,6 +43,7 @@ const (
 	RegInvocationPath = byte(iota)
 	RegInvocationData
 	RegInvocationIndex
+	RegScriptIndex
 	FirstWriteableRegister
 )
 

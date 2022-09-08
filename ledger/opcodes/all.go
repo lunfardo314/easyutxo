@@ -11,23 +11,22 @@ import (
 var allRaw1Byte = []*opcodeDescriptor{
 	{"nop", "no operation", "", "", runNOP},
 	{"exit", "exit script", "", "", runExit},
-	{"drop", "drop elements from stack stack", "S", "num-elements", runDrop},
+	{"drop", "drop elements from stack", "S", "num-elements", runDrop},
+	{"swap", "swaps 2 top elements of the stack", "", "", runSwap},
 	{"reg->stack", "push value from register to stack", "S", "register#-with-value", runPushFromReg},
 	{"param->reg", "save parameter to register", "S,V", "register#,var-value", runSaveParamToRegister},
 	{"param->stack", "push parameter to stack", "V", "var-value", runPushParameterToStack},
 	{"stack->reg", "save stack top to register", "S", "register#", runSaveStackToRegister},
-	{"[:]", "push slice of the top element", "S,S", "from_index,to_index", runSlice},
+	{"[:]->stack", "push slice of the top element", "S,S", "from_index,to_index", runSlice},
 	{"size16->stack", "push 2 bytes uint16 size of value at top", "", "", runSize},
 	{"==", "2 top stack values equal", "", "", runEqualStackTop},
-	{"==[:]param", "compares slice of the stack top with param", "S,S,V", "from-idx,to-idx,const", runEqualSliceWithParam},
-	{"concat", "concatenate several elements and replace the top", "S", "S", runConcat},
+	{"[:]==param", "compares slice of the stack top with param", "S,S,V", "from-idx,to-idx,const", runEqualSliceWithParam},
+	{"concatReplace", "concatenate several elements and replace the top", "S", "S", runConcat},
+	{"pushFromPathIndex", "push value from globalpath (top-1) and index (top)", "", "", runPushFromPathAndIndex},
+	{"pushFromPathParam", "push bytes from global path", "V", "globalpath", runPushBytesFromPath},
+	{"loadRefInputBlock", "load referenced block", "", "", runLoadRefInputBlock},
 
 	// --------------------------------------------------------
-	// tree globalpath/data manipulation
-	{"pushFromPath", "push value from globalpath", "S", "register#-with-globalpath", runOpsPushBytesFromPath},
-	{"pushFromPathIndex", "push value from globalpath and index", "S,S", "register#-with-globalpath, element_index", runOpsPushBytesFromPathAndIndex},
-	{"makeUnlockBlockPath", "make and save unlock-block globalpath to register", "S", "register#", runMakeUnlockBlockPathToReg},
-	{"pushTxEssence", "push transaction essence bytes", "", "", nil},
 	// flow control
 	{"ifInputContext>", "jump short if invocation is input context", "JS", "target-short", runJumpShortOnInputContext},
 	{"ifInputContext>>>", "jump long if invocation is input context", "JL", "target-long", runJumpLongOnInputContext},
@@ -63,6 +62,14 @@ func runDrop(e *engine.Engine, p [][]byte) {
 		e.Pop()
 	}
 	e.Move(1 + 1)
+}
+
+func runSwap(e *engine.Engine, _ [][]byte) {
+	t0 := e.Pop()
+	t1 := e.Pop()
+	e.Push(t0)
+	e.Push(t1)
+	e.Move(1)
 }
 
 // runEqualStackTop compares two top stack elements
@@ -121,11 +128,20 @@ func runMakeUnlockBlockPathToReg(e *engine.Engine, p [][]byte) {
 	e.Move(1 + 1)
 }
 
-func runOpsPushBytesFromPath(e *engine.Engine, p [][]byte) {
+func runPushBytesFromPath(e *engine.Engine, p [][]byte) {
 	e.Push(e.BytesAtPath(e.RegValue(p[0][0])))
 }
 
-func runOpsPushBytesFromPathAndIndex(e *engine.Engine, p [][]byte) {
-	e.Push(e.GetDataAtIdx(p[1][0], e.RegValue(p[0][0])))
-	e.Move(1 + 1)
+func runPushFromPathAndIndex(e *engine.Engine, _ [][]byte) {
+	index := e.Pop()
+	e.Push(e.GetDataAtIdx(index[0], e.Top()))
+	e.Move(1)
+}
+
+// ref block is 2 bytes of long input index and 1 byte of block inside output
+func runLoadRefInputBlock(e *engine.Engine, _ [][]byte) {
+	idx := easyutxo.DecodeInteger[uint16](e.Top()[:2])
+
+	e.Push(e.GetDataAtIdx(e.Top()[2], globalpath.ConsumedOutput(idx)))
+	e.Move(1)
 }
