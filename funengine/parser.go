@@ -169,7 +169,7 @@ func splitArgs(argsStr string) ([]string, error) {
 	level := 0
 	for _, c := range []byte(argsStr) {
 		if level < 0 {
-			return nil, fmt.Errorf("unbalanced paranthesis")
+			return nil, fmt.Errorf("unbalanced paranthesis: '%s'", argsStr)
 		}
 		switch c {
 		case ',':
@@ -194,7 +194,7 @@ func splitArgs(argsStr string) ([]string, error) {
 		}
 	}
 	if level != -1 {
-		return nil, fmt.Errorf("unclosed '('")
+		return nil, fmt.Errorf("unclosed '(': '%s'", argsStr)
 	}
 	if len(buf.Bytes()) > 0 {
 		p := make([]byte, len(buf.Bytes()))

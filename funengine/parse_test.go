@@ -14,4 +14,9 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 	})
+	t.Run("2", func(t *testing.T) {
+		ret, err := parse(sigLockConstraint)
+		require.NoError(t, err)
+		require.NotNil(t, ret)
+	})
 }
