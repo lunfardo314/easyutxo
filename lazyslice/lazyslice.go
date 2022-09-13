@@ -393,6 +393,7 @@ func (st *Tree) Subtree(path TreePath) *Tree {
 
 // BytesAtPath returns serialized for of the element at globalpath
 func (st *Tree) BytesAtPath(path TreePath) []byte {
+	// TODO bytes at path must be the same as GetDataAtIdx
 	if len(path) == 0 {
 		return st.Bytes()
 	}
