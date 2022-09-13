@@ -8,7 +8,7 @@ import (
 )
 
 type formula struct {
-	funsym string
+	sym    string
 	params []interface{} // can be literal or formula
 }
 
@@ -27,7 +27,12 @@ func parse(s string) error {
 		return err
 	}
 	for i, fd := range fds {
-		fmt.Printf("%d: %s\n    params: %v\n    body: '%s'\n", i, fd.name, fd.params, fd.body)
+		fmt.Printf("%d: '%s'\n    params: %v\n    body: '%s'\n", i, fd.name, fd.params, fd.body)
+	}
+	for _, fd := range fds {
+		if _, err := parseCall(fd.body); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -114,6 +119,50 @@ func (fd *funDef) parseParams(s string, lineno int) error {
 			return fmt.Errorf("argument type '%s' not supported @ line %d", p, lineno)
 		}
 		fd.params = append(fd.params, p)
+	}
+	return nil
+}
+
+func parseCall(s string) (*formula, error) {
+	ret := &formula{
+		params: make([]interface{}, 0),
+	}
+	name, rest, found := strings.Cut(s, "(")
+	ret.sym = name
+	if !found {
+		if len(name) == 0 {
+			return nil, fmt.Errorf("function name expected: '%s'", s)
+		}
+		// it is literal or no argument function
+		return ret, nil
+	}
+	if err := ret.parseArgs(rest); err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+// parseArgs expects ','-delimited list of calls, which ends with ')'
+func (f *formula) parseArgs(argsStr string) error {
+	if strings.HasPrefix(argsStr, ")") {
+		return nil
+	}
+	arg, rest, found := strings.Cut(argsStr, ",")
+	if found {
+		subf, err := parseCall(arg)
+		if err != nil {
+			return err
+		}
+		f.params = append(f.params, subf)
+		return f.parseArgs(rest)
+	}
+	arg, _, found = strings.Cut(argsStr, ")")
+	if found {
+		subf, err := parseCall(arg)
+		if err != nil {
+			return err
+		}
+		f.params = append(f.params, subf)
 	}
 	return nil
 }
