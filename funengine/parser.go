@@ -2,6 +2,7 @@ package funengine
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"strings"
 	"unicode"
@@ -12,29 +13,30 @@ type formula struct {
 	params []interface{} // can be literal or formula
 }
 
-type literal string
-
 type funDef struct {
 	name   string
 	params []string
 	body   string
 }
 
-func parse(s string) error {
+func parse(s string) ([]*formula, error) {
 	lines := splitLinesStripComments(s)
 	fds, err := consolidatedDefs(lines)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for i, fd := range fds {
 		fmt.Printf("%d: '%s'\n    params: %v\n    body: '%s'\n", i, fd.name, fd.params, fd.body)
 	}
+	ret := make([]*formula, 0)
 	for _, fd := range fds {
-		if _, err := parseCall(fd.body); err != nil {
-			return err
+		res, err := parseCall(fd.body)
+		if err != nil {
+			return nil, err
 		}
+		ret = append(ret, res)
 	}
-	return nil
+	return ret, nil
 }
 
 func splitLinesStripComments(s string) []string {
@@ -76,6 +78,10 @@ func consolidatedDefs(lines []string) ([]*funDef, error) {
 			}
 			current.body += line
 		}
+	}
+	if current != nil {
+		current.body = stripSpaces(current.body)
+		ret = append(ret, current)
 	}
 	return ret, nil
 }
@@ -123,46 +129,77 @@ func (fd *funDef) parseParams(s string, lineno int) error {
 	return nil
 }
 
+// call ::= name(call1, .., callN)
+
 func parseCall(s string) (*formula, error) {
-	ret := &formula{
+	name, rest, foundOpen := strings.Cut(s, "(")
+	f := &formula{
+		sym:    name,
 		params: make([]interface{}, 0),
 	}
-	name, rest, found := strings.Cut(s, "(")
-	ret.sym = name
-	if !found {
-		if len(name) == 0 {
-			return nil, fmt.Errorf("function name expected: '%s'", s)
+	if !foundOpen {
+		if strings.Contains(rest, ")") {
+			return nil, fmt.Errorf("unexpected ')': '%s'", s)
 		}
-		// it is literal or no argument function
-		return ret, nil
+		if strings.Contains(name, ",") {
+			for _, a := range strings.Split(name, ",") {
+				f.params = append(f.params, a)
+			}
+		}
+		return f, nil
 	}
-	if err := ret.parseArgs(rest); err != nil {
+	spl, err := splitArgs(rest)
+	if err != nil {
 		return nil, err
 	}
-	return ret, nil
+	for _, call := range spl {
+		ff, err := parseCall(call)
+		if err != nil {
+			return nil, err
+		}
+		f.params = append(f.params, ff)
+	}
+	return f, nil
 }
 
 // parseArgs expects ','-delimited list of calls, which ends with ')'
-func (f *formula) parseArgs(argsStr string) error {
-	if strings.HasPrefix(argsStr, ")") {
-		return nil
-	}
-	arg, rest, found := strings.Cut(argsStr, ",")
-	if found {
-		subf, err := parseCall(arg)
-		if err != nil {
-			return err
+func splitArgs(argsStr string) ([]string, error) {
+	ret := make([]string, 0)
+	var buf bytes.Buffer
+	level := 0
+	for _, c := range []byte(argsStr) {
+		if level < 0 {
+			return nil, fmt.Errorf("unbalanced paranthesis")
 		}
-		f.params = append(f.params, subf)
-		return f.parseArgs(rest)
-	}
-	arg, _, found = strings.Cut(argsStr, ")")
-	if found {
-		subf, err := parseCall(arg)
-		if err != nil {
-			return err
+		switch c {
+		case ',':
+			if level == 0 {
+				p := make([]byte, len(buf.Bytes()))
+				copy(p, buf.Bytes())
+				ret = append(ret, string(p))
+				buf.Reset()
+			} else {
+				buf.WriteByte(c)
+			}
+		case '(':
+			buf.WriteByte(c)
+			level++
+		case ')':
+			level--
+			if level >= 0 {
+				buf.WriteByte(c)
+			}
+		default:
+			buf.WriteByte(c)
 		}
-		f.params = append(f.params, subf)
 	}
-	return nil
+	if level != -1 {
+		return nil, fmt.Errorf("unclosed '('")
+	}
+	if len(buf.Bytes()) > 0 {
+		p := make([]byte, len(buf.Bytes()))
+		copy(p, buf.Bytes())
+		ret = append(ret, string(p))
+	}
+	return ret, nil
 }
