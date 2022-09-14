@@ -4,37 +4,39 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
 
 type formula struct {
 	sym    string
-	params []interface{} // can be literal or formula
+	params []*formula
 }
 
 type funDef struct {
-	name   string
-	params []string
-	body   string
+	sym        string
+	paramTypes []string
+	returnType string
+	varParams  bool
+	bodySource string
+	formula    *formula
 }
 
-func parse(s string) ([]*formula, error) {
+func parseDefinitions(s string) ([]*funDef, error) {
 	lines := splitLinesStripComments(s)
-	fds, err := consolidatedDefs(lines)
+	ret, err := parseDefs(lines)
 	if err != nil {
 		return nil, err
 	}
-	for i, fd := range fds {
-		fmt.Printf("%d: '%s'\n    params: %v\n    body: '%s'\n", i, fd.name, fd.params, fd.body)
+	for i, fd := range ret {
+		fmt.Printf("%d: '%s'\n    paramTypes: %v\n    bodySource: '%s'\n", i, fd.sym, fd.paramTypes, fd.bodySource)
 	}
-	ret := make([]*formula, 0)
-	for _, fd := range fds {
-		res, err := parseCall(fd.body)
+	for _, fd := range ret {
+		fd.formula, err = parseFormula(fd.bodySource)
 		if err != nil {
 			return nil, err
 		}
-		ret = append(ret, res)
 	}
 	return ret, nil
 }
@@ -49,17 +51,17 @@ func splitLinesStripComments(s string) []string {
 	return lines
 }
 
-func consolidatedDefs(lines []string) ([]*funDef, error) {
+func parseDefs(lines []string) ([]*funDef, error) {
 	ret := make([]*funDef, 0)
 	var current *funDef
 	for lineno, line := range lines {
 		if strings.HasPrefix(line, "def ") {
 			if current != nil {
-				current.body = stripSpaces(current.body)
+				current.bodySource = stripSpaces(current.bodySource)
 				ret = append(ret, current)
 			}
 			current = &funDef{
-				params: make([]string, 0),
+				paramTypes: make([]string, 0),
 			}
 			signature, body, foundEq := strings.Cut(strings.TrimPrefix(line, "def "), "=")
 			if !foundEq {
@@ -68,7 +70,7 @@ func consolidatedDefs(lines []string) ([]*funDef, error) {
 			if err := current.parseSignature(stripSpaces(signature), lineno); err != nil {
 				return nil, err
 			}
-			current.body += body
+			current.bodySource += body
 		} else {
 			if len(stripSpaces(line)) == 0 {
 				continue
@@ -76,11 +78,11 @@ func consolidatedDefs(lines []string) ([]*funDef, error) {
 			if current == nil {
 				return nil, fmt.Errorf("unexpectected symbols @ line %d", lineno)
 			}
-			current.body += line
+			current.bodySource += line
 		}
 	}
 	if current != nil {
-		current.body = stripSpaces(current.body)
+		current.bodySource = stripSpaces(current.bodySource)
 		ret = append(ret, current)
 	}
 	return ret, nil
@@ -99,52 +101,114 @@ func stripSpaces(str string) string {
 
 func (fd *funDef) parseSignature(s string, lineno int) error {
 	name, rest, found := strings.Cut(s, "(")
-	fd.name = name
+	fd.sym = name
 	if !found {
-		if len(name) == 0 {
-			return fmt.Errorf("empty name not allowed @ line %d", lineno)
-		}
-		return nil
+		return fmt.Errorf("argument/return types expected @ line %d", lineno)
 	}
 	paramStr, rest, found := strings.Cut(rest, ")")
 	if !found || len(rest) != 0 {
 		return fmt.Errorf("closing ')' expected @ line %d", lineno)
 	}
-	return fd.parseParams(paramStr, lineno)
+	return fd.parseParamAndReturnTypes(paramStr, lineno)
 }
 
-func (fd *funDef) parseParams(s string, lineno int) error {
-	if len(s) == 0 {
-		return nil
+// B - one byte
+// S - slice of bytes
+// B... - many bytes
+// S... - many slices
+func (fd *funDef) parseParamAndReturnTypes(s string, lineno int) error {
+	paramTypes, returnType, found := strings.Cut(s, "->")
+	if !found {
+		return fmt.Errorf("'->' expected @ line %d", lineno)
 	}
-	spl := strings.Split(s, ",")
-	for _, p := range spl {
-		switch p {
-		case "S", "V":
-		default:
-			return fmt.Errorf("argument type '%s' not supported @ line %d", p, lineno)
+	switch returnType {
+	case "B", "S":
+		fd.returnType = returnType
+	default:
+		return fmt.Errorf("wrong return type '%s' @ line %d", returnType, lineno)
+	}
+	if len(paramTypes) > 0 {
+		if !strings.Contains(paramTypes, ",") {
+			switch s {
+			case "B...":
+				fd.paramTypes = append(fd.paramTypes, "B")
+				fd.varParams = true
+			case "S...":
+				fd.paramTypes = append(fd.paramTypes, "S")
+				fd.varParams = true
+			case "B", "S":
+				fd.paramTypes = append(fd.paramTypes, paramTypes)
+			default:
+				return fmt.Errorf("argument type '%s' not supported @ line %d", s, lineno)
+			}
+			return nil
 		}
-		fd.params = append(fd.params, p)
+		spl := strings.Split(paramTypes, ",")
+		for _, p := range spl {
+			switch p {
+			case "B", "S":
+			default:
+				return fmt.Errorf("argument type '%s' not supported @ line %d", p, lineno)
+			}
+			fd.paramTypes = append(fd.paramTypes, p)
+		}
 	}
 	return nil
 }
 
-// call ::= name(call1, .., callN)
+func (fd *funDef) resolveAndAddToLibrary(lib libraryFun) error {
+	if _, already := lib[fd.sym]; already {
+		return fmt.Errorf("repeating function name '%s'", fd.sym)
+	}
+	returnType, err := fd.formula.validate(lib)
+	if err != nil {
+		return err
+	}
+	if fd.returnType != returnType {
+		return fmt.Errorf("return type dpes not match the type of the formula '%s'", fd.sym)
 
-func parseCall(s string) (*formula, error) {
+	}
+	return nil
+}
+
+func (f *formula) validate(lib libraryFun) (string, error) {
+	if len(f.params) == 0 {
+		if checkLiteral(f.sym) {
+			return "", nil
+		}
+		fd, found := lib[f.sym]
+		if !found {
+			return "", fmt.Errorf("can't resolve name '%s'", f.sym)
+		}
+		return fd.returnType, nil
+	}
+	fd, found := lib[f.sym]
+	if !found {
+		return "", fmt.Errorf("can't resolve name '%s'", f.sym)
+	}
+	// check parameters
+	return fd.returnType, nil
+}
+
+func checkLiteral(s string) bool {
+	i, err := strconv.Atoi(s)
+	if err != nil || i < 0 || i > 255 {
+		return false
+	}
+	return true
+}
+
+// call ::= sym(call1, .., callN)
+
+func parseFormula(s string) (*formula, error) {
 	name, rest, foundOpen := strings.Cut(s, "(")
 	f := &formula{
 		sym:    name,
-		params: make([]interface{}, 0),
+		params: make([]*formula, 0),
 	}
 	if !foundOpen {
-		if strings.Contains(rest, ")") {
+		if strings.Contains(rest, ")") || strings.Contains(rest, ",") {
 			return nil, fmt.Errorf("unexpected ')': '%s'", s)
-		}
-		if strings.Contains(name, ",") {
-			for _, a := range strings.Split(name, ",") {
-				f.params = append(f.params, a)
-			}
 		}
 		return f, nil
 	}
@@ -153,7 +217,7 @@ func parseCall(s string) (*formula, error) {
 		return nil, err
 	}
 	for _, call := range spl {
-		ff, err := parseCall(call)
+		ff, err := parseFormula(call)
 		if err != nil {
 			return nil, err
 		}

@@ -1,9 +1,9 @@
 package funengine
 
 var sigLockConstraint = `
-def unlockBlock() = bytesAtPath(concat(bytes(0,0),slice(path(), 2, 5)))
+def unlockBlock(->S) = bytesAtPath(concat(bytes(0,0),slice(path(), 2, 5)))
 
-def sigLocED25519(V,S,S) = if(
+def sigLocED25519(S,S,S->S) = if(
     equal8(atIndex(path(),0), 1),    // consumed output
     equal8(len(data()), 32),        // ok if len of the data is 32, otherwise fail
 	if(
@@ -13,12 +13,12 @@ def sigLocED25519(V,S,S) = if(
 	)
 )
 
-def validSigED25519() = and(
+def validSigED25519(->S) = and(
 	validSignature(essenceBytes(), slice(unlockBlock(), 0, 64), slice(unlockBlock(), 64, 96)),
 	equalBytes(data(), addrED25519FromPuKey(slice(unlockBlock(), 64, 96)))
 )
 
-def referencedUnlockBlock() = bytesAtPath(
+def referencedUnlockBlock(->S) = bytesAtPath(
 	concat(
 		0, 
 		concat(slice(path(),1,2))
@@ -26,10 +26,10 @@ def referencedUnlockBlock() = bytesAtPath(
 	unlockBlock()
 )
 
-def referencedConstraint() = bytesAtPath(slice(concat(path(),0,2), unlockBlock()))
+def referencedConstraint(->S) = bytesAtPath(slice(concat(path(),0,2), unlockBlock()))
 
 // unlock block 2 bytes of index 1 bytes of index of the referenced address block. The constraints should be identical
-def checkED25519RefUnlock() = and(
+def checkED25519RefUnlock(->S) = and(
 	equalBytes(
 		referencedConstraint(),
 		referencedUnlockBlock()
@@ -37,7 +37,7 @@ def checkED25519RefUnlock() = and(
 	not(equal8(len(),3))
 )
 
-def essence() = concat(
+def essence(->S) = concat(
 	bytesAtPath(bytes(0,1)), 
 	concat(
 		bytesAtPath(bytes(0,2)), 
