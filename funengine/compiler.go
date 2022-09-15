@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strconv"
@@ -234,13 +235,30 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 		if err == nil {
 			// it is a number
 			if n < 0 || n >= 256 {
-				return fmt.Errorf("constant value not uint8")
+				return fmt.Errorf("integer constant value not uint8: %s", f.sym)
 			}
 			// it is a byte value
-			_, err = w.Write([]byte{DataMask, byte(n)})
-			return err
+			if _, err = w.Write([]byte{DataMask, byte(n)}); err != nil {
+				return err
+			}
+			return nil
 		}
-		// not a number
+		if strings.HasPrefix(f.sym, "0x") {
+			b, err := hex.DecodeString(f.sym[2:])
+			if err != nil {
+				return fmt.Errorf("%v: '%s'", err, f.sym)
+			}
+			if len(b) > 127 {
+				return fmt.Errorf("hexadecimal constant longer than 127 bytes: '%s'", f.sym)
+			}
+			if _, err = w.Write([]byte{byte(len(b)) | DataMask}); err != nil {
+				return err
+			}
+			if _, err = w.Write(b); err != nil {
+				return err
+			}
+			return nil
+		}
 		// TODO other types of literals
 	}
 	prefix, shortCall, err := makeCallEmbeddedShortPrefix(f.sym, numArgs, len(f.params))

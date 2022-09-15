@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const formula1 = "def unlockBlock(0) = _atPath(concat(concat(0,0),_slice(_path, 2, 5)))"
+const formula1 = "def unlockBlock(0) = _atPath(concat(0x0000,_slice(_path, 2, 5)))"
 
 func TestParse(t *testing.T) {
 	t.Run("1", func(t *testing.T) {

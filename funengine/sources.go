@@ -2,7 +2,7 @@ package funengine
 
 const sigLockConstraint = `
 def unlockBlock(0) = _atPath(
-	concat(0,0,	_slice(_path, 2, 5))
+	concat(0x0000, _slice(_path, 2, 5))
 )
 
 def referencedConstraint(0) = _atPath(
@@ -23,10 +23,10 @@ def checkED25519RefUnlock(0) = and(
 )
 
 def essence(0) = concat(
-	_atPath(concat(0,1)), 
-	_atPath(concat(0,2)), 
-	_atPath(concat(0,3)), 
-	_atPath(concat(0,4))
+	_atPath(0x0001), 
+	_atPath(0x0002), 
+	_atPath(0x0003), 
+	_atPath(0x0004)
 )
 
 def addrED25519FromPubKey(1) = blake2b($0)
