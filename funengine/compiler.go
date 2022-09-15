@@ -228,9 +228,24 @@ func (fd *funDef) genCode(lib map[string]*funDef) error {
 	return nil
 }
 
+// prefix[0] || prefix[1] || suffix
+// prefix[0] bits
+// - 7 : 0 is library function, 1 is inline data
+// - if inline data: bits 6-0 is size of the inline data, 0-127
+// - if library function:
+//  - if bit 6 is 0, it is inline parameter only byte prefix[0] is used
+//  - bits 5-0 are interpreted inline (values 0-31)
+//      value 30 is call to function _path()
+//      value 31 is call to function _data()
+//      value n = 0-15 it is call to function _param(n)
+//      values 16-29 reserved
+//  - if bit 6 is 1 (bit 14), it is long and byte prefix[1] is used (total 16 bits)
+// - bits 13-10 is arity of the call 0-15
+// - bits 9-0 is library reference 0 - 1023
+
 func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) error {
 	if len(f.params) == 0 {
-		// terminal condition
+		// write inline data
 		n, err := strconv.Atoi(f.sym)
 		if err == nil {
 			// it is a number
@@ -244,6 +259,7 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 			return nil
 		}
 		if strings.HasPrefix(f.sym, "0x") {
+			// it is hexadecimal constant
 			b, err := hex.DecodeString(f.sym[2:])
 			if err != nil {
 				return fmt.Errorf("%v: '%s'", err, f.sym)
@@ -261,67 +277,35 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 		}
 		// TODO other types of literals
 	}
-	prefix, shortCall, err := makeCallEmbeddedShortPrefix(f.sym, numArgs, len(f.params))
+	// either has arguments or not literal
+	// try if it is a short call
+	callBytes, shortCall, err := makeShortCallBytes(f.sym, numArgs, len(f.params))
 	if err != nil {
 		return err
 	}
-	if shortCall {
-		if _, err = w.Write(prefix); err != nil {
+	if !shortCall {
+		// not short call, try the long call
+		callBytes, err = makeLongCallBytes(lib, f.sym, len(f.params))
+		if err != nil {
 			return err
 		}
-	} else {
-		fd, found := embeddedLongByName[f.sym]
-		if !found {
-			fd, found = lib[f.sym]
-		}
-		if !found {
-			return fmt.Errorf("can't resolve symbol '%s'", f.sym)
-		}
-		if fd.numParams >= 0 && fd.numParams != len(f.params) {
-			return fmt.Errorf("function '%s' require %d arguments", f.sym, fd.numParams)
-		}
 	}
+	// generate code for call parameters
 	for _, ff := range f.params {
 		if err = ff.genCode(numArgs, lib, w); err != nil {
 			return err
 		}
+	}
+	// write call bytes
+	if _, err = w.Write(callBytes); err != nil {
+		return err
 	}
 	return nil
 }
 
 const DataMask = byte(0x80)
 
-// prefix[0] || prefix[1] || suffix
-// prefix[0] bits
-// - 7 : 0 is library function, 1 is inline data
-// - if inline data: bits 6-0 is size of the inline data, 0-127
-// - if library function:
-//  - if bit 6 is 0, it is inline parameter only byte prefix[0] is used
-//  - bits 5-0 are interpreted inline (values 0-31)
-//      value 30 is call to function _path()
-//      value 31 is call to function _data()
-//      value n = 0-15 it is call to function _param(n)
-//      values 16-29 reserved
-//  - if bit 6 is 1 (bit 14), it is long and byte prefix[1] is used (total 16 bits)
-// - bits 13-10 is arity of the call 0-15
-// - bits 9-0 is library reference 0 - 1023
-
-func (fd *funDef) makeCallPrefix(params []*formula) ([]byte, bool, error) {
-	if len(params) > 15 {
-		return nil, false, fmt.Errorf("can't be more than 15 call arguments")
-	}
-	if fd.funCode > 1023 {
-		return nil, false, fmt.Errorf("wrong function code")
-	}
-	if fd.numParams >= 0 && len(params) != fd.numParams {
-		return nil, false, fmt.Errorf("must be exactly %d argments in the call to '%s': '%s'", fd.numParams, fd.sym, fd.bodySource)
-	}
-	var b [2]byte
-	binary.BigEndian.PutUint16(b[:], fd.funCode|uint16(len(params))<<10)
-	return b[:], false, nil
-}
-
-func makeCallEmbeddedShortPrefix(sym string, numArgs, numParams int) ([]byte, bool, error) {
+func makeShortCallBytes(sym string, numArgs, numParams int) ([]byte, bool, error) {
 	fd, found := embeddedShortByName[sym]
 	if !found {
 		return nil, false, nil
@@ -336,4 +320,23 @@ func makeCallEmbeddedShortPrefix(sym string, numArgs, numParams int) ([]byte, bo
 		}
 	}
 	return []byte{byte(fd.funCode)}, true, nil
+}
+
+func makeLongCallBytes(lib map[string]*funDef, sym string, numParams int) ([]byte, error) {
+	if numParams > 15 {
+		return nil, fmt.Errorf("too many arguments in the call '%s'", sym)
+	}
+	fd, found := embeddedLongByName[sym]
+	if !found {
+		fd, found = lib[sym]
+	}
+	if !found {
+		return nil, fmt.Errorf("can't resolve symbol '%s'", sym)
+	}
+	if fd.numParams >= 0 && fd.numParams != numParams {
+		return nil, fmt.Errorf("function '%s' require %d arguments", sym, fd.numParams)
+	}
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, fd.funCode|uint16(numParams)<<10)
+	return ret, nil
 }
