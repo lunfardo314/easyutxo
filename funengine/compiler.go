@@ -297,7 +297,7 @@ const DataMask = byte(0x80)
 // - if inline data: bits 6-0 is size of the inline data, 0-127
 // - if library function:
 //  - if bit 6 is 0, it is inline parameter only byte prefix[0] is used
-//  - bits 5-0 ar interpreted inline (values 0-31)
+//  - bits 5-0 are interpreted inline (values 0-31)
 //      value 30 is call to function _path()
 //      value 31 is call to function _data()
 //      value n = 0-15 it is call to function _param(n)

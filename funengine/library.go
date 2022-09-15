@@ -43,40 +43,41 @@ var embeddedLong = []*funDef{
 const FirstUserFunCode = 1024
 
 var (
-	embeddedShortByName = mustPreCompileEmbeddedShortBySym()
-	embeddedLongByName  = mustPreCompileEmbeddedLongBySym()
+	embeddedShortByName map[string]*funDef
+	embeddedShortByCode [32]*funDef
+	embeddedLongByName  map[string]*funDef
+	embeddedLongByCode  map[uint16]*funDef
 )
 
-func mustMakeMapBySym(defs []*funDef) map[string]*funDef {
-	ret := make(map[string]*funDef)
-	for i, fd := range defs {
-		fd.funCode = uint16(i)
-		if _, already := ret[fd.sym]; already {
-			panic(fmt.Errorf("repeating symbol '%s'", fd.sym))
-		}
-		ret[fd.sym] = fd
-	}
-	return ret
-}
-
-func mustPreCompileEmbeddedShortBySym() map[string]*funDef {
+func init() {
 	if len(embeddedShort) > 32 {
 		panic("failed: len(embeddedShort) <= 32")
 	}
-	ret := mustMakeMapBySym(embeddedShort)
-	for _, fd := range ret {
-		if fd.numParams < 0 {
-			panic(fmt.Errorf("embedded short must be fixed number of parameters: '%s'", fd.sym))
-		}
-	}
-	return ret
-}
 
-func mustPreCompileEmbeddedLongBySym() map[string]*funDef {
-	ret := mustMakeMapBySym(embeddedLong)
-	// offset fun codes by 32
-	for _, fd := range ret {
-		fd.funCode += 32
+	embeddedShortByName = make(map[string]*funDef)
+	for i, fd := range embeddedShort {
+		fd.funCode = uint16(i)
+		if _, already := embeddedShortByName[fd.sym]; already {
+			panic(fmt.Errorf("repeating symbol '%s'", fd.sym))
+		}
+		embeddedShortByName[fd.sym] = fd
 	}
-	return ret
+
+	embeddedLongByName = make(map[string]*funDef)
+	for i, fd := range embeddedLong {
+		fd.funCode = uint16(i) + 32
+		if _, already := embeddedLongByName[fd.sym]; already {
+			panic(fmt.Errorf("repeating symbol '%s'", fd.sym))
+		}
+		embeddedLongByName[fd.sym] = fd
+	}
+
+	for _, fd := range embeddedShortByName {
+		embeddedShortByCode[fd.funCode] = fd
+	}
+
+	embeddedLongByCode = make(map[uint16]*funDef)
+	for _, fd := range embeddedLongByName {
+		embeddedLongByCode[fd.funCode] = fd
+	}
 }
