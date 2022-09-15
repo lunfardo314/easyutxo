@@ -16,11 +16,13 @@ type formula struct {
 
 type funDef struct {
 	sym        string
+	funCode    uint16
 	paramTypes []string
 	returnType string
 	varParams  bool
 	bodySource string
 	formula    *formula
+	code       []byte
 }
 
 func parseDefinitions(s string) ([]*funDef, error) {
@@ -154,40 +156,6 @@ func (fd *funDef) parseParamAndReturnTypes(s string, lineno int) error {
 		}
 	}
 	return nil
-}
-
-func (fd *funDef) resolveAndAddToLibrary(lib libraryFun) error {
-	if _, already := lib[fd.sym]; already {
-		return fmt.Errorf("repeating function name '%s'", fd.sym)
-	}
-	returnType, err := fd.formula.validate(lib)
-	if err != nil {
-		return err
-	}
-	if fd.returnType != returnType {
-		return fmt.Errorf("return type dpes not match the type of the formula '%s'", fd.sym)
-
-	}
-	return nil
-}
-
-func (f *formula) validate(lib libraryFun) (string, error) {
-	if len(f.params) == 0 {
-		if checkLiteral(f.sym) {
-			return "", nil
-		}
-		fd, found := lib[f.sym]
-		if !found {
-			return "", fmt.Errorf("can't resolve name '%s'", f.sym)
-		}
-		return fd.returnType, nil
-	}
-	fd, found := lib[f.sym]
-	if !found {
-		return "", fmt.Errorf("can't resolve name '%s'", f.sym)
-	}
-	// check parameters
-	return fd.returnType, nil
 }
 
 func checkLiteral(s string) bool {
