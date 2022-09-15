@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const formula1 = "def unlockBlock(0) = bytesAtPath(concat(bytes(0,0),slice(path, 2, 5)))"
+const formula1 = "def unlockBlock(0) = _atPath(concat(concat(0,0),_slice(_path, 2, 5)))"
 
 func TestParse(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
@@ -24,12 +24,13 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(ret))
 
-		err = ret[0].genCode(functionsBySymbol)
+		err = ret[0].genCode(make(map[string]*funDef))
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(ret[0].code))
 	})
 	t.Run("4", func(t *testing.T) {
-		err := compileToLibrary(sigLockConstraint, functionsBySymbol)
+		lib, err := compileToLibrary(sigLockConstraint, FirstUserFunCode)
 		require.NoError(t, err)
+		require.True(t, len(lib) > 0)
 	})
 }

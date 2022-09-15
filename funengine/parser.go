@@ -17,7 +17,7 @@ type formula struct {
 type funDef struct {
 	sym        string
 	funCode    uint16
-	numParams  int
+	numParams  int // -1 if variable params, only for embedded
 	bodySource string
 	formula    *formula
 	code       []byte
