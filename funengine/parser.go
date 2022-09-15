@@ -17,9 +17,7 @@ type formula struct {
 type funDef struct {
 	sym        string
 	funCode    uint16
-	paramTypes []string
-	returnType string
-	varParams  bool
+	numParams  int
 	bodySource string
 	formula    *formula
 	code       []byte
@@ -32,12 +30,15 @@ func parseDefinitions(s string) ([]*funDef, error) {
 		return nil, err
 	}
 	for i, fd := range ret {
-		fmt.Printf("%d: '%s'\n    paramTypes: %v\n    bodySource: '%s'\n", i, fd.sym, fd.paramTypes, fd.bodySource)
+		fmt.Printf("%d: '%s'\n    numParams: %d\n    bodySource: '%s'\n", i, fd.sym, fd.numParams, fd.bodySource)
 	}
 	for _, fd := range ret {
-		fd.formula, err = parseFormula(fd.bodySource)
+		fd.formula, err = fd.parseFormula(fd.bodySource)
 		if err != nil {
 			return nil, err
+		}
+		if len(fd.formula.params) > 15 {
+			return nil, fmt.Errorf("too many call parameters in call to '%s': '%s'", fd.sym, fd.bodySource)
 		}
 	}
 	return ret, nil
@@ -62,9 +63,7 @@ func parseDefs(lines []string) ([]*funDef, error) {
 				current.bodySource = stripSpaces(current.bodySource)
 				ret = append(ret, current)
 			}
-			current = &funDef{
-				paramTypes: make([]string, 0),
-			}
+			current = &funDef{}
 			signature, body, foundEq := strings.Cut(strings.TrimPrefix(line, "def "), "=")
 			if !foundEq {
 				return nil, fmt.Errorf("'=' expectected @ line %d", lineno)
@@ -111,64 +110,19 @@ func (fd *funDef) parseSignature(s string, lineno int) error {
 	if !found || len(rest) != 0 {
 		return fmt.Errorf("closing ')' expected @ line %d", lineno)
 	}
-	return fd.parseParamAndReturnTypes(paramStr, lineno)
-}
-
-// B - one byte
-// S - slice of bytes
-// B... - many bytes
-// S... - many slices
-func (fd *funDef) parseParamAndReturnTypes(s string, lineno int) error {
-	paramTypes, returnType, found := strings.Cut(s, "->")
-	if !found {
-		return fmt.Errorf("'->' expected @ line %d", lineno)
+	if paramStr == "..." {
+		fd.numParams = -1
+		return nil
 	}
-	switch returnType {
-	case "B", "S":
-		fd.returnType = returnType
-	default:
-		return fmt.Errorf("wrong return type '%s' @ line %d", returnType, lineno)
+	n, err := strconv.Atoi(paramStr)
+	if err != nil || n < 0 || n > 15 {
+		return fmt.Errorf("number of parameters must be '...' or number from 0 to 15 @ line %d", lineno)
 	}
-	if len(paramTypes) > 0 {
-		if !strings.Contains(paramTypes, ",") {
-			switch s {
-			case "B...":
-				fd.paramTypes = append(fd.paramTypes, "B")
-				fd.varParams = true
-			case "S...":
-				fd.paramTypes = append(fd.paramTypes, "S")
-				fd.varParams = true
-			case "B", "S":
-				fd.paramTypes = append(fd.paramTypes, paramTypes)
-			default:
-				return fmt.Errorf("argument type '%s' not supported @ line %d", s, lineno)
-			}
-			return nil
-		}
-		spl := strings.Split(paramTypes, ",")
-		for _, p := range spl {
-			switch p {
-			case "B", "S":
-			default:
-				return fmt.Errorf("argument type '%s' not supported @ line %d", p, lineno)
-			}
-			fd.paramTypes = append(fd.paramTypes, p)
-		}
-	}
+	fd.numParams = n
 	return nil
 }
 
-func checkLiteral(s string) bool {
-	i, err := strconv.Atoi(s)
-	if err != nil || i < 0 || i > 255 {
-		return false
-	}
-	return true
-}
-
-// call ::= sym(call1, .., callN)
-
-func parseFormula(s string) (*formula, error) {
+func (fd *funDef) parseFormula(s string) (*formula, error) {
 	name, rest, foundOpen := strings.Cut(s, "(")
 	f := &formula{
 		sym:    name,
@@ -185,7 +139,7 @@ func parseFormula(s string) (*formula, error) {
 		return nil, err
 	}
 	for _, call := range spl {
-		ff, err := parseFormula(call)
+		ff, err := fd.parseFormula(call)
 		if err != nil {
 			return nil, err
 		}
