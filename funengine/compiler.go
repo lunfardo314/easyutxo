@@ -33,7 +33,7 @@ func parseDefinitions(s string) ([]*funDef, error) {
 		return nil, err
 	}
 	for i, fd := range ret {
-		fmt.Printf("%d: '%s'\n    numParams: %d\n    bodySource: '%s'\n", i, fd.sym, fd.numParams, fd.bodySource)
+		fmt.Printf("%d: '%s'\n    callArity: %d\n    bodySource: '%s'\n", i, fd.sym, fd.numParams, fd.bodySource)
 	}
 	for _, fd := range ret {
 		fd.formula, err = fd.parseFormula(fd.bodySource)
@@ -240,7 +240,7 @@ func (fd *funDef) genCode(lib map[string]*funDef) error {
 //      value n = 0-15 it is call to function _param(n)
 //      values 16-29 reserved
 //  - if bit 6 is 1 (bit 14), it is long and byte prefix[1] is used (total 16 bits)
-// - bits 13-10 is arity of the call 0-15
+// - bits 13-10 is callArity of the call 0-15
 // - bits 9-0 is library reference 0 - 1023
 
 func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) error {
@@ -303,7 +303,12 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 	return nil
 }
 
-const DataMask = byte(0x80)
+const (
+	DataMask      = byte(0x80)
+	LongCallMask  = byte(0x40)
+	ArityMask     = uint16(0x03) << 10
+	LongIndexMask = ^uint16(uint32(0) << 10)
+)
 
 func makeShortCallBytes(sym string, numArgs, numParams int) ([]byte, bool, error) {
 	fd, found := embeddedShortByName[sym]
@@ -338,5 +343,6 @@ func makeLongCallBytes(lib map[string]*funDef, sym string, numParams int) ([]byt
 	}
 	ret := make([]byte, 2)
 	binary.BigEndian.PutUint16(ret, fd.funCode|uint16(numParams)<<10)
+	ret[0] |= LongCallMask
 	return ret, nil
 }
