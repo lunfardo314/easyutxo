@@ -43,9 +43,9 @@ func (r *CodeReader) Next() (interface{}, error) {
 		return nil, nil
 	}
 	b0 := r.code[r.pos]
-	if b0&DataMask != 0 {
+	if b0&FirstByteDataMask != 0 {
 		// it is data
-		size := int(b0 & ^DataMask)
+		size := int(b0 & FirstByteDataLenMask)
 		if len(r.code) < size+1 {
 			return nil, io.EOF
 		}
@@ -54,7 +54,7 @@ func (r *CodeReader) Next() (interface{}, error) {
 		return ret, nil
 	}
 	// it is a function call
-	if b0&LongCallMask == 0 {
+	if b0&FirstByteLongCallMask == 0 {
 		// short call
 		ret := embeddedShortByCode[b0]
 		if ret == nil {
@@ -67,9 +67,9 @@ func (r *CodeReader) Next() (interface{}, error) {
 	if r.pos+1 >= len(r.code) {
 		return nil, io.EOF
 	}
+	arity := (b0 & FirstByteLongCallArityMask) >> 4
 	t := binary.BigEndian.Uint16([]byte{b0, r.code[r.pos+1]})
-	idx := t & LongIndexMask
-	arity := t & ArityMask >> 10
+	idx := t & Uint16LongCallCodeMask
 	ret := embeddedLongByCode[idx]
 	if ret == nil {
 		return nil, fmt.Errorf("long code %d not found", b0)

@@ -230,18 +230,25 @@ func (fd *funDef) genCode(lib map[string]*funDef) error {
 
 // prefix[0] || prefix[1] || suffix
 // prefix[0] bits
-// - 7 : 0 is library function, 1 is inline data
+// - bit 7 (FirstByteDataMask) : 0 is library function, 1 is inline data
 // - if inline data: bits 6-0 is size of the inline data, 0-127
 // - if library function:
-//  - if bit 6 is 0, it is inline parameter only byte prefix[0] is used
-//  - bits 5-0 are interpreted inline (values 0-31)
-//      value 30 is call to function _path()
-//      value 31 is call to function _data()
-//      value n = 0-15 it is call to function _param(n)
-//      values 16-29 reserved
-//  - if bit 6 is 1 (bit 14), it is long and byte prefix[1] is used (total 16 bits)
-// - bits 13-10 is callArity of the call 0-15
-// - bits 9-0 is library reference 0 - 1023
+//  - if bit 6 (FirstByteLongCallMask) is 0, it is inline parameter only byte prefix[0] is used
+//  - bits 5-0 are interpreted inline (values 0-63) call to short embedded function with fixed arity
+//    some values are used, some are reserved
+//  - if bit 6 (FirstByteLongCallMask) is 1, it is long call.
+//  -- bits 5-4 are interpreted as arity of the long call
+//  -- the prefix[0] byte is extended with prefix[1] the prefix 1-2 is interpreted as uint16 bigendian
+//  -- bits 11-0 of uint16 is the long code of the called function (values 0-4095)
+
+const (
+	FirstByteDataMask          = byte(0x80)
+	FirstByteDataLenMask       = ^FirstByteDataMask
+	FirstByteLongCallMask      = byte(0x40)
+	FirstByteLongCallArityMask = byte(0x30)
+	Uint16LongCallCodeMask     = uint16(^(FirstByteDataMask | FirstByteLongCallMask | FirstByteLongCallArityMask)) << 8
+	MaxLongCallCode            = Uint16LongCallCodeMask
+)
 
 func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) error {
 	if len(f.params) == 0 {
@@ -252,8 +259,8 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 			if n < 0 || n >= 256 {
 				return fmt.Errorf("integer constant value not uint8: %s", f.sym)
 			}
-			// it is a byte value
-			if _, err = w.Write([]byte{DataMask, byte(n)}); err != nil {
+			// it is a 1 byte value
+			if _, err = w.Write([]byte{FirstByteDataMask | byte(1), byte(n)}); err != nil {
 				return err
 			}
 			return nil
@@ -267,7 +274,7 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 			if len(b) > 127 {
 				return fmt.Errorf("hexadecimal constant longer than 127 bytes: '%s'", f.sym)
 			}
-			if _, err = w.Write([]byte{byte(len(b)) | DataMask}); err != nil {
+			if _, err = w.Write([]byte{FirstByteDataMask | byte(len(b))}); err != nil {
 				return err
 			}
 			if _, err = w.Write(b); err != nil {
@@ -303,13 +310,6 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 	return nil
 }
 
-const (
-	DataMask      = byte(0x80)
-	LongCallMask  = byte(0x40)
-	ArityMask     = uint16(0x03) << 10
-	LongIndexMask = ^uint16(uint32(0) << 10)
-)
-
 func makeShortCallBytes(sym string, numArgs, numParams int) ([]byte, bool, error) {
 	fd, found := embeddedShortByName[sym]
 	if !found {
@@ -341,8 +341,13 @@ func makeLongCallBytes(lib map[string]*funDef, sym string, numParams int) ([]byt
 	if fd.numParams >= 0 && fd.numParams != numParams {
 		return nil, fmt.Errorf("function '%s' require %d arguments", sym, fd.numParams)
 	}
+	if fd.funCode > MaxLongCallCode {
+		panic("too large function code")
+	}
+	firstByte := FirstByteLongCallMask | byte(numParams)<<4
+	u16 := (uint16(firstByte) << 8) | fd.funCode
 	ret := make([]byte, 2)
-	binary.BigEndian.PutUint16(ret, fd.funCode|uint16(numParams)<<10)
-	ret[0] |= LongCallMask
+	binary.BigEndian.PutUint16(ret, u16)
+
 	return ret, nil
 }
