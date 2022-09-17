@@ -42,10 +42,18 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(ret[0].code))
 		rdr := NewCodeReader(ret[0].code, make(map[uint16]*funDef))
-		count := 0
+		countCall := 0
+		countData := 0
 		for c := rdr.MustNext(); c != nil; c = rdr.MustNext() {
-			count++
+			switch c.(type) {
+			case []byte:
+				countData++
+			case *funCall:
+				countCall++
+			}
 		}
-		t.Logf("number of calls: %d", count)
+		t.Logf("number of calls: %d, number of data: %d", countCall, countData)
+		require.EqualValues(t, 4, countCall)
+		require.EqualValues(t, 3, countData)
 	})
 }

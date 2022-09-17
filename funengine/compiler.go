@@ -237,17 +237,18 @@ func (fd *funDef) genCode(lib map[string]*funDef) error {
 //  - bits 5-0 are interpreted inline (values 0-63) call to short embedded function with fixed arity
 //    some values are used, some are reserved
 //  - if bit 6 (FirstByteLongCallMask) is 1, it is long call.
-//  -- bits 5-4 are interpreted as arity of the long call
+//  -- bits 5-2 are interpreted as arity of the long call (values 0-15)
 //  -- the prefix[0] byte is extended with prefix[1] the prefix 1-2 is interpreted as uint16 bigendian
-//  -- bits 11-0 of uint16 is the long code of the called function (values 0-4095)
+//  -- bits 9-0 of uint16 is the long code of the called function (values 0-1023)
 
 const (
-	FirstByteDataMask          = byte(0x80)
+	FirstByteDataMask          = byte(0x01) << 7
 	FirstByteDataLenMask       = ^FirstByteDataMask
-	FirstByteLongCallMask      = byte(0x40)
-	FirstByteLongCallArityMask = byte(0x30)
-	Uint16LongCallCodeMask     = uint16(^(FirstByteDataMask | FirstByteLongCallMask | FirstByteLongCallArityMask)) << 8
-	MaxLongCallCode            = Uint16LongCallCodeMask
+	FirstByteLongCallMask      = byte(0x01) << 6
+	FirstByteLongCallArityMask = byte(0x0f) << 2
+	Uint16LongCallCodeMask     = ^(uint16(FirstByteDataMask|FirstByteLongCallMask|FirstByteLongCallArityMask) << 8)
+	MaxLongCallCode            = int(Uint16LongCallCodeMask)
+	MaxNumShortCall            = 64
 )
 
 func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) error {
@@ -324,6 +325,9 @@ func makeShortCallBytes(sym string, numArgs, numParams int) ([]byte, bool, error
 			return nil, false, fmt.Errorf("wrong argument reference '%s'", fd.sym)
 		}
 	}
+	if fd.funCode >= MaxNumShortCall {
+		panic("too big short call code")
+	}
 	return []byte{byte(fd.funCode)}, true, nil
 }
 
@@ -333,18 +337,17 @@ func makeLongCallBytes(lib map[string]*funDef, sym string, numParams int) ([]byt
 	}
 	fd, found := embeddedLongByName[sym]
 	if !found {
-		fd, found = lib[sym]
-	}
-	if !found {
-		return nil, fmt.Errorf("can't resolve symbol '%s'", sym)
+		if fd, found = lib[sym]; !found {
+			return nil, fmt.Errorf("can't resolve symbol '%s'", sym)
+		}
 	}
 	if fd.numParams >= 0 && fd.numParams != numParams {
 		return nil, fmt.Errorf("function '%s' require %d arguments", sym, fd.numParams)
 	}
-	if fd.funCode > MaxLongCallCode {
+	if int(fd.funCode) > MaxLongCallCode {
 		panic("too large function code")
 	}
-	firstByte := FirstByteLongCallMask | byte(numParams)<<4
+	firstByte := FirstByteLongCallMask | (byte(numParams) << 2)
 	u16 := (uint16(firstByte) << 8) | fd.funCode
 	ret := make([]byte, 2)
 	binary.BigEndian.PutUint16(ret, u16)

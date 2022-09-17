@@ -40,7 +40,7 @@ var embeddedLong = []*funDef{
 	{sym: "validSignature", numParams: 3},
 }
 
-const FirstUserFunCode = 1024
+const FirstUserFunCode = 64 + 128
 
 var (
 	embeddedShortByName map[string]*funDef
@@ -65,7 +65,7 @@ func init() {
 
 	embeddedLongByName = make(map[string]*funDef)
 	for i, fd := range embeddedLong {
-		fd.funCode = uint16(i) + 32
+		fd.funCode = uint16(i) + MaxNumShortCall
 		if _, already := embeddedLongByName[fd.sym]; already {
 			panic(fmt.Errorf("repeating symbol '%s'", fd.sym))
 		}

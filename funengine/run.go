@@ -67,8 +67,9 @@ func (r *CodeReader) Next() (interface{}, error) {
 	if r.pos+1 >= len(r.code) {
 		return nil, io.EOF
 	}
-	arity := (b0 & FirstByteLongCallArityMask) >> 4
-	t := binary.BigEndian.Uint16([]byte{b0, r.code[r.pos+1]})
+	arity := (b0 & FirstByteLongCallArityMask) >> 2
+	b1 := r.code[r.pos+1]
+	t := binary.BigEndian.Uint16([]byte{b0, b1})
 	idx := t & Uint16LongCallCodeMask
 	ret := embeddedLongByCode[idx]
 	if ret == nil {
