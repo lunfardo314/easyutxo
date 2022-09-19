@@ -236,7 +236,7 @@ func (f *formula) genCode(lib CompilerLibrary, numArgs int, w io.Writer) error {
 	}
 	// either has arguments or not literal
 	// try if it is a short call
-	fi, err := lib.Resolve(f.sym, len(f.params))
+	fi, err := lib.FunctionByName(f.sym, len(f.params))
 	if err != nil {
 		return err
 	}

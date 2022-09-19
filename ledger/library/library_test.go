@@ -37,7 +37,8 @@ func TestParse(t *testing.T) {
 		code, err := easyfl.CompileFormula(Library, parsed[0].NumParams, parsed[0].SourceCode)
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
-		rdr := easyfl.NewCodeReader(Library, code)
+		ctx := NewRunContext(nil, nil)
+		rdr := easyfl.NewCodeReader(ctx, code)
 		countCall := 0
 		countData := 0
 		for c := rdr.MustNext(); c != nil; c = rdr.MustNext() {

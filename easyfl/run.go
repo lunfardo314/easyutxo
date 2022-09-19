@@ -3,20 +3,7 @@ package easyfl
 import (
 	"encoding/binary"
 	"io"
-
-	"github.com/lunfardo314/easyutxo/lazyslice"
 )
-
-type RunContext struct {
-	//globalContext ledger.GlobalContext
-}
-
-type InvocationContext struct {
-	runContext *RunContext
-	path       lazyslice.TreePath
-	data       []byte
-	callStack  interface{}
-}
 
 type CodeReader struct {
 	lib  RuntimeLibrary

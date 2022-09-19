@@ -1,6 +1,7 @@
 package easyfl
 
 const (
+	MaxParameters      = 15
 	MaxNumShortCall    = 64
 	ExtendedCodeOffset = 256
 )
@@ -36,7 +37,7 @@ type FunDef struct {
 
 type CompilerLibrary interface {
 	ExistsFun(sym string) bool
-	Resolve(sym string, numParams int) (*FunInfo, error)
+	FunctionByName(sym string, numParams int) (*FunInfo, error)
 }
 
 type RuntimeLibrary interface {
