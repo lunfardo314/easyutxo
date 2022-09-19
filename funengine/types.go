@@ -1,15 +1,9 @@
 package funengine
 
-const MaxNumShortCall = 64
-
-type funDef struct {
-	sym        string
-	funCode    uint16
-	numParams  int // -1 if variable params, only for embedded
-	bodySource string
-	formula    *formula
-	code       []byte
-}
+const (
+	MaxNumShortCall    = 64
+	ExtendedCodeOffset = 256
+)
 
 type FunInfo struct {
 	Sym        string
@@ -17,6 +11,18 @@ type FunInfo struct {
 	IsEmbedded bool
 	IsShort    bool
 	NumParams  int
+}
+
+type FunParsed struct {
+	Sym        string
+	NumParams  int
+	SourceCode string
+}
+
+type FunCompiled struct {
+	Sym        string
+	NumParams  int
+	BinaryCode []byte
 }
 
 type FunDef struct {
@@ -29,7 +35,7 @@ type FunDef struct {
 }
 
 type CompilerLibrary interface {
-	Exists(sym string) bool
+	ExistsFun(sym string) bool
 	Resolve(sym string, numParams int) (*FunInfo, error)
 }
 

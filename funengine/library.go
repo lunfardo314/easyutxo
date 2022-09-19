@@ -4,7 +4,21 @@ import (
 	"fmt"
 )
 
-var embeddedShort = []*funDef{
+type funEmbedded struct {
+	sym       string
+	funCode   uint16
+	numParams int
+	run       func()
+}
+
+type funExtended struct {
+	sym        string
+	funCode    uint16
+	numParams  int
+	binaryCode []byte
+}
+
+var embeddedShort = []*funEmbedded{
 	{sym: "$0", numParams: 0},
 	{sym: "$1", numParams: 0},
 	{sym: "$2", numParams: 0},
@@ -29,10 +43,9 @@ var embeddedShort = []*funDef{
 	{sym: "_equal", numParams: 2},
 	{sym: "_len", numParams: 1},
 	{sym: "_not", numParams: 1},
-	// 9 left
 }
 
-var embeddedLong = []*funDef{
+var embeddedLong = []*funEmbedded{
 	{sym: "concat", numParams: -1},
 	{sym: "and", numParams: -1},
 	{sym: "or", numParams: -1},
@@ -46,22 +59,22 @@ const (
 )
 
 type libraryData struct {
-	embeddedShortByName    map[string]*funDef
-	embeddedShortByFunCode [MaxNumShortCall]*funDef
-	embeddedLongByName     map[string]*funDef
-	embeddedLongByFunCode  map[uint16]*funDef
-	extendedByName         map[string]*funDef
-	extendedByFunCode      map[uint16]*funDef
+	embeddedShortByName    map[string]*funEmbedded
+	embeddedShortByFunCode [MaxNumShortCall]*funEmbedded
+	embeddedLongByName     map[string]*funEmbedded
+	embeddedLongByFunCode  map[uint16]*funEmbedded
+	extendedByName         map[string]*funExtended
+	extendedByFunCode      map[uint16]*funExtended
 }
 
 var library = &libraryData{}
 
 func init() {
 	if len(embeddedShort) > MaxLongCallCode {
-		panic("failed: len(embeddedShort) <= 32")
+		panic("failed: len(embeddedShort) <= MaxLongCallCode")
 	}
 
-	library.embeddedShortByName = make(map[string]*funDef)
+	library.embeddedShortByName = make(map[string]*funEmbedded)
 	for i, fd := range embeddedShort {
 		fd.funCode = uint16(i)
 		if _, already := library.embeddedShortByName[fd.sym]; already {
@@ -70,7 +83,7 @@ func init() {
 		library.embeddedShortByName[fd.sym] = fd
 	}
 
-	library.embeddedLongByName = make(map[string]*funDef)
+	library.embeddedLongByName = make(map[string]*funEmbedded)
 	for i, fd := range embeddedLong {
 		fd.funCode = uint16(i) + MaxNumShortCall
 		if _, already := library.embeddedLongByName[fd.sym]; already {
@@ -83,15 +96,15 @@ func init() {
 		library.embeddedShortByFunCode[fd.funCode] = fd
 	}
 
-	library.embeddedLongByFunCode = make(map[uint16]*funDef)
+	library.embeddedLongByFunCode = make(map[uint16]*funEmbedded)
 	for _, fd := range library.embeddedLongByName {
 		library.embeddedLongByFunCode[fd.funCode] = fd
 	}
-	library.extendedByName = make(map[string]*funDef)
-	library.extendedByFunCode = make(map[uint16]*funDef)
+	library.extendedByName = make(map[string]*funExtended)
+	library.extendedByFunCode = make(map[uint16]*funExtended)
 }
 
-func (lib *libraryData) Exists(sym string) bool {
+func (lib *libraryData) ExistsFun(sym string) bool {
 	_, found := library.embeddedShortByName[sym]
 	if found {
 		return true
@@ -137,20 +150,20 @@ func (lib *libraryData) Resolve(sym string, numParams int) (*FunInfo, error) {
 			NumParams:  fd.numParams,
 		}, nil
 	}
-	fd, found = library.extendedByName[sym]
+	fe, found := library.extendedByName[sym]
 	if found {
-		if fd.numParams < 0 {
+		if fe.numParams < 0 {
 			panic("internal error")
 		}
-		if fd.numParams != numParams {
-			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fd.numParams)
+		if fe.numParams != numParams {
+			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fe.numParams)
 		}
 		return &FunInfo{
 			Sym:        sym,
-			FunCode:    fd.funCode,
+			FunCode:    fe.funCode,
 			IsEmbedded: false,
 			IsShort:    false,
-			NumParams:  fd.numParams,
+			NumParams:  fe.numParams,
 		}, nil
 	}
 	return nil, fmt.Errorf("can't resolve function name '%s'", sym)
@@ -204,4 +217,32 @@ func (lib *libraryData) FunctionByFunCode(funCode uint16, arity int) func() {
 	return func() {
 		panic(fmt.Errorf("funCode %d not found", funCode))
 	}
+}
+
+func (lib *libraryData) addToLibrary(fe *funExtended) error {
+	if lib.ExistsFun(fe.sym) {
+		return fmt.Errorf("repeating function name '%s'", fe.sym)
+	}
+	fe.funCode = uint16(len(lib.extendedByName) + ExtendedCodeOffset)
+	lib.extendedByName[fe.sym] = fe
+	lib.extendedByFunCode[fe.funCode] = fe
+	return nil
+}
+
+func (lib *libraryData) compileAndAddMany(parsed []*FunParsed) error {
+	for _, pf := range parsed {
+		code, err := CompileFormula(lib, pf.NumParams, pf.SourceCode)
+		if err != nil {
+			return err
+		}
+		err = lib.addToLibrary(&funExtended{
+			sym:        pf.Sym,
+			numParams:  pf.NumParams,
+			binaryCode: code,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

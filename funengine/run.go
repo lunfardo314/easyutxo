@@ -8,7 +8,6 @@ import (
 )
 
 type RunContext struct {
-	localLibrary map[uint16]*funDef
 	//globalContext ledger.GlobalContext
 }
 

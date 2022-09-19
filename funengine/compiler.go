@@ -17,23 +17,14 @@ type formula struct {
 	params []*formula
 }
 
-func parseDefinitions(s string) ([]*funDef, error) {
+func ParseFunctions(s string) ([]*FunParsed, error) {
 	lines := splitLinesStripComments(s)
 	ret, err := parseDefs(lines)
 	if err != nil {
 		return nil, err
 	}
 	for i, fd := range ret {
-		fmt.Printf("%d: '%s'\n    callArity: %d\n    bodySource: '%s'\n", i, fd.sym, fd.numParams, fd.bodySource)
-	}
-	for _, fd := range ret {
-		fd.formula, err = fd.parseFormula(fd.bodySource)
-		if err != nil {
-			return nil, err
-		}
-		if len(fd.formula.params) > 15 {
-			return nil, fmt.Errorf("too many call parameters in call to '%s': '%s'", fd.sym, fd.bodySource)
-		}
+		fmt.Printf("%d: '%s'\n    callArity: %d\n    bodySource: '%s'\n", i, fd.Sym, fd.NumParams, fd.SourceCode)
 	}
 	return ret, nil
 }
@@ -48,24 +39,28 @@ func splitLinesStripComments(s string) []string {
 	return lines
 }
 
-func parseDefs(lines []string) ([]*funDef, error) {
-	ret := make([]*funDef, 0)
-	var current *funDef
+func parseDefs(lines []string) ([]*FunParsed, error) {
+	ret := make([]*FunParsed, 0)
+	var current *FunParsed
 	for lineno, line := range lines {
 		if strings.HasPrefix(line, "def ") {
 			if current != nil {
-				current.bodySource = stripSpaces(current.bodySource)
+				current.SourceCode = stripSpaces(current.SourceCode)
 				ret = append(ret, current)
 			}
-			current = &funDef{}
 			signature, body, foundEq := strings.Cut(strings.TrimPrefix(line, "def "), "=")
 			if !foundEq {
 				return nil, fmt.Errorf("'=' expectected @ line %d", lineno)
 			}
-			if err := current.parseSignature(stripSpaces(signature), lineno); err != nil {
+			sym, numParams, err := parseSignature(stripSpaces(signature), lineno)
+			if err != nil {
 				return nil, err
 			}
-			current.bodySource += body
+			current = &FunParsed{
+				Sym:        sym,
+				NumParams:  numParams,
+				SourceCode: body,
+			}
 		} else {
 			if len(stripSpaces(line)) == 0 {
 				continue
@@ -73,11 +68,11 @@ func parseDefs(lines []string) ([]*funDef, error) {
 			if current == nil {
 				return nil, fmt.Errorf("unexpectected symbols @ line %d", lineno)
 			}
-			current.bodySource += line
+			current.SourceCode += line
 		}
 	}
 	if current != nil {
-		current.bodySource = stripSpaces(current.bodySource)
+		current.SourceCode = stripSpaces(current.SourceCode)
 		ret = append(ret, current)
 	}
 	return ret, nil
@@ -94,29 +89,28 @@ func stripSpaces(str string) string {
 	}, str)
 }
 
-func (fd *funDef) parseSignature(s string, lineno int) error {
+func parseSignature(s string, lineno int) (string, int, error) {
 	name, rest, found := strings.Cut(s, "(")
-	fd.sym = name
 	if !found {
-		return fmt.Errorf("argument/return types expected @ line %d", lineno)
+		return "", 0, fmt.Errorf("argument/return types expected @ line %d", lineno)
 	}
 	paramStr, rest, found := strings.Cut(rest, ")")
 	if !found || len(rest) != 0 {
-		return fmt.Errorf("closing ')' expected @ line %d", lineno)
+		return "", 0, fmt.Errorf("closing ')' expected @ line %d", lineno)
 	}
+	var numParams int
 	if paramStr == "..." {
-		fd.numParams = -1
-		return nil
+		numParams = -1
+		return name, numParams, nil
 	}
 	n, err := strconv.Atoi(paramStr)
 	if err != nil || n < 0 || n > 15 {
-		return fmt.Errorf("number of parameters must be '...' or number from 0 to 15 @ line %d", lineno)
+		return "", 0, fmt.Errorf("number of parameters must be '...' or number from 0 to 15 @ line %d", lineno)
 	}
-	fd.numParams = n
-	return nil
+	return name, n, nil
 }
 
-func (fd *funDef) parseFormula(s string) (*formula, error) {
+func parseFormula(s string) (*formula, error) {
 	name, rest, foundOpen := strings.Cut(s, "(")
 	f := &formula{
 		sym:    name,
@@ -133,7 +127,7 @@ func (fd *funDef) parseFormula(s string) (*formula, error) {
 		return nil, err
 	}
 	for _, call := range spl {
-		ff, err := fd.parseFormula(call)
+		ff, err := parseFormula(call)
 		if err != nil {
 			return nil, err
 		}
@@ -182,39 +176,6 @@ func splitArgs(argsStr string) ([]string, error) {
 		ret = append(ret, string(p))
 	}
 	return ret, nil
-}
-
-func compileToLibrary(lib CompilerLibrary, source string, codeOffset int) error {
-	fdefs, err := parseDefinitions(source)
-	if err != nil {
-		return err
-	}
-	totalCode := 0
-	for _, fd := range fdefs {
-		if lib.Exists(fd.sym) {
-			return fmt.Errorf("repeated symbol '%s'", fd.sym)
-		}
-		code, err := genCode(lib, fd)
-		if err != nil {
-			return err
-		}
-		fd.code = code
-		fd.funCode = uint16(codeOffset + len(library.extendedByName))
-		library.extendedByName[fd.sym] = fd
-		library.extendedByFunCode[fd.funCode] = fd
-		fmt.Printf("'%s' code len = %d\n", fd.sym, len(fd.code))
-		totalCode += len(fd.code)
-	}
-	fmt.Printf("total bytes: %d\n", totalCode)
-	return nil
-}
-
-func genCode(lib CompilerLibrary, fd *funDef) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := fd.formula.genCode(lib, fd.numParams, &buf); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 // prefix[0] || prefix[1] || suffix
@@ -305,4 +266,17 @@ func (f *formula) genCode(lib CompilerLibrary, numArgs int, w io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+func CompileFormula(lib CompilerLibrary, numParams int, formulaSource string) ([]byte, error) {
+	f, err := parseFormula(formulaSource)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	if err = f.genCode(lib, numParams, &buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

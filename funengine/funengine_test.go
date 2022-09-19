@@ -10,34 +10,36 @@ const formula1 = "def unlockBlock(0) = _atPath(concat(0x0000,_slice(_path, 2, 5)
 
 func TestParse(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		ret, err := parseDefinitions(formula1)
+		ret, err := ParseFunctions(formula1)
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 	})
 	t.Run("2", func(t *testing.T) {
-		ret, err := parseDefinitions(sigLockConstraint)
+		ret, err := ParseFunctions(sigLockConstraint)
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 	})
 	t.Run("3", func(t *testing.T) {
-		ret, err := parseDefinitions(formula1)
+		ret, err := ParseFunctions(formula1)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(ret))
 
-		code, err := genCode(library, ret[0])
+		code, err := CompileFormula(library, ret[0].NumParams, ret[0].SourceCode)
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 	})
 	t.Run("4", func(t *testing.T) {
-		err := compileToLibrary(library, sigLockConstraint, FirstUserFunCode)
+		parsed, err := ParseFunctions(sigLockConstraint)
+		require.NoError(t, err)
+		err = library.compileAndAddMany(parsed)
 		require.NoError(t, err)
 	})
 	t.Run("5", func(t *testing.T) {
-		ret, err := parseDefinitions(formula1)
+		parsed, err := ParseFunctions(formula1)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, len(ret))
+		require.EqualValues(t, 1, len(parsed))
 
-		code, err := genCode(library, ret[0])
+		code, err := CompileFormula(library, parsed[0].NumParams, parsed[0].SourceCode)
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 		rdr := NewCodeReader(library, code)
