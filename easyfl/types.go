@@ -1,4 +1,4 @@
-package funengine
+package easyfl
 
 const (
 	MaxNumShortCall    = 64

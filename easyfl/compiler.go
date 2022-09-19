@@ -1,4 +1,4 @@
-package funengine
+package easyfl
 
 import (
 	"bufio"

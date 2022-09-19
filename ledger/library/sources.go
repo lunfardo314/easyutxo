@@ -1,6 +1,6 @@
-package funengine
+package library
 
-const sigLockConstraint = `
+const SigLockConstraint = `
 def unlockBlock(0) = _atPath(
 	concat(0x0000, _slice(_path, 2, 5))
 )
