@@ -2,7 +2,6 @@ package funengine
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
@@ -21,17 +20,17 @@ type InvocationContext struct {
 }
 
 type CodeReader struct {
-	lib  map[uint16]*funDef
+	lib  RuntimeLibrary
 	code []byte
 	pos  int
 }
 
 type funCall struct {
-	funDef    *funDef
+	fun       func()
 	callArity int
 }
 
-func NewCodeReader(code []byte, lib map[uint16]*funDef) *CodeReader {
+func NewCodeReader(lib RuntimeLibrary, code []byte) *CodeReader {
 	return &CodeReader{
 		lib:  lib,
 		code: code,
@@ -56,27 +55,26 @@ func (r *CodeReader) Next() (interface{}, error) {
 	// it is a function call
 	if b0&FirstByteLongCallMask == 0 {
 		// short call
-		ret := embeddedShortByCode[b0]
-		if ret == nil {
-			return nil, fmt.Errorf("short code %d not found", b0)
-		}
+
 		r.pos += 1
-		return &funCall{funDef: ret, callArity: ret.numParams}, nil
+		return &funCall{
+			fun:       r.lib.FunctionByFunCode(uint16(b0), 0),
+			callArity: 0,
+		}, nil
 	}
 	// long call
 	if r.pos+1 >= len(r.code) {
 		return nil, io.EOF
 	}
-	arity := (b0 & FirstByteLongCallArityMask) >> 2
+	arity := int((b0 & FirstByteLongCallArityMask) >> 2)
 	b1 := r.code[r.pos+1]
 	t := binary.BigEndian.Uint16([]byte{b0, b1})
 	idx := t & Uint16LongCallCodeMask
-	ret := embeddedLongByCode[idx]
-	if ret == nil {
-		return nil, fmt.Errorf("long code %d not found", b0)
-	}
 	r.pos += 2
-	return &funCall{funDef: ret, callArity: int(arity)}, nil
+	return &funCall{
+		fun:       r.lib.FunctionByFunCode(idx, arity),
+		callArity: arity,
+	}, nil
 }
 
 func (r *CodeReader) MustNext() interface{} {

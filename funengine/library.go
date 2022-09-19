@@ -40,44 +40,168 @@ var embeddedLong = []*funDef{
 	{sym: "validSignature", numParams: 3},
 }
 
-const FirstUserFunCode = 64 + 128
-
-var (
-	embeddedShortByName map[string]*funDef
-	embeddedShortByCode [32]*funDef
-	embeddedLongByName  map[string]*funDef
-	embeddedLongByCode  map[uint16]*funDef
+const (
+	MaxParameters    = 15
+	FirstUserFunCode = 64 + 128
 )
 
+type libraryData struct {
+	embeddedShortByName    map[string]*funDef
+	embeddedShortByFunCode [MaxNumShortCall]*funDef
+	embeddedLongByName     map[string]*funDef
+	embeddedLongByFunCode  map[uint16]*funDef
+	extendedByName         map[string]*funDef
+	extendedByFunCode      map[uint16]*funDef
+}
+
+var library = &libraryData{}
+
 func init() {
-	if len(embeddedShort) > 32 {
+	if len(embeddedShort) > MaxLongCallCode {
 		panic("failed: len(embeddedShort) <= 32")
 	}
 
-	embeddedShortByName = make(map[string]*funDef)
+	library.embeddedShortByName = make(map[string]*funDef)
 	for i, fd := range embeddedShort {
 		fd.funCode = uint16(i)
-		if _, already := embeddedShortByName[fd.sym]; already {
+		if _, already := library.embeddedShortByName[fd.sym]; already {
 			panic(fmt.Errorf("repeating symbol '%s'", fd.sym))
 		}
-		embeddedShortByName[fd.sym] = fd
+		library.embeddedShortByName[fd.sym] = fd
 	}
 
-	embeddedLongByName = make(map[string]*funDef)
+	library.embeddedLongByName = make(map[string]*funDef)
 	for i, fd := range embeddedLong {
 		fd.funCode = uint16(i) + MaxNumShortCall
-		if _, already := embeddedLongByName[fd.sym]; already {
+		if _, already := library.embeddedLongByName[fd.sym]; already {
 			panic(fmt.Errorf("repeating symbol '%s'", fd.sym))
 		}
-		embeddedLongByName[fd.sym] = fd
+		library.embeddedLongByName[fd.sym] = fd
 	}
 
-	for _, fd := range embeddedShortByName {
-		embeddedShortByCode[fd.funCode] = fd
+	for _, fd := range library.embeddedShortByName {
+		library.embeddedShortByFunCode[fd.funCode] = fd
 	}
 
-	embeddedLongByCode = make(map[uint16]*funDef)
-	for _, fd := range embeddedLongByName {
-		embeddedLongByCode[fd.funCode] = fd
+	library.embeddedLongByFunCode = make(map[uint16]*funDef)
+	for _, fd := range library.embeddedLongByName {
+		library.embeddedLongByFunCode[fd.funCode] = fd
+	}
+	library.extendedByName = make(map[string]*funDef)
+	library.extendedByFunCode = make(map[uint16]*funDef)
+}
+
+func (lib *libraryData) Exists(sym string) bool {
+	_, found := library.embeddedShortByName[sym]
+	if found {
+		return true
+	}
+	_, found = library.embeddedLongByName[sym]
+	if found {
+		return true
+	}
+	_, found = library.extendedByName[sym]
+	if found {
+		return true
+	}
+	return false
+}
+
+func (lib *libraryData) Resolve(sym string, numParams int) (*FunInfo, error) {
+	if numParams > MaxParameters {
+		return nil, fmt.Errorf("can't be more than 15 arguments in the call")
+	}
+	fd, found := library.embeddedShortByName[sym]
+	if found {
+		if fd.numParams != numParams {
+			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fd.numParams)
+		}
+		return &FunInfo{
+			Sym:        sym,
+			FunCode:    fd.funCode,
+			IsEmbedded: true,
+			IsShort:    true,
+			NumParams:  fd.numParams,
+		}, nil
+	}
+	fd, found = library.embeddedLongByName[sym]
+	if found {
+		if fd.numParams > 0 && fd.numParams != numParams {
+			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fd.numParams)
+		}
+		return &FunInfo{
+			Sym:        sym,
+			FunCode:    fd.funCode,
+			IsEmbedded: true,
+			IsShort:    false,
+			NumParams:  fd.numParams,
+		}, nil
+	}
+	fd, found = library.extendedByName[sym]
+	if found {
+		if fd.numParams < 0 {
+			panic("internal error")
+		}
+		if fd.numParams != numParams {
+			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fd.numParams)
+		}
+		return &FunInfo{
+			Sym:        sym,
+			FunCode:    fd.funCode,
+			IsEmbedded: false,
+			IsShort:    false,
+			NumParams:  fd.numParams,
+		}, nil
+	}
+	return nil, fmt.Errorf("can't resolve function name '%s'", sym)
+}
+
+func (lib *libraryData) FunctionByFunCode(funCode uint16, arity int) func() {
+	if funCode < MaxNumShortCall {
+		ret := lib.embeddedShortByFunCode[funCode]
+		if ret == nil {
+			return func() {
+				panic("reserved short code")
+			}
+		}
+		if arity != ret.numParams {
+			return func() {
+				// TODO temporary
+				fmt.Printf("dummy run short call %d with WRONG call arity %d\n", funCode, arity)
+			}
+		}
+		return func() {
+			// TODO temporary
+			fmt.Printf("dummy run short call %d with call arity %d\n", funCode, arity)
+		}
+	}
+	ret, found := lib.embeddedLongByFunCode[funCode]
+	if found {
+		if ret.numParams >= 0 && arity != ret.numParams {
+			return func() {
+				// TODO temporary
+				fmt.Printf("dummy run long call %d with WRONG call arity %d\n", funCode, arity)
+			}
+		}
+		return func() {
+			// TODO temporary
+			fmt.Printf("dummy run long call %d with call arity %d\n", funCode, arity)
+		}
+	}
+	_, found = lib.extendedByFunCode[funCode]
+	if found {
+		if arity != ret.numParams {
+			return func() {
+				// TODO temporary
+				fmt.Printf("dummy run extended call %d with WRONG call arity %d\n", funCode, arity)
+			}
+		}
+		return func() {
+			// TODO temporary
+			fmt.Printf("dummy run extended call %d\n", funCode)
+		}
+	}
+	return func() {
+		panic(fmt.Errorf("funCode %d not found", funCode))
 	}
 }

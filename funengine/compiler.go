@@ -17,15 +17,6 @@ type formula struct {
 	params []*formula
 }
 
-type funDef struct {
-	sym        string
-	funCode    uint16
-	numParams  int // -1 if variable params, only for embedded
-	bodySource string
-	formula    *formula
-	code       []byte
-}
-
 func parseDefinitions(s string) ([]*funDef, error) {
 	lines := splitLinesStripComments(s)
 	ret, err := parseDefs(lines)
@@ -193,39 +184,37 @@ func splitArgs(argsStr string) ([]string, error) {
 	return ret, nil
 }
 
-func compileToLibrary(source string, codeOffset int) (map[string]*funDef, error) {
-	lib := make(map[string]*funDef)
+func compileToLibrary(lib CompilerLibrary, source string, codeOffset int) error {
 	fdefs, err := parseDefinitions(source)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	totalCode := 0
 	for _, fd := range fdefs {
-		if _, already := embeddedShortByName[fd.sym]; already {
-			return nil, fmt.Errorf("repeated symbol '%s'", fd.sym)
+		if lib.Exists(fd.sym) {
+			return fmt.Errorf("repeated symbol '%s'", fd.sym)
 		}
-		if _, already := embeddedLongByName[fd.sym]; already {
-			return nil, fmt.Errorf("repeated symbol '%s'", fd.sym)
+		code, err := genCode(lib, fd)
+		if err != nil {
+			return err
 		}
-		if err = fd.genCode(lib); err != nil {
-			return nil, err
-		}
-		fd.funCode = uint16(codeOffset + len(lib))
-		lib[fd.sym] = fd
+		fd.code = code
+		fd.funCode = uint16(codeOffset + len(library.extendedByName))
+		library.extendedByName[fd.sym] = fd
+		library.extendedByFunCode[fd.funCode] = fd
 		fmt.Printf("'%s' code len = %d\n", fd.sym, len(fd.code))
 		totalCode += len(fd.code)
 	}
 	fmt.Printf("total bytes: %d\n", totalCode)
-	return lib, nil
+	return nil
 }
 
-func (fd *funDef) genCode(lib map[string]*funDef) error {
+func genCode(lib CompilerLibrary, fd *funDef) ([]byte, error) {
 	var buf bytes.Buffer
-	if err := fd.formula.genCode(fd.numParams, lib, &buf); err != nil {
-		return err
+	if err := fd.formula.genCode(lib, fd.numParams, &buf); err != nil {
+		return nil, err
 	}
-	fd.code = buf.Bytes()
-	return nil
+	return buf.Bytes(), nil
 }
 
 // prefix[0] || prefix[1] || suffix
@@ -248,10 +237,9 @@ const (
 	FirstByteLongCallArityMask = byte(0x0f) << 2
 	Uint16LongCallCodeMask     = ^(uint16(FirstByteDataMask|FirstByteLongCallMask|FirstByteLongCallArityMask) << 8)
 	MaxLongCallCode            = int(Uint16LongCallCodeMask)
-	MaxNumShortCall            = 64
 )
 
-func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) error {
+func (f *formula) genCode(lib CompilerLibrary, numArgs int, w io.Writer) error {
 	if len(f.params) == 0 {
 		// write inline data
 		n, err := strconv.Atoi(f.sym)
@@ -287,20 +275,28 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 	}
 	// either has arguments or not literal
 	// try if it is a short call
-	callBytes, shortCall, err := makeShortCallBytes(f.sym, numArgs, len(f.params))
+	fi, err := lib.Resolve(f.sym, len(f.params))
 	if err != nil {
 		return err
 	}
-	if !shortCall {
-		// not short call, try the long call
-		callBytes, err = makeLongCallBytes(lib, f.sym, len(f.params))
-		if err != nil {
-			return err
+	var callBytes []byte
+	if fi.IsShort {
+		if strings.HasPrefix(fi.Sym, "$") {
+			n, _ := strconv.Atoi(fi.Sym[1:])
+			if n < 0 || n >= numArgs {
+				return fmt.Errorf("wrong argument reference '%s'", fi.Sym)
+			}
 		}
+		callBytes = []byte{byte(fi.FunCode)}
+	} else {
+		firstByte := FirstByteLongCallMask | (byte(numArgs) << 2)
+		u16 := (uint16(firstByte) << 8) | fi.FunCode
+		callBytes = make([]byte, 2)
+		binary.BigEndian.PutUint16(callBytes, u16)
 	}
 	// generate code for call parameters
 	for _, ff := range f.params {
-		if err = ff.genCode(numArgs, lib, w); err != nil {
+		if err = ff.genCode(lib, numArgs, w); err != nil {
 			return err
 		}
 	}
@@ -309,48 +305,4 @@ func (f *formula) genCode(numArgs int, lib map[string]*funDef, w io.Writer) erro
 		return err
 	}
 	return nil
-}
-
-func makeShortCallBytes(sym string, numArgs, numParams int) ([]byte, bool, error) {
-	fd, found := embeddedShortByName[sym]
-	if !found {
-		return nil, false, nil
-	}
-	if numParams != fd.numParams {
-		return nil, false, fmt.Errorf("'%s' takes exactly %d parameters", fd.sym, fd.numParams)
-	}
-	if strings.HasPrefix(sym, "$") {
-		n, _ := strconv.Atoi(sym[1:])
-		if n < 0 || n >= numArgs {
-			return nil, false, fmt.Errorf("wrong argument reference '%s'", fd.sym)
-		}
-	}
-	if fd.funCode >= MaxNumShortCall {
-		panic("too big short call code")
-	}
-	return []byte{byte(fd.funCode)}, true, nil
-}
-
-func makeLongCallBytes(lib map[string]*funDef, sym string, numParams int) ([]byte, error) {
-	if numParams > 15 {
-		return nil, fmt.Errorf("too many arguments in the call '%s'", sym)
-	}
-	fd, found := embeddedLongByName[sym]
-	if !found {
-		if fd, found = lib[sym]; !found {
-			return nil, fmt.Errorf("can't resolve symbol '%s'", sym)
-		}
-	}
-	if fd.numParams >= 0 && fd.numParams != numParams {
-		return nil, fmt.Errorf("function '%s' require %d arguments", sym, fd.numParams)
-	}
-	if int(fd.funCode) > MaxLongCallCode {
-		panic("too large function code")
-	}
-	firstByte := FirstByteLongCallMask | (byte(numParams) << 2)
-	u16 := (uint16(firstByte) << 8) | fd.funCode
-	ret := make([]byte, 2)
-	binary.BigEndian.PutUint16(ret, u16)
-
-	return ret, nil
 }
