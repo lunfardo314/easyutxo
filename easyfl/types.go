@@ -20,26 +20,15 @@ type FunParsed struct {
 	SourceCode string
 }
 
-type FunCompiled struct {
-	Sym        string
-	NumParams  int
-	BinaryCode []byte
+type FormulaTree struct {
+	args    []*FormulaTree
+	evalFun EvalFunction
 }
 
-type FunDef struct {
-	sym        string
-	funCode    uint16
-	numParams  int // -1 if variable params, only for embedded
-	bodySource string
-	formula    *formula
-	code       []byte
-}
+type EvalFunction func(glb interface{}, args []*FormulaTree) []byte
 
-type CompilerLibrary interface {
-	ExistsFun(sym string) bool
+type LibraryAccess interface {
+	ExistsFunction(sym string) bool
 	FunctionByName(sym string, numParams int) (*FunInfo, error)
-}
-
-type RuntimeLibrary interface {
-	FunctionByFunCode(funCode uint16, arity int) func()
+	FunctionByCode(funCode uint16) (EvalFunction, int, error)
 }

@@ -12,11 +12,12 @@ import (
 	"unicode"
 )
 
-type formula struct {
+type parsedFormula struct {
 	sym    string
-	params []*formula
+	params []*parsedFormula
 }
 
+// ParseFunctions parses many function definitions
 func ParseFunctions(s string) ([]*FunParsed, error) {
 	lines := splitLinesStripComments(s)
 	ret, err := parseDefs(lines)
@@ -110,11 +111,11 @@ func parseSignature(s string, lineno int) (string, int, error) {
 	return name, n, nil
 }
 
-func parseFormula(s string) (*formula, error) {
+func parseFormula(s string) (*parsedFormula, error) {
 	name, rest, foundOpen := strings.Cut(s, "(")
-	f := &formula{
+	f := &parsedFormula{
 		sym:    name,
-		params: make([]*formula, 0),
+		params: make([]*parsedFormula, 0),
 	}
 	if !foundOpen {
 		if strings.Contains(rest, ")") || strings.Contains(rest, ",") {
@@ -197,10 +198,9 @@ const (
 	FirstByteLongCallMask      = byte(0x01) << 6
 	FirstByteLongCallArityMask = byte(0x0f) << 2
 	Uint16LongCallCodeMask     = ^(uint16(FirstByteDataMask|FirstByteLongCallMask|FirstByteLongCallArityMask) << 8)
-	MaxLongCallCode            = int(Uint16LongCallCodeMask)
 )
 
-func (f *formula) genCode(lib CompilerLibrary, numArgs int, w io.Writer) error {
+func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, w io.Writer) error {
 	if len(f.params) == 0 {
 		// write inline data
 		n, err := strconv.Atoi(f.sym)
@@ -255,28 +255,106 @@ func (f *formula) genCode(lib CompilerLibrary, numArgs int, w io.Writer) error {
 		callBytes = make([]byte, 2)
 		binary.BigEndian.PutUint16(callBytes, u16)
 	}
-	// generate code for call parameters
-	for _, ff := range f.params {
-		if err = ff.genCode(lib, numArgs, w); err != nil {
-			return err
-		}
-	}
 	// write call bytes
 	if _, err = w.Write(callBytes); err != nil {
 		return err
 	}
+	// generate code for call parameters
+	for _, ff := range f.params {
+		if err = ff.binaryFromParsedFormula(lib, numArgs, w); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func CompileFormula(lib CompilerLibrary, numParams int, formulaSource string) ([]byte, error) {
+func FormulaSourceToBinary(lib LibraryAccess, numParams int, formulaSource string) ([]byte, error) {
 	f, err := parseFormula(formulaSource)
 	if err != nil {
 		return nil, err
 	}
 
 	var buf bytes.Buffer
-	if err = f.genCode(lib, numParams, &buf); err != nil {
+	if err = f.binaryFromParsedFormula(lib, numParams, &buf); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func FormulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, error) {
+	ret, remaining, err := formulaTreeFromBinary(lib, code)
+	if err != nil {
+		return nil, err
+	}
+	if len(remaining) != 0 {
+		return nil, fmt.Errorf("not all bytes have been consumed")
+	}
+	return ret, nil
+}
+
+func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte, error) {
+	if len(code) == 0 {
+		return nil, nil, io.EOF
+	}
+	if code[0]&FirstByteDataMask != 0 {
+		// it is data
+		size := int(code[0] & FirstByteDataLenMask)
+		if len(code) < size+1 {
+			return nil, nil, io.EOF
+		}
+		return &FormulaTree{
+			evalFun: func(_ interface{}, _ []*FormulaTree) []byte {
+				return code[1 : 1+size]
+			},
+		}, code[1+size:], nil
+	}
+	// function call expected
+	ret := &FormulaTree{
+		args:    make([]*FormulaTree, 0),
+		evalFun: nil,
+	}
+	var evalFun EvalFunction
+	var numParams, arity int
+	var err error
+
+	if code[0]&FirstByteLongCallMask == 0 {
+		// short call
+		evalFun, arity, err = lib.FunctionByCode(uint16(code[0]))
+		if err != nil {
+			return nil, nil, err
+		}
+		code = code[1:]
+	} else {
+		// long call
+		if len(code) < 2 {
+			return nil, nil, io.EOF
+		}
+		arity = int((code[0] & FirstByteLongCallArityMask) >> 2)
+		t := binary.BigEndian.Uint16(code[:2])
+		idx := t & Uint16LongCallCodeMask
+		evalFun, numParams, err = lib.FunctionByCode(idx)
+		if err != nil {
+			return nil, nil, err
+		}
+		if numParams > 0 && numParams != arity {
+			return nil, nil, fmt.Errorf("wrong number of call params")
+		}
+		code = code[2:]
+	}
+	ret.evalFun = evalFun
+
+	// collect call args
+	var p *FormulaTree
+	for i := 0; i < arity; i++ {
+		p, code, err = formulaTreeFromBinary(lib, code)
+		if err != nil {
+			return nil, nil, err
+		}
+		ret.args = append(ret.args, p)
+	}
+	return ret, code, nil
+}
+
+func (ft *FormulaTree) Eval(glb interface{}) []byte {
+	return ft.evalFun(glb, ft.args)
 }

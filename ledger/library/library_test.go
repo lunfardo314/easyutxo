@@ -25,7 +25,7 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(ret))
 
-		code, err := easyfl.CompileFormula(Library, ret[0].NumParams, ret[0].SourceCode)
+		code, err := easyfl.FormulaSourceToBinary(Library, ret[0].NumParams, ret[0].SourceCode)
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 	})
@@ -34,7 +34,7 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(parsed))
 
-		code, err := easyfl.CompileFormula(Library, parsed[0].NumParams, parsed[0].SourceCode)
+		code, err := easyfl.FormulaSourceToBinary(Library, parsed[0].NumParams, parsed[0].SourceCode)
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 		ctx := NewRunContext(nil, nil)

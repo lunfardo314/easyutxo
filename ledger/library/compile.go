@@ -6,7 +6,9 @@ import (
 	"github.com/lunfardo314/easyutxo/easyfl"
 )
 
-func (lib *libraryData) ExistsFun(sym string) bool {
+var _ easyfl.LibraryAccess = &libraryData{}
+
+func (lib *libraryData) ExistsFunction(sym string) bool {
 	_, found := Library.embeddedShortByName[sym]
 	if found {
 		return true
@@ -71,6 +73,23 @@ func (lib *libraryData) FunctionByName(sym string, numArgs int) (*easyfl.FunInfo
 	return nil, fmt.Errorf("can't resolve function name '%s'", sym)
 }
 
+func (lib *libraryData) FunctionByCode(funCode uint16) (easyfl.EvalFunction, int, error) {
+	var libData *funDescriptor
+	if funCode < easyfl.MaxNumShortCall {
+		libData = Library.embeddedShortByFunCode[funCode]
+	}
+	if libData == nil {
+		libData = Library.embeddedLongByFunCode[funCode]
+	}
+	if libData == nil {
+		libData = Library.extendedByFunCode[funCode]
+	}
+	if libData != nil {
+		return libData.evalFun, libData.numParams, nil
+	}
+	return nil, 0, fmt.Errorf("wrong function code %d", funCode)
+}
+
 func (lib *libraryData) addToLibrary(fe *funDescriptor) error {
 	if lib.ExistsFun(fe.sym) {
 		return fmt.Errorf("repeating function name '%s'", fe.sym)
@@ -83,7 +102,7 @@ func (lib *libraryData) addToLibrary(fe *funDescriptor) error {
 
 func (lib *libraryData) compileAndAddMany(parsed []*easyfl.FunParsed) error {
 	for _, pf := range parsed {
-		_, err := easyfl.CompileFormula(lib, pf.NumParams, pf.SourceCode)
+		_, err := easyfl.FormulaSourceToBinary(lib, pf.NumParams, pf.SourceCode)
 		if err != nil {
 			return err
 		}
