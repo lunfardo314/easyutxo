@@ -6,47 +6,48 @@ import (
 	"math"
 
 	"github.com/lunfardo314/easyutxo/easyfl"
+	"golang.org/x/crypto/blake2b"
 )
 
 var embeddedShort = []*funDescriptor{
 	// stateless
-	{sym: "_slice", numParams: 3, evalFun: evalFun(evalSlice)},
-	{sym: "_equal", numParams: 2, evalFun: evalFun(evalEqual)},
-	{sym: "_len8", numParams: 1, evalFun: evalFun(evalLen8)},
-	{sym: "_len16", numParams: 1, evalFun: evalFun(evalLen16)},
-	{sym: "_not", numParams: 1, evalFun: evalFun(evalNot)},
-	{sym: "_if", numParams: 3, evalFun: evalFun(evalIf)},
+	{sym: "_slice", requiredNumParams: 3, evalFun: getEvalFun(evalSlice)},
+	{sym: "_equal", requiredNumParams: 2, evalFun: getEvalFun(evalEqual)},
+	{sym: "_len8", requiredNumParams: 1, evalFun: getEvalFun(evalLen8)},
+	{sym: "_len16", requiredNumParams: 1, evalFun: getEvalFun(evalLen16)},
+	{sym: "_not", requiredNumParams: 1, evalFun: getEvalFun(evalNot)},
+	{sym: "_if", requiredNumParams: 3, evalFun: getEvalFun(evalIf)},
 	// argument access
-	{sym: "$0", numParams: 0},
-	{sym: "$1", numParams: 0},
-	{sym: "$2", numParams: 0},
-	{sym: "$3", numParams: 0},
-	{sym: "$4", numParams: 0},
-	{sym: "$5", numParams: 0},
-	{sym: "$6", numParams: 0},
-	{sym: "$7", numParams: 0},
-	{sym: "$8", numParams: 0},
-	{sym: "$9", numParams: 0},
-	{sym: "$10", numParams: 0},
-	{sym: "$11", numParams: 0},
-	{sym: "$12", numParams: 0},
-	{sym: "$13", numParams: 0},
-	{sym: "$14", numParams: 0},
-	{sym: "$15", numParams: 0},
+	{sym: "$0", requiredNumParams: 0, evalFun: getArgFun(0)},
+	{sym: "$1", requiredNumParams: 0, evalFun: getArgFun(1)},
+	{sym: "$2", requiredNumParams: 0, evalFun: getArgFun(2)},
+	{sym: "$3", requiredNumParams: 0, evalFun: getArgFun(3)},
+	{sym: "$4", requiredNumParams: 0, evalFun: getArgFun(4)},
+	{sym: "$5", requiredNumParams: 0, evalFun: getArgFun(5)},
+	{sym: "$6", requiredNumParams: 0, evalFun: getArgFun(6)},
+	{sym: "$7", requiredNumParams: 0, evalFun: getArgFun(7)},
+	{sym: "$8", requiredNumParams: 0, evalFun: getArgFun(8)},
+	{sym: "$9", requiredNumParams: 0, evalFun: getArgFun(9)},
+	{sym: "$10", requiredNumParams: 0, evalFun: getArgFun(10)},
+	{sym: "$11", requiredNumParams: 0, evalFun: getArgFun(11)},
+	{sym: "$12", requiredNumParams: 0, evalFun: getArgFun(12)},
+	{sym: "$13", requiredNumParams: 0, evalFun: getArgFun(13)},
+	{sym: "$14", requiredNumParams: 0, evalFun: getArgFun(14)},
+	{sym: "$15", requiredNumParams: 0, evalFun: getArgFun(15)},
 	// context access
-	{sym: "_data", numParams: 0},
-	{sym: "_path", numParams: 0},
-	{sym: "_atPath", numParams: 1},
+	{sym: "_data", requiredNumParams: 0, evalFun: getEvalFun(evalData)},
+	{sym: "_path", requiredNumParams: 0, evalFun: getEvalFun(evalPath)},
+	{sym: "_atPath", requiredNumParams: 1, evalFun: getEvalFun(evalAtPath)},
 }
 
 var embeddedLong = []*funDescriptor{
 	// stateless varargs
-	{sym: "concat", numParams: -1},
-	{sym: "and", numParams: -1},
-	{sym: "or", numParams: -1},
-	{sym: "blake2b", numParams: -1},
+	{sym: "concat", requiredNumParams: -1, evalFun: getEvalFun(evalConcat)},
+	{sym: "and", requiredNumParams: -1, evalFun: getEvalFun(evalAnd)},
+	{sym: "or", requiredNumParams: -1, evalFun: getEvalFun(evalOr)},
+	{sym: "blake2b", requiredNumParams: -1, evalFun: getEvalFun(evalBlake2b)},
 	// special
-	{sym: "validSignature", numParams: 3},
+	{sym: "validSignature", requiredNumParams: 3},
 }
 
 type libraryData struct {
@@ -102,10 +103,30 @@ func mustValidAndUniqueName(sym string) {
 	}
 }
 
-func evalFun(f runnerFunc) easyfl.EvalFunction {
+func getEvalFun(f runnerFunc) easyfl.EvalFunction {
 	return func(glb interface{}, args []*easyfl.FormulaTree) []byte {
 		return f(glb.(*RunContext), args)
 	}
+}
+
+func getArgFun(n byte) easyfl.EvalFunction {
+	if n > 15 {
+		panic("getArgFun: can be > 15")
+	}
+	return func(glb interface{}, _ []*easyfl.FormulaTree) []byte {
+		return glb.(*RunContext).arg(n)
+	}
+}
+
+func getCallFun(f runnerFunc) easyfl.EvalFunction {
+	return func(glb interface{}, args []*easyfl.FormulaTree) []byte {
+		argValues := make([][]byte, len(args))
+		for i, a := range args{
+			argValues[i] =  a.Eval(glb)
+		}
+		return glb.(*RunContext).Call(nil, argValues...)
+	}
+
 }
 
 func evalSlice(glb *RunContext, args []*easyfl.FormulaTree) []byte {
@@ -157,3 +178,50 @@ func evalNot(glb *RunContext, args []*easyfl.FormulaTree) []byte {
 	}
 	return nil
 }
+
+func evalPath(glb *RunContext, _ []*easyfl.FormulaTree) []byte {
+	return glb.invocationPath
+}
+
+func evalData(glb *RunContext, _ []*easyfl.FormulaTree) []byte {
+	inv := glb.globalContext.BytesAtPath(glb.invocationPath)
+	// TODO all kinds of invocation
+	return inv[1:]
+}
+
+func evalAtPath(glb *RunContext, args []*easyfl.FormulaTree) []byte {
+	return glb.globalContext.BytesAtPath(args[0].Eval(glb))
+}
+
+func evalConcat(glb *RunContext, args []*easyfl.FormulaTree) []byte {
+	var buf bytes.Buffer
+	for _, arg := range args {
+		buf.Write(arg.Eval(glb))
+	}
+	return buf.Bytes()
+}
+
+func evalAnd(glb *RunContext, args []*easyfl.FormulaTree) []byte {
+	for _, arg := range args {
+		if len(arg.Eval(glb)) == 0 {
+			return nil
+		}
+	}
+	return []byte{0xff}
+}
+
+func evalOr(glb *RunContext, args []*easyfl.FormulaTree) []byte {
+	for _, arg := range args {
+		if len(arg.Eval(glb)) > 0 {
+			return []byte{0xff}
+		}
+	}
+	return nil
+}
+
+func evalBlake2b(glb *RunContext, args []*easyfl.FormulaTree) []byte {
+	ret := blake2b.Sum256(evalConcat(glb, args))
+	return ret[:]
+}
+
+func

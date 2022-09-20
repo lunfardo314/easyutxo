@@ -348,7 +348,6 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		}
 		code = code[2:]
 	}
-	ret.evalFun = evalFun
 
 	// collect call args
 	var p *FormulaTree
@@ -359,6 +358,7 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		}
 		ret.args = append(ret.args, p)
 	}
+	ret.evalFun = evalFun
 	return ret, code, nil
 }
 

@@ -6,16 +6,22 @@ import (
 )
 
 type funDescriptor struct {
-	sym       string
-	funCode   uint16
-	numParams int
-	evalFun   easyfl.EvalFunction
+	sym               string
+	funCode           uint16
+	requiredNumParams int
+	evalFun           easyfl.EvalFunction
 }
+
+const maxCallDepth = 10
 
 type RunContext struct {
 	globalContext  *lazyslice.Tree
 	invocationPath lazyslice.TreePath
+	CallStack      []callFrame
+	callStackTop   int
 }
+
+type callFrame [][]byte
 
 const maxStack = 20
 
