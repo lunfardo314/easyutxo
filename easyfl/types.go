@@ -21,11 +21,15 @@ type FunParsed struct {
 }
 
 type FormulaTree struct {
-	args    []*FormulaTree
-	evalFun EvalFunction
+	Args     []*FormulaTree
+	EvalFunc EvalFunction
 }
 
-type EvalFunction func(glb interface{}, args []*FormulaTree) []byte
+type EvalContext interface {
+	Eval(*FormulaTree) []byte
+}
+
+type EvalFunction func(glb EvalContext) []byte
 
 type LibraryAccess interface {
 	ExistsFunction(sym string) bool

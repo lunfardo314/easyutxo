@@ -21,11 +21,11 @@ type RunContext struct {
 	callStackTop   int
 }
 
-type callFrame [][]byte
+type callFrame []*easyfl.FormulaTree
 
 const maxStack = 20
 
 type (
 	getRunnerFunc func(callArity byte) easyfl.EvalFunction
-	runnerFunc    func(ctx *RunContext, args []*easyfl.FormulaTree) []byte
+	runnerFunc    func(ctx *RunContext) []byte
 )

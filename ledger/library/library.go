@@ -104,8 +104,8 @@ func mustValidAndUniqueName(sym string) {
 }
 
 func getEvalFun(f runnerFunc) easyfl.EvalFunction {
-	return func(glb interface{}, args []*easyfl.FormulaTree) []byte {
-		return f(glb.(*RunContext), args)
+	return func(glb easyfl.EvalContext) []byte {
+		return f(glb.(*RunContext))
 	}
 }
 
@@ -113,48 +113,35 @@ func getArgFun(n byte) easyfl.EvalFunction {
 	if n > 15 {
 		panic("getArgFun: can be > 15")
 	}
-	return func(glb interface{}, _ []*easyfl.FormulaTree) []byte {
+	return func(glb easyfl.EvalContext) []byte {
 		return glb.(*RunContext).arg(n)
 	}
 }
 
-func getCallFun(f runnerFunc) easyfl.EvalFunction {
-	return func(glb interface{}, args []*easyfl.FormulaTree) []byte {
-		argValues := make([][]byte, len(args))
-		for i, a := range args{
-			argValues[i] =  a.Eval(glb)
-		}
-		return glb.(*RunContext).Call(nil, argValues...)
-	}
-
+func evalSlice(glb *RunContext) []byte {
+	data := glb.arg(0)
+	from := glb.arg(1)
+	to := glb.arg(2)
+	return data[from[0]:to[0]]
 }
 
-func evalSlice(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	data := args[0].Eval(glb)
-	from := args[1].Eval(glb)
-	to := args[2].Eval(glb)
-	return data[to[0]:from[0]]
-}
-
-func evalEqual(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	p1 := args[0].Eval(glb)
-	p2 := args[1].Eval(glb)
-	if bytes.Equal(p1, p2) {
+func evalEqual(glb *RunContext) []byte {
+	if bytes.Equal(glb.arg(0), glb.arg(1)) {
 		return []byte{0xff}
 	}
 	return nil
 }
 
-func evalLen8(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	data := args[0].Eval(glb)
-	if len(data) > math.MaxUint8 {
+func evalLen8(glb *RunContext) []byte {
+	sz := len(glb.arg(0))
+	if sz > math.MaxUint8 {
 		panic("len8: size of the data > 255")
 	}
-	return []byte{byte(len(data))}
+	return []byte{byte(sz)}
 }
 
-func evalLen16(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	data := args[0].Eval(glb)
+func evalLen16(glb *RunContext) []byte {
+	data := glb.arg(0)
 	if len(data) > math.MaxUint16 {
 		panic("len16: size of the data > uint16")
 	}
@@ -163,65 +150,63 @@ func evalLen16(glb *RunContext, args []*easyfl.FormulaTree) []byte {
 	return ret[:]
 }
 
-func evalIf(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	cond := args[0].Eval(glb)
+func evalIf(glb *RunContext) []byte {
+	cond := glb.arg(0)
 	if len(cond) != 0 {
 		// true
-		return args[1].Eval(glb)
+		return glb.arg(1)
 	}
-	return args[2].Eval(glb)
+	return glb.arg(2)
 }
 
-func evalNot(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	if len(args[0].Eval(glb)) == 0 {
+func evalNot(glb *RunContext) []byte {
+	if len(glb.arg(0)) == 0 {
 		return []byte{0xff}
 	}
 	return nil
 }
 
-func evalPath(glb *RunContext, _ []*easyfl.FormulaTree) []byte {
+func evalPath(glb *RunContext) []byte {
 	return glb.invocationPath
 }
 
-func evalData(glb *RunContext, _ []*easyfl.FormulaTree) []byte {
+func evalData(glb *RunContext) []byte {
 	inv := glb.globalContext.BytesAtPath(glb.invocationPath)
 	// TODO all kinds of invocation
 	return inv[1:]
 }
 
-func evalAtPath(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	return glb.globalContext.BytesAtPath(args[0].Eval(glb))
+func evalAtPath(glb *RunContext) []byte {
+	return glb.globalContext.BytesAtPath(glb.arg(0))
 }
 
-func evalConcat(glb *RunContext, args []*easyfl.FormulaTree) []byte {
+func evalConcat(glb *RunContext) []byte {
 	var buf bytes.Buffer
-	for _, arg := range args {
-		buf.Write(arg.Eval(glb))
+	for i := byte(0); i < glb.arity(); i++ {
+		buf.Write(glb.arg(i))
 	}
 	return buf.Bytes()
 }
 
-func evalAnd(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	for _, arg := range args {
-		if len(arg.Eval(glb)) == 0 {
+func evalAnd(glb *RunContext) []byte {
+	for i := byte(0); i < glb.arity(); i++ {
+		if len(glb.arg(i)) == 0 {
 			return nil
 		}
 	}
 	return []byte{0xff}
 }
 
-func evalOr(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	for _, arg := range args {
-		if len(arg.Eval(glb)) > 0 {
+func evalOr(glb *RunContext) []byte {
+	for i := byte(0); i < glb.arity(); i++ {
+		if len(glb.arg(i)) != 0 {
 			return []byte{0xff}
 		}
 	}
 	return nil
 }
 
-func evalBlake2b(glb *RunContext, args []*easyfl.FormulaTree) []byte {
-	ret := blake2b.Sum256(evalConcat(glb, args))
+func evalBlake2b(glb *RunContext) []byte {
+	ret := blake2b.Sum256(evalConcat(glb))
 	return ret[:]
 }
-
-func

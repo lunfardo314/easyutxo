@@ -310,15 +310,15 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 			return nil, nil, io.EOF
 		}
 		return &FormulaTree{
-			evalFun: func(_ interface{}, _ []*FormulaTree) []byte {
+			EvalFunc: func(_ EvalContext) []byte {
 				return code[1 : 1+size]
 			},
 		}, code[1+size:], nil
 	}
 	// function call expected
 	ret := &FormulaTree{
-		args:    make([]*FormulaTree, 0),
-		evalFun: nil,
+		Args:     make([]*FormulaTree, 0),
+		EvalFunc: nil,
 	}
 	var evalFun EvalFunction
 	var numParams, arity int
@@ -349,19 +349,15 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		code = code[2:]
 	}
 
-	// collect call args
+	// collect call Args
 	var p *FormulaTree
 	for i := 0; i < arity; i++ {
 		p, code, err = formulaTreeFromBinary(lib, code)
 		if err != nil {
 			return nil, nil, err
 		}
-		ret.args = append(ret.args, p)
+		ret.Args = append(ret.Args, p)
 	}
-	ret.evalFun = evalFun
+	ret.EvalFunc = evalFun
 	return ret, code, nil
-}
-
-func (ft *FormulaTree) Eval(glb interface{}) []byte {
-	return ft.evalFun(glb, ft.args)
 }

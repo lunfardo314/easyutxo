@@ -5,22 +5,22 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
-func NewRunContext(glb *lazyslice.Tree, path lazyslice.TreePath) *RunContext {
+func NewRunContext(dataTree *lazyslice.Tree, path lazyslice.TreePath) *RunContext {
 	return &RunContext{
-		globalContext:  glb,
+		globalContext:  dataTree,
 		invocationPath: path,
 		CallStack:      make([]callFrame, maxCallDepth),
 	}
 }
 
-func (glb *RunContext) Call(f *easyfl.FormulaTree, args ...[]byte) []byte {
-	glb.pushArgs(args...)
+func (glb *RunContext) Eval(f *easyfl.FormulaTree) []byte {
+	glb.pushArgs(f.Args...)
 	defer glb.popArgs()
 
-	return f.Eval(glb)
+	return f.EvalFunc(glb)
 }
 
-func (glb *RunContext) pushArgs(args ...[]byte) {
+func (glb *RunContext) pushArgs(args ...*easyfl.FormulaTree) {
 	glb.CallStack[glb.callStackTop] = args
 	glb.callStackTop++
 }
@@ -31,5 +31,9 @@ func (glb *RunContext) popArgs() {
 }
 
 func (glb *RunContext) arg(n byte) []byte {
-	return glb.CallStack[glb.callStackTop-1][n]
+	return glb.Eval(glb.CallStack[glb.callStackTop-1][n])
+}
+
+func (glb *RunContext) arity() byte {
+	return byte(len(glb.CallStack[glb.callStackTop-1]))
 }
