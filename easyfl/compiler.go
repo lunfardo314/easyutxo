@@ -203,6 +203,13 @@ const (
 func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, w io.Writer) error {
 	if len(f.params) == 0 {
 		// write inline data
+		if f.sym == "nil" || f.sym == "false" {
+			// empty slice
+			if _, err := w.Write([]byte{FirstByteDataMask}); err != nil {
+				return err
+			}
+			return nil
+		}
 		n, err := strconv.Atoi(f.sym)
 		if err == nil {
 			// it is a number
@@ -250,7 +257,7 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, 
 		}
 		callBytes = []byte{byte(fi.FunCode)}
 	} else {
-		firstByte := FirstByteLongCallMask | (byte(numArgs) << 2)
+		firstByte := FirstByteLongCallMask | (byte(len(f.params)) << 2)
 		u16 := (uint16(firstByte) << 8) | fi.FunCode
 		callBytes = make([]byte, 2)
 		binary.BigEndian.PutUint16(callBytes, u16)

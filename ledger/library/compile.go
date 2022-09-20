@@ -91,7 +91,7 @@ func (lib *libraryData) FunctionByCode(funCode uint16) (easyfl.EvalFunction, int
 }
 
 func (lib *libraryData) addToLibrary(fe *funDescriptor) error {
-	if lib.ExistsFun(fe.sym) {
+	if lib.ExistsFunction(fe.sym) {
 		return fmt.Errorf("repeating function name '%s'", fe.sym)
 	}
 	fe.funCode = uint16(len(lib.extendedByName) + easyfl.ExtendedCodeOffset)

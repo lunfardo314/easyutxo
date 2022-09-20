@@ -15,7 +15,7 @@ def referencedUnlockBlock(0) = _atPath(
 
 // unlock block 2 bytes of index 1 bytes of index of the referenced address block. The constraints should be identical
 def checkED25519RefUnlock(0) = and(
-	_not(_equal(_len(unlockBlock),3)),
+	_not(_equal(_len8(unlockBlock),3)),
 	_equal(
 		referencedConstraint,
 		referencedUnlockBlock
@@ -50,9 +50,9 @@ def sigLocED25519(3) = _if(
 		_slice(_path,0,1), 
 		1
 	),    // consumed output
-    _equal(_len(_data), 32),         // ok if len of the data is 32, otherwise fail
+    _equal(_len8(_data), 32),         // ok if len of the data is 32, otherwise fail
 	_if(
-		_equal(_len(unlockBlock), 3),    // references
+		_equal(_len8(unlockBlock), 3),    // references
 		checkED25519RefUnlock,
 		validSigED25519
 	)

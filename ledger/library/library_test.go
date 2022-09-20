@@ -29,6 +29,12 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
 	})
+	t.Run("4", func(t *testing.T) {
+		parsed, err := easyfl.ParseFunctions(SigLockConstraint)
+		require.NoError(t, err)
+		err = Library.compileAndAddMany(parsed)
+		require.NoError(t, err)
+	})
 	t.Run("5", func(t *testing.T) {
 		parsed, err := easyfl.ParseFunctions(formula1)
 		require.NoError(t, err)
@@ -37,27 +43,9 @@ func TestParse(t *testing.T) {
 		code, err := easyfl.FormulaSourceToBinary(Library, parsed[0].NumParams, parsed[0].SourceCode)
 		require.NoError(t, err)
 		t.Logf("code len: %d", len(code))
-		ctx := NewRunContext(nil, nil)
-		rdr := easyfl.NewCodeReader(ctx, code)
-		countCall := 0
-		countData := 0
-		for c := rdr.MustNext(); c != nil; c = rdr.MustNext() {
-			switch c.(type) {
-			case []byte:
-				countData++
-			default:
-				countCall++
-			}
-		}
-		t.Logf("number of calls: %d, number of data: %d", countCall, countData)
-		require.EqualValues(t, 4, countCall)
-		require.EqualValues(t, 3, countData)
-	})
 
-	t.Run("4", func(t *testing.T) {
-		parsed, err := easyfl.ParseFunctions(SigLockConstraint)
+		f, err := easyfl.FormulaTreeFromBinary(Library, code)
 		require.NoError(t, err)
-		err = Library.compileAndAddMany(parsed)
-		require.NoError(t, err)
+		require.NotNil(t, f)
 	})
 }

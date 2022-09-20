@@ -73,13 +73,13 @@ func init() {
 		extendedByFunCode:      make(map[uint16]*funDescriptor),
 	}
 	for i, fd := range embeddedShort {
-		mustUniqueName(fd.sym)
+		mustValidAndUniqueName(fd.sym)
 		fd.funCode = uint16(i)
 		Library.embeddedShortByName[fd.sym] = fd
 	}
 
 	for i, fd := range embeddedLong {
-		mustUniqueName(fd.sym)
+		mustValidAndUniqueName(fd.sym)
 		fd.funCode = uint16(i) + easyfl.MaxNumShortCall
 		Library.embeddedLongByName[fd.sym] = fd
 	}
@@ -93,8 +93,11 @@ func init() {
 	}
 }
 
-func mustUniqueName(sym string) {
-	if Library.ExistsFun(sym) {
+func mustValidAndUniqueName(sym string) {
+	if sym == "nil" || sym == "false" {
+		panic("reserved symbol '" + sym + "'")
+	}
+	if Library.ExistsFunction(sym) {
 		panic("repeating symbol '" + sym + "'")
 	}
 }
