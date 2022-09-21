@@ -407,7 +407,7 @@ func DataFormulas(data ...[]byte) []*FormulaTree {
 	for i, d := range data {
 		d1 := d
 		ret[i] = &FormulaTree{
-			EvalFunc: func(_ EvalContext) []byte {
+			EvalFunc: func(_ interface{}) []byte {
 				return d1
 			},
 		}

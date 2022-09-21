@@ -45,12 +45,3 @@ func (lib *libraryData) FunctionByCode(funCode uint16) (easyfl.EvalFunction, int
 	}
 	return libData.evalFun, libData.requiredNumParams, nil
 }
-
-func (lib *libraryData) compileAndAddMany(parsed []*easyfl.FunParsed) error {
-	for _, pf := range parsed {
-		if err := extendLibrary(pf.Sym, pf.SourceCode); err != nil {
-			return err
-		}
-	}
-	return nil
-}

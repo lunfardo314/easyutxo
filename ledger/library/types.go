@@ -12,22 +12,17 @@ type funDescriptor struct {
 	evalFun           easyfl.EvalFunction
 }
 
-const maxCallDepth = 10
+const maxCallDepth = 30
 
 type RunContext struct {
 	globalContext  *lazyslice.Tree
 	invocationPath lazyslice.TreePath
-	EvalStack      []evalArgs
+	evalStack      []evalArgs
 	evalStackTop   int
-	CallStack      []evalArgs
+	callStack      []evalArgs
 	callStackTop   int
 }
 
 type evalArgs []*easyfl.FormulaTree
 
-const maxStack = 20
-
-type (
-	getRunnerFunc func(callArity byte) easyfl.EvalFunction
-	runnerFunc    func(ctx *RunContext) []byte
-)
+type runnerFunc func(ctx *RunContext) []byte

@@ -9,8 +9,8 @@ func NewRunContext(dataTree *lazyslice.Tree, path lazyslice.TreePath) *RunContex
 	return &RunContext{
 		globalContext:  dataTree,
 		invocationPath: path,
-		EvalStack:      make([]evalArgs, maxCallDepth),
-		CallStack:      make([]evalArgs, maxCallDepth),
+		evalStack:      make([]evalArgs, maxCallDepth),
+		callStack:      make([]evalArgs, maxCallDepth),
 	}
 }
 
@@ -29,17 +29,17 @@ func (glb *RunContext) EvalWithArgs(f *easyfl.FormulaTree, args ...[]byte) []byt
 }
 
 func (glb *RunContext) pushEvalArgs(args ...*easyfl.FormulaTree) {
-	glb.EvalStack[glb.evalStackTop] = args
+	glb.evalStack[glb.evalStackTop] = args
 	glb.evalStackTop++
 }
 
 func (glb *RunContext) popEvalArgs() {
 	glb.evalStackTop--
-	glb.EvalStack[glb.evalStackTop] = nil
+	glb.evalStack[glb.evalStackTop] = nil
 }
 
 func (glb *RunContext) pushCallArgs(args evalArgs) {
-	glb.CallStack[glb.callStackTop] = args
+	glb.callStack[glb.callStackTop] = args
 	glb.callStackTop++
 }
 
@@ -48,22 +48,22 @@ func (glb *RunContext) popCallArgs() {
 }
 
 func (glb *RunContext) pushCallBaseline() {
-	glb.pushCallArgs(glb.EvalStack[glb.evalStackTop-1])
+	glb.pushCallArgs(glb.evalStack[glb.evalStackTop-1])
 }
 
 func (glb *RunContext) popCallBaseline() {
 	glb.callStackTop--
-	glb.CallStack[glb.callStackTop] = nil
+	glb.callStack[glb.callStackTop] = nil
 }
 
 func (glb *RunContext) arg(n byte) []byte {
-	return glb.Eval(glb.EvalStack[glb.evalStackTop-1][n])
+	return glb.Eval(glb.evalStack[glb.evalStackTop-1][n])
 }
 
 func (glb *RunContext) arity() byte {
-	return byte(len(glb.EvalStack[glb.evalStackTop-1]))
+	return byte(len(glb.evalStack[glb.evalStackTop-1]))
 }
 
 func (glb *RunContext) callArg(n byte) []byte {
-	return glb.Eval(glb.CallStack[glb.callStackTop-1][n])
+	return glb.Eval(glb.callStack[glb.callStackTop-1][n])
 }

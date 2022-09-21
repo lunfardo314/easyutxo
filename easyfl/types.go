@@ -29,11 +29,7 @@ type FormulaTree struct {
 	EvalFunc EvalFunction
 }
 
-type EvalContext interface {
-	Eval(*FormulaTree) []byte
-}
-
-type EvalFunction func(glb EvalContext) []byte
+type EvalFunction func(glb interface{}) []byte
 
 type LibraryAccess interface {
 	ExistsFunction(sym string) bool

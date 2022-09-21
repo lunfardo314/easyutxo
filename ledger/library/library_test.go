@@ -12,7 +12,7 @@ import (
 
 const formula1 = "func unlockBlock: _atPath(concat(0x0000, _slice(_path, 2, 5)))"
 
-func TestParse(t *testing.T) {
+func TestCompile(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		ret, err := easyfl.ParseFunctions(formula1)
 		require.NoError(t, err)
@@ -34,12 +34,6 @@ func TestParse(t *testing.T) {
 		t.Logf("code len: %d", len(code))
 	})
 	t.Run("4", func(t *testing.T) {
-		parsed, err := easyfl.ParseFunctions(SigLockConstraint)
-		require.NoError(t, err)
-		err = Library.compileAndAddMany(parsed)
-		require.NoError(t, err)
-	})
-	t.Run("5", func(t *testing.T) {
 		parsed, err := easyfl.ParseFunctions(formula1)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(parsed))

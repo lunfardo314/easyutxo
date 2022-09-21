@@ -34,6 +34,7 @@ func init() {
 	embedShort("_not", 1, getEvalFun(evalNot))
 	embedShort("_if", 3, getEvalFun(evalIf))
 	embedShort("_isZero", 1, getEvalFun(evalIsZero))
+	// safe arithmetics
 	embedShort("_sum8", 2, getEvalFun(evalMustSum8))
 	embedShort("_sum8_16", 2, getEvalFun(evalSum8_16))
 	embedShort("_sum16", 2, getEvalFun(evalMustSum16))
@@ -71,6 +72,7 @@ func init() {
 	embedLong("validSignature", 3, nil)
 	//
 	mustExtendLibrary("nil", "or()")
+	mustExtendWitMany(SigLockConstraint)
 
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
@@ -159,14 +161,33 @@ func mustUniqueName(sym string) {
 	}
 }
 
+func extendWitMany(source string) error {
+	parsed, err := easyfl.ParseFunctions(source)
+	if err != nil {
+		return err
+	}
+	for _, pf := range parsed {
+		if err = extendLibrary(pf.Sym, pf.SourceCode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func mustExtendWitMany(source string) {
+	if err := extendWitMany(source); err != nil {
+		panic(err)
+	}
+}
+
 func getEvalFun(f runnerFunc) easyfl.EvalFunction {
-	return func(glb easyfl.EvalContext) []byte {
+	return func(glb interface{}) []byte {
 		return f(glb.(*RunContext))
 	}
 }
 
 func getExtendFun(f runnerFunc) easyfl.EvalFunction {
-	return func(glb easyfl.EvalContext) []byte {
+	return func(glb interface{}) []byte {
 		g := glb.(*RunContext)
 
 		g.pushCallBaseline()
@@ -180,7 +201,7 @@ func getArgFun(n byte) easyfl.EvalFunction {
 	if n > 15 {
 		panic("getArgFun: can be > 15")
 	}
-	return func(glb easyfl.EvalContext) []byte {
+	return func(glb interface{}) []byte {
 		return glb.(*RunContext).callArg(n)
 	}
 }
