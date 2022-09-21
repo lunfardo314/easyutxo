@@ -69,6 +69,8 @@ func init() {
 	embedLong("blake2b", -1, getEvalFun(evalBlake2b))
 	// special
 	embedLong("validSignature", 3, nil)
+	//
+	mustExtendLibrary("nil", "or()")
 
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
@@ -143,6 +145,12 @@ func extendLibrary(sym string, source string) error {
 	Library.funByFunCode[dscr.funCode] = dscr
 	numExtended++
 	return nil
+}
+
+func mustExtendLibrary(sym string, source string) {
+	if err := extendLibrary(sym, source); err != nil {
+		panic(err)
+	}
 }
 
 func mustUniqueName(sym string) {

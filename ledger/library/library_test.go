@@ -226,9 +226,13 @@ func TestExtendLib(t *testing.T) {
 		return ret
 	}
 	t.Run("ext-1", func(t *testing.T) {
-		err := extendLibrary("nil", "concat()")
-		require.NoError(t, err)
 		res := runTest("nil", nil)
+		require.EqualValues(t, 0, len(res))
+	})
+	t.Run("ext-1", func(t *testing.T) {
+		err := extendLibrary("nil1", "concat()")
+		require.NoError(t, err)
+		res := runTest("nil1", nil)
 		require.EqualValues(t, 0, len(res))
 	})
 	t.Run("ext-1", func(t *testing.T) {
