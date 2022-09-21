@@ -1,6 +1,7 @@
 package library
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/lunfardo314/easyutxo/easyfl"
@@ -53,14 +54,7 @@ func TestParse(t *testing.T) {
 
 func TestEval(t *testing.T) {
 	runTest := func(s string, path []byte) []byte {
-		parsed, err := easyfl.ParseFunctions(s)
-		require.NoError(t, err)
-
-		code, err := easyfl.FormulaSourceToBinary(Library, parsed[0].NumParams, parsed[0].SourceCode)
-		require.NoError(t, err)
-		t.Logf("code len: %d", len(code))
-
-		f, err := easyfl.FormulaTreeFromBinary(Library, code)
+		f, code, err := easyfl.CompileFormula(Library, 0, s)
 		require.NoError(t, err)
 
 		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
@@ -70,39 +64,77 @@ func TestEval(t *testing.T) {
 	}
 	t.Run("1", func(t *testing.T) {
 		path := lazyslice.Path(0, 2)
-		res := runTest("def _(0) = _path", path)
+		res := runTest("_path", path)
 		require.EqualValues(t, path, res)
 	})
 	t.Run("2", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("def _(0) = _len8(_path)", path)
+		res := runTest("_len8(_path)", path)
 		require.EqualValues(t, []byte{3}, res)
 	})
 	t.Run("3", func(t *testing.T) {
-		res := runTest("def _(0) = concat(1,2,3,4,5)", nil)
+		res := runTest("concat(1,2,3,4,5)", nil)
 		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, res)
 	})
 	t.Run("4", func(t *testing.T) {
-		res := runTest("def _(0) = concat(concat(1,2),concat(3,4,5))", nil)
+		res := runTest("concat(concat(1,2),concat(3,4,5))", nil)
 		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, res)
 	})
 	t.Run("5", func(t *testing.T) {
-		res := runTest("def _(0) = _slice(concat(concat(1,2),concat(3,4,5)),2,4)", nil)
+		res := runTest("_slice(concat(concat(1,2),concat(3,4,5)),2,4)", nil)
 		require.EqualValues(t, []byte{3, 4}, res)
 	})
 	t.Run("6", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("def _(0) = _if(_equal(_len8(_path),3), 0x01, 0x05)", path)
+		res := runTest("_if(_equal(_len8(_path),3), 0x01, 0x05)", path)
 		require.EqualValues(t, []byte{1}, res)
 	})
 	t.Run("7", func(t *testing.T) {
 		path := lazyslice.Path(1, 2)
-		res := runTest("def _(0) = _if(_equal(_len8(_path),3), 0x01, 0x05)", path)
+		res := runTest("_if(_equal(_len8(_path),3), 0x01, 0x05)", path)
 		require.EqualValues(t, []byte{5}, res)
 	})
 	t.Run("8", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("def _(0) = _if(_not(_equal(_len8(_path),3)), 0x01, 0x0506)", path)
+		res := runTest("_if(_not(_equal(_len8(_path),3)), 0x01, 0x0506)", path)
 		require.EqualValues(t, []byte{5, 6}, res)
+	})
+	t.Run("9", func(t *testing.T) {
+		res := runTest("15", nil)
+		require.EqualValues(t, []byte{15}, res)
+	})
+	t.Run("10", func(t *testing.T) {
+		res := runTest("concat()", nil)
+		require.EqualValues(t, 0, len(res))
+	})
+	t.Run("11", func(t *testing.T) {
+		res := runTest("u16/256", nil)
+		require.EqualValues(t, []byte{0x01, 0x00}, res)
+	})
+	t.Run("12", func(t *testing.T) {
+		res := runTest("u32/70000", nil)
+		var b [4]byte
+		binary.BigEndian.PutUint32(b[:], 70000)
+		require.EqualValues(t, b[:], res)
+	})
+	t.Run("14", func(t *testing.T) {
+		res := runTest("u64/10000000000", nil)
+		var b [8]byte
+		binary.BigEndian.PutUint64(b[:], 10000000000)
+		require.EqualValues(t, b[:], res)
+	})
+	t.Run("15", func(t *testing.T) {
+		res := runTest("_isZero(0x000000)", nil)
+		require.True(t, len(res) > 0)
+	})
+	t.Run("16", func(t *testing.T) {
+		res := runTest("_isZero(0x002000)", nil)
+		require.True(t, len(res) == 0)
+	})
+	t.Run("17", func(t *testing.T) {
+		res := runTest("_sum8_16(100, 160)", nil)
+		var b [2]byte
+		binary.BigEndian.PutUint16(b[:], 260)
+		require.EqualValues(t, b[:], res)
 	})
 }

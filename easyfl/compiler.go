@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -203,13 +204,6 @@ const (
 func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, w io.Writer) error {
 	if len(f.params) == 0 {
 		// write inline data
-		if f.sym == "nil" || f.sym == "false" {
-			// empty slice
-			if _, err := w.Write([]byte{FirstByteDataMask}); err != nil {
-				return err
-			}
-			return nil
-		}
 		n, err := strconv.Atoi(f.sym)
 		if err == nil {
 			// it is a number
@@ -232,6 +226,60 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, 
 				return fmt.Errorf("hexadecimal constant longer than 127 bytes: '%s'", f.sym)
 			}
 			if _, err = w.Write([]byte{FirstByteDataMask | byte(len(b))}); err != nil {
+				return err
+			}
+			if _, err = w.Write(b); err != nil {
+				return err
+			}
+			return nil
+		}
+		if strings.HasPrefix(f.sym, "u16/") {
+			// it is u16 constant big endian
+			n, err = strconv.Atoi(strings.TrimPrefix(f.sym, "u16/"))
+			if err != nil {
+				return fmt.Errorf("%v: '%s'", err, f.sym)
+			}
+			if n < 0 || n > math.MaxUint16 {
+				return fmt.Errorf("wrong u16 constant: '%s'", f.sym)
+			}
+			b := make([]byte, 2)
+			binary.BigEndian.PutUint16(b, uint16(n))
+			if _, err = w.Write([]byte{FirstByteDataMask | byte(2)}); err != nil {
+				return err
+			}
+			if _, err = w.Write(b); err != nil {
+				return err
+			}
+			return nil
+		}
+		if strings.HasPrefix(f.sym, "u32/") {
+			// it is u16 constant big endian
+			n, err = strconv.Atoi(strings.TrimPrefix(f.sym, "u32/"))
+			if err != nil {
+				return fmt.Errorf("%v: '%s'", err, f.sym)
+			}
+			if n < 0 || n > math.MaxUint32 {
+				return fmt.Errorf("wrong u32 constant: '%s'", f.sym)
+			}
+			b := make([]byte, 4)
+			binary.BigEndian.PutUint32(b, uint32(n))
+			if _, err = w.Write([]byte{FirstByteDataMask | byte(4)}); err != nil {
+				return err
+			}
+			if _, err = w.Write(b); err != nil {
+				return err
+			}
+			return nil
+		}
+		if strings.HasPrefix(f.sym, "u64/") {
+			// it is u16 constant big endian
+			un, err := strconv.ParseUint(strings.TrimPrefix(f.sym, "u64/"), 10, 64)
+			if err != nil {
+				return fmt.Errorf("%v: '%s'", err, f.sym)
+			}
+			b := make([]byte, 8)
+			binary.BigEndian.PutUint64(b, un)
+			if _, err = w.Write([]byte{FirstByteDataMask | byte(8)}); err != nil {
 				return err
 			}
 			if _, err = w.Write(b); err != nil {
@@ -359,5 +407,17 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		ret.Args = append(ret.Args, p)
 	}
 	ret.EvalFunc = evalFun
+	return ret, code, nil
+}
+
+func CompileFormula(lib LibraryAccess, numParams int, formulaSource string) (*FormulaTree, []byte, error) {
+	code, err := FormulaSourceToBinary(lib, numParams, stripSpaces(formulaSource))
+	if err != nil {
+		return nil, nil, err
+	}
+	ret, err := FormulaTreeFromBinary(lib, code)
+	if err != nil {
+		return nil, nil, err
+	}
 	return ret, code, nil
 }

@@ -17,6 +17,8 @@ var embeddedShort = []*funDescriptor{
 	{sym: "_len16", requiredNumParams: 1, evalFun: getEvalFun(evalLen16)},
 	{sym: "_not", requiredNumParams: 1, evalFun: getEvalFun(evalNot)},
 	{sym: "_if", requiredNumParams: 3, evalFun: getEvalFun(evalIf)},
+	{sym: "_isZero", requiredNumParams: 1, evalFun: getEvalFun(evalIsZero)},
+	{sym: "_sum8_16", requiredNumParams: 2, evalFun: getEvalFun(evalSum8_16)},
 	// argument access
 	{sym: "$0", requiredNumParams: 0, evalFun: getArgFun(0)},
 	{sym: "$1", requiredNumParams: 0, evalFun: getArgFun(1)},
@@ -157,6 +159,22 @@ func evalIf(glb *RunContext) []byte {
 		return glb.arg(1)
 	}
 	return glb.arg(2)
+}
+
+func evalIsZero(glb *RunContext) []byte {
+	for _, b := range glb.arg(0) {
+		if b != 0 {
+			return nil
+		}
+	}
+	return []byte{0xff}
+}
+
+func evalSum8_16(glb *RunContext) []byte {
+	sum := uint16(glb.arg(0)[0]) + uint16(glb.arg(1)[0])
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, sum)
+	return ret
 }
 
 func evalNot(glb *RunContext) []byte {
