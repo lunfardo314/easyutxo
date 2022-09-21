@@ -1,9 +1,14 @@
 package easyfl
 
 const (
-	MaxParameters      = 15
-	MaxNumShortCall    = 64
-	ExtendedCodeOffset = 256
+	MaxNumEmbeddedShort  = 64
+	FirstEmbeddedLongFun = MaxNumEmbeddedShort
+	MaxNumEmbeddedLong   = 256
+	FirstExtendedFun     = FirstEmbeddedLongFun + MaxNumEmbeddedLong
+	MaxFunCode           = 1023
+	MaxNumExtended       = MaxFunCode - FirstExtendedFun
+
+	MaxParameters = 15
 )
 
 type FunInfo struct {

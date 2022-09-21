@@ -9,95 +9,41 @@ import (
 var _ easyfl.LibraryAccess = &libraryData{}
 
 func (lib *libraryData) ExistsFunction(sym string) bool {
-	_, found := Library.embeddedShortByName[sym]
-	if found {
-		return true
-	}
-	_, found = Library.embeddedLongByName[sym]
-	if found {
-		return true
-	}
-	_, found = Library.extendedByName[sym]
-	if found {
-		return true
-	}
-	return false
+	_, found := Library.funByName[sym]
+	return found
 }
 
 func (lib *libraryData) FunctionByName(sym string, numArgs int) (*easyfl.FunInfo, error) {
 	if numArgs > easyfl.MaxParameters {
 		return nil, fmt.Errorf("can't be more than 15 arguments in the call")
 	}
-	fd, found := Library.embeddedShortByName[sym]
-	if found {
-		if fd.requiredNumParams != numArgs {
-			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fd.requiredNumParams)
-		}
-		return &easyfl.FunInfo{
-			Sym:        sym,
-			FunCode:    fd.funCode,
-			IsEmbedded: true,
-			IsShort:    true,
-			NumParams:  fd.requiredNumParams,
-		}, nil
+	fd, found := Library.funByName[sym]
+	if !found {
+		return nil, fmt.Errorf("no such function in the library: '%s'", sym)
 	}
-	fd, found = Library.embeddedLongByName[sym]
-	if found {
-		if fd.requiredNumParams > 0 && fd.requiredNumParams != numArgs {
-			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fd.requiredNumParams)
-		}
-		return &easyfl.FunInfo{
-			Sym:        sym,
-			FunCode:    fd.funCode,
-			IsEmbedded: true,
-			IsShort:    false,
-			NumParams:  fd.requiredNumParams,
-		}, nil
+	ret := &easyfl.FunInfo{
+		Sym:       sym,
+		FunCode:   fd.funCode,
+		NumParams: fd.requiredNumParams,
 	}
-	fe, found := Library.extendedByName[sym]
-	if found {
-		if fe.requiredNumParams < 0 {
-			panic("internal error")
-		}
-		if fe.requiredNumParams != numArgs {
-			return nil, fmt.Errorf("'%s' require exactly %d arguments", sym, fe.requiredNumParams)
-		}
-		return &easyfl.FunInfo{
-			Sym:        sym,
-			FunCode:    fe.funCode,
-			IsEmbedded: false,
-			IsShort:    false,
-			NumParams:  fe.requiredNumParams,
-		}, nil
+	switch {
+	case fd.funCode < easyfl.FirstEmbeddedLongFun:
+		ret.IsEmbedded = true
+		ret.IsShort = true
+	case fd.funCode < easyfl.FirstExtendedFun:
+		ret.IsEmbedded = true
+		ret.IsShort = false
 	}
-	return nil, fmt.Errorf("can't resolve function name '%s'", sym)
+	return ret, nil
 }
 
 func (lib *libraryData) FunctionByCode(funCode uint16) (easyfl.EvalFunction, int, error) {
 	var libData *funDescriptor
-	if funCode < easyfl.MaxNumShortCall {
-		libData = Library.embeddedShortByFunCode[funCode]
-	}
+	libData = Library.funByFunCode[funCode]
 	if libData == nil {
-		libData = Library.embeddedLongByFunCode[funCode]
+		return nil, 0, fmt.Errorf("wrong function code %d", funCode)
 	}
-	if libData == nil {
-		libData = Library.extendedByFunCode[funCode]
-	}
-	if libData != nil {
-		return libData.evalFun, libData.requiredNumParams, nil
-	}
-	return nil, 0, fmt.Errorf("wrong function code %d", funCode)
-}
-
-func (lib *libraryData) addToLibrary(fe *funDescriptor) error {
-	if lib.ExistsFunction(fe.sym) {
-		return fmt.Errorf("repeating function name '%s'", fe.sym)
-	}
-	fe.funCode = uint16(len(lib.extendedByName) + easyfl.ExtendedCodeOffset)
-	lib.extendedByName[fe.sym] = fe
-	lib.extendedByFunCode[fe.funCode] = fe
-	return nil
+	return libData.evalFun, libData.requiredNumParams, nil
 }
 
 func (lib *libraryData) compileAndAddMany(parsed []*easyfl.FunParsed) error {
@@ -106,11 +52,8 @@ func (lib *libraryData) compileAndAddMany(parsed []*easyfl.FunParsed) error {
 		if err != nil {
 			return err
 		}
-		err = lib.addToLibrary(&funDescriptor{
-			sym:               pf.Sym,
-			requiredNumParams: pf.NumParams,
-		})
-		if err != nil {
+		// TODO function
+		if err = extendLibrary(pf.Sym, pf.NumParams, nil); err != nil {
 			return err
 		}
 	}

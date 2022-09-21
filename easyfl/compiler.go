@@ -25,9 +25,6 @@ func ParseFunctions(s string) ([]*FunParsed, error) {
 	if err != nil {
 		return nil, err
 	}
-	for i, fd := range ret {
-		fmt.Printf("%d: '%s'\n    callArity: %d\n    bodySource: '%s'\n", i, fd.Sym, fd.NumParams, fd.SourceCode)
-	}
 	return ret, nil
 }
 
