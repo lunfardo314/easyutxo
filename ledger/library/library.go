@@ -3,6 +3,7 @@ package library
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
 
 	"github.com/lunfardo314/easyutxo/easyfl"
@@ -18,7 +19,13 @@ var embeddedShort = []*funDescriptor{
 	{sym: "_not", requiredNumParams: 1, evalFun: getEvalFun(evalNot)},
 	{sym: "_if", requiredNumParams: 3, evalFun: getEvalFun(evalIf)},
 	{sym: "_isZero", requiredNumParams: 1, evalFun: getEvalFun(evalIsZero)},
+	{sym: "_sum8", requiredNumParams: 2, evalFun: getEvalFun(evalMustSum8)},
 	{sym: "_sum8_16", requiredNumParams: 2, evalFun: getEvalFun(evalSum8_16)},
+	{sym: "_sum16", requiredNumParams: 2, evalFun: getEvalFun(evalMustSum16)},
+	{sym: "_sum16_32", requiredNumParams: 2, evalFun: getEvalFun(evalSum16_32)},
+	{sym: "_sum32", requiredNumParams: 2, evalFun: getEvalFun(evalMustSum32)},
+	{sym: "_sum32_64", requiredNumParams: 2, evalFun: getEvalFun(evalSum32_64)},
+	{sym: "_sum64", requiredNumParams: 2, evalFun: getEvalFun(evalMustSum64)},
 	// argument access
 	{sym: "$0", requiredNumParams: 0, evalFun: getArgFun(0)},
 	{sym: "$1", requiredNumParams: 0, evalFun: getArgFun(1)},
@@ -170,13 +177,6 @@ func evalIsZero(glb *RunContext) []byte {
 	return []byte{0xff}
 }
 
-func evalSum8_16(glb *RunContext) []byte {
-	sum := uint16(glb.arg(0)[0]) + uint16(glb.arg(1)[0])
-	ret := make([]byte, 2)
-	binary.BigEndian.PutUint16(ret, sum)
-	return ret
-}
-
 func evalNot(glb *RunContext) []byte {
 	if len(glb.arg(0)) == 0 {
 		return []byte{0xff}
@@ -227,4 +227,80 @@ func evalOr(glb *RunContext) []byte {
 func evalBlake2b(glb *RunContext) []byte {
 	ret := blake2b.Sum256(evalConcat(glb))
 	return ret[:]
+}
+
+func mustArithArgs(glb *RunContext, bytesSize int) ([]byte, []byte) {
+	a0 := glb.arg(0)
+	a1 := glb.arg(1)
+	if len(a0) != bytesSize || len(a1) != bytesSize {
+		panic(fmt.Errorf("%d-bytes size parameters expected", bytesSize))
+	}
+	return a0, a1
+}
+
+func evalSum8_16(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 1)
+	sum := uint16(a0[0]) + uint16(a1[0])
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, sum)
+	return ret
+}
+
+func evalMustSum8(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 1)
+	sum := int(a0[0]) + int(a1[0])
+	if sum > 255 {
+		panic("_mustSum8: arithmetic overflow")
+	}
+	return []byte{byte(sum)}
+}
+
+func evalSum16_32(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 2)
+	sum := uint32(binary.BigEndian.Uint16(a0)) + uint32(binary.BigEndian.Uint16(a1))
+	ret := make([]byte, 4)
+	binary.BigEndian.PutUint32(ret, sum)
+	return ret
+}
+
+func evalMustSum16(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 2)
+	sum := uint32(binary.BigEndian.Uint16(a0)) + uint32(binary.BigEndian.Uint16(a1))
+	if sum > math.MaxUint16 {
+		panic("_mustSum16: arithmetic overflow")
+	}
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, uint16(sum))
+	return ret
+}
+
+func evalSum32_64(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 4)
+	sum := uint64(binary.BigEndian.Uint32(a0)) + uint64(binary.BigEndian.Uint32(a1))
+	ret := make([]byte, 8)
+	binary.BigEndian.PutUint64(ret, sum)
+	return ret
+}
+
+func evalMustSum32(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 4)
+	sum := uint64(binary.BigEndian.Uint32(a0)) + uint64(binary.BigEndian.Uint32(a1))
+	if sum > math.MaxUint32 {
+		panic("_mustSum32: arithmetic overflow")
+	}
+	ret := make([]byte, 4)
+	binary.BigEndian.PutUint32(ret, uint32(sum))
+	return ret
+}
+
+func evalMustSum64(glb *RunContext) []byte {
+	a0, a1 := mustArithArgs(glb, 8)
+	s0 := binary.BigEndian.Uint64(a0)
+	s1 := binary.BigEndian.Uint64(a1)
+	if s0 > math.MaxUint64-s1 {
+		panic("_mustSum64: arithmetic overflow")
+	}
+	ret := make([]byte, 8)
+	binary.BigEndian.PutUint64(ret, s0+s1)
+	return ret
 }

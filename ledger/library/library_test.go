@@ -137,4 +137,9 @@ func TestEval(t *testing.T) {
 		binary.BigEndian.PutUint16(b[:], 260)
 		require.EqualValues(t, b[:], res)
 	})
+	t.Run("17", func(t *testing.T) {
+		require.Panics(t, func() {
+			runTest("_sum8(100, 160)", nil)
+		})
+	})
 }
