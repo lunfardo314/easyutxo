@@ -69,6 +69,13 @@ func init() {
 	embedLong("blake2b", -1, getEvalFun(evalBlake2b))
 	// special
 	embedLong("validSignature", 3, nil)
+
+	fmt.Printf(`EasyFL function library:
+    number of short embedded: %d out of max %d
+    number of long embedded: %d out of max %d
+    number of extended: %d out of max %d
+`,
+		numEmbeddedShort, easyfl.MaxNumEmbeddedShort, numEmbeddedLong, easyfl.MaxNumEmbeddedLong, numExtended, easyfl.MaxNumExtended)
 }
 
 func embedShort(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
@@ -143,12 +150,23 @@ func getEvalFun(f runnerFunc) easyfl.EvalFunction {
 	}
 }
 
+func getExtendFun(f runnerFunc) easyfl.EvalFunction {
+	return func(glb easyfl.EvalContext) []byte {
+		g := glb.(*RunContext)
+
+		g.pushCallBaseline()
+		defer g.popCallBaseline()
+
+		return f(g)
+	}
+}
+
 func getArgFun(n byte) easyfl.EvalFunction {
 	if n > 15 {
 		panic("getArgFun: can be > 15")
 	}
 	return func(glb easyfl.EvalContext) []byte {
-		return glb.(*RunContext).arg(n)
+		return glb.(*RunContext).callArg(n)
 	}
 }
 

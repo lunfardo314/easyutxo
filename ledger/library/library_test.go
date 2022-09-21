@@ -7,6 +7,7 @@ import (
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/blake2b"
 )
 
 const formula1 = "def unlockBlock(0) = _atPath(concat(0x0000, _slice(_path, 2, 5)))"
@@ -141,5 +142,31 @@ func TestEval(t *testing.T) {
 		require.Panics(t, func() {
 			runTest("_sum8(100, 160)", nil)
 		})
+	})
+	t.Run("blake2b-1", func(t *testing.T) {
+		res := runTest("blake2b(0x010203)", nil)
+		h := blake2b.Sum256([]byte{0x01, 0x02, 0x03})
+		require.EqualValues(t, h[:], res)
+	})
+	t.Run("blake2b-2", func(t *testing.T) {
+		res := runTest("blake2b(concat())", nil)
+		h := blake2b.Sum256(nil)
+		require.EqualValues(t, h[:], res)
+	})
+}
+
+func TestEvalArgs(t *testing.T) {
+	runTest := func(s string, path []byte) []byte {
+		f, code, err := easyfl.CompileFormula(Library, 0, s)
+		require.NoError(t, err)
+
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ret := ctx.Eval(f)
+		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
+		return ret
+	}
+	t.Run("$$$", func(t *testing.T) {
+		res := runTest("$0", nil)
+		require.EqualValues(t, 0, len(res))
 	})
 }

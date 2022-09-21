@@ -17,11 +17,13 @@ const maxCallDepth = 10
 type RunContext struct {
 	globalContext  *lazyslice.Tree
 	invocationPath lazyslice.TreePath
-	CallStack      []callFrame
+	EvalStack      []evalArgs
+	evalStackTop   int
+	CallStack      []evalArgs
 	callStackTop   int
 }
 
-type callFrame []*easyfl.FormulaTree
+type evalArgs []*easyfl.FormulaTree
 
 const maxStack = 20
 
