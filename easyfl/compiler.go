@@ -42,22 +42,17 @@ func parseDefs(lines []string) ([]*FunParsed, error) {
 	ret := make([]*FunParsed, 0)
 	var current *FunParsed
 	for lineno, line := range lines {
-		if strings.HasPrefix(line, "def ") {
+		if strings.HasPrefix(line, "func ") {
 			if current != nil {
 				current.SourceCode = stripSpaces(current.SourceCode)
 				ret = append(ret, current)
 			}
-			signature, body, foundEq := strings.Cut(strings.TrimPrefix(line, "def "), "=")
-			if !foundEq {
-				return nil, fmt.Errorf("'=' expectected @ line %d", lineno)
-			}
-			sym, numParams, err := parseSignature(stripSpaces(signature), lineno)
-			if err != nil {
-				return nil, err
+			sym, body, found := strings.Cut(strings.TrimPrefix(line, "func "), ":")
+			if !found {
+				return nil, fmt.Errorf("':' expectected @ line %d", lineno)
 			}
 			current = &FunParsed{
-				Sym:        sym,
-				NumParams:  numParams,
+				Sym:        strings.TrimSpace(sym),
 				SourceCode: body,
 			}
 		} else {
@@ -86,27 +81,6 @@ func stripSpaces(str string) string {
 		// else keep it in the string
 		return r
 	}, str)
-}
-
-func parseSignature(s string, lineno int) (string, int, error) {
-	name, rest, found := strings.Cut(s, "(")
-	if !found {
-		return "", 0, fmt.Errorf("argument/return types expected @ line %d", lineno)
-	}
-	paramStr, rest, found := strings.Cut(rest, ")")
-	if !found || len(rest) != 0 {
-		return "", 0, fmt.Errorf("closing ')' expected @ line %d", lineno)
-	}
-	var numParams int
-	if paramStr == "..." {
-		numParams = -1
-		return name, numParams, nil
-	}
-	n, err := strconv.Atoi(paramStr)
-	if err != nil || n < 0 || n > 15 {
-		return "", 0, fmt.Errorf("number of parameters must be '...' or number from 0 to 15 @ line %d", lineno)
-	}
-	return name, n, nil
 }
 
 func parseFormula(s string) (*parsedFormula, error) {
@@ -198,91 +172,91 @@ const (
 	Uint16LongCallCodeMask     = ^(uint16(FirstByteDataMask|FirstByteLongCallMask|FirstByteLongCallArityMask) << 8)
 )
 
-func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, w io.Writer) error {
+func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) (int, error) {
 	if len(f.params) == 0 {
 		// write inline data
 		n, err := strconv.Atoi(f.sym)
 		if err == nil {
 			// it is a number
 			if n < 0 || n >= 256 {
-				return fmt.Errorf("integer constant value not uint8: %s", f.sym)
+				return 0, fmt.Errorf("integer constant value not uint8: %s", f.sym)
 			}
 			// it is a 1 byte value
 			if _, err = w.Write([]byte{FirstByteDataMask | byte(1), byte(n)}); err != nil {
-				return err
+				return 0, err
 			}
-			return nil
+			return 0, nil
 		}
 		if strings.HasPrefix(f.sym, "0x") {
 			// it is hexadecimal constant
 			b, err := hex.DecodeString(f.sym[2:])
 			if err != nil {
-				return fmt.Errorf("%v: '%s'", err, f.sym)
+				return 0, fmt.Errorf("%v: '%s'", err, f.sym)
 			}
 			if len(b) > 127 {
-				return fmt.Errorf("hexadecimal constant longer than 127 bytes: '%s'", f.sym)
+				return 0, fmt.Errorf("hexadecimal constant longer than 127 bytes: '%s'", f.sym)
 			}
 			if _, err = w.Write([]byte{FirstByteDataMask | byte(len(b))}); err != nil {
-				return err
+				return 0, err
 			}
 			if _, err = w.Write(b); err != nil {
-				return err
+				return 0, err
 			}
-			return nil
+			return 0, nil
 		}
 		if strings.HasPrefix(f.sym, "u16/") {
 			// it is u16 constant big endian
 			n, err = strconv.Atoi(strings.TrimPrefix(f.sym, "u16/"))
 			if err != nil {
-				return fmt.Errorf("%v: '%s'", err, f.sym)
+				return 0, fmt.Errorf("%v: '%s'", err, f.sym)
 			}
 			if n < 0 || n > math.MaxUint16 {
-				return fmt.Errorf("wrong u16 constant: '%s'", f.sym)
+				return 0, fmt.Errorf("wrong u16 constant: '%s'", f.sym)
 			}
 			b := make([]byte, 2)
 			binary.BigEndian.PutUint16(b, uint16(n))
 			if _, err = w.Write([]byte{FirstByteDataMask | byte(2)}); err != nil {
-				return err
+				return 0, err
 			}
 			if _, err = w.Write(b); err != nil {
-				return err
+				return 0, err
 			}
-			return nil
+			return 0, nil
 		}
 		if strings.HasPrefix(f.sym, "u32/") {
 			// it is u16 constant big endian
 			n, err = strconv.Atoi(strings.TrimPrefix(f.sym, "u32/"))
 			if err != nil {
-				return fmt.Errorf("%v: '%s'", err, f.sym)
+				return 0, fmt.Errorf("%v: '%s'", err, f.sym)
 			}
 			if n < 0 || n > math.MaxUint32 {
-				return fmt.Errorf("wrong u32 constant: '%s'", f.sym)
+				return 0, fmt.Errorf("wrong u32 constant: '%s'", f.sym)
 			}
 			b := make([]byte, 4)
 			binary.BigEndian.PutUint32(b, uint32(n))
 			if _, err = w.Write([]byte{FirstByteDataMask | byte(4)}); err != nil {
-				return err
+				return 0, err
 			}
 			if _, err = w.Write(b); err != nil {
-				return err
+				return 0, err
 			}
-			return nil
+			return 0, nil
 		}
 		if strings.HasPrefix(f.sym, "u64/") {
 			// it is u16 constant big endian
 			un, err := strconv.ParseUint(strings.TrimPrefix(f.sym, "u64/"), 10, 64)
 			if err != nil {
-				return fmt.Errorf("%v: '%s'", err, f.sym)
+				return 0, fmt.Errorf("%v: '%s'", err, f.sym)
 			}
 			b := make([]byte, 8)
 			binary.BigEndian.PutUint64(b, un)
 			if _, err = w.Write([]byte{FirstByteDataMask | byte(8)}); err != nil {
-				return err
+				return 0, err
 			}
 			if _, err = w.Write(b); err != nil {
-				return err
+				return 0, err
 			}
-			return nil
+			return 0, nil
 		}
 		// TODO other types of literals
 	}
@@ -290,14 +264,22 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, 
 	// try if it is a short call
 	fi, err := lib.FunctionByName(f.sym, len(f.params))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	var callBytes []byte
+	numArgs := 0
+
 	if fi.IsShort {
 		if strings.HasPrefix(fi.Sym, "$") {
-			n, _ := strconv.Atoi(fi.Sym[1:])
-			if n < 0 || n >= numArgs {
-				return fmt.Errorf("wrong argument reference '%s'", fi.Sym)
+			n, err := strconv.Atoi(fi.Sym[1:])
+			if err != nil {
+				return 0, err
+			}
+			if n < 0 || n > MaxParameters {
+				return 0, fmt.Errorf("wrong argument reference '%s'", fi.Sym)
+			}
+			if numArgs < n+1 {
+				numArgs = n + 1
 			}
 		}
 		callBytes = []byte{byte(fi.FunCode)}
@@ -309,28 +291,33 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, numArgs int, 
 	}
 	// write call bytes
 	if _, err = w.Write(callBytes); err != nil {
-		return err
+		return 0, err
 	}
 	// generate code for call parameters
 	for _, ff := range f.params {
-		if err = ff.binaryFromParsedFormula(lib, numArgs, w); err != nil {
-			return err
+		n, err := ff.binaryFromParsedFormula(lib, w)
+		if err != nil {
+			return 0, err
+		}
+		if n > numArgs {
+			numArgs = n
 		}
 	}
-	return nil
+	return numArgs, nil
 }
 
-func FormulaSourceToBinary(lib LibraryAccess, numParams int, formulaSource string) ([]byte, error) {
+func FormulaSourceToBinary(lib LibraryAccess, formulaSource string) ([]byte, int, error) {
 	f, err := parseFormula(formulaSource)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var buf bytes.Buffer
-	if err = f.binaryFromParsedFormula(lib, numParams, &buf); err != nil {
-		return nil, err
+	numArgs, err := f.binaryFromParsedFormula(lib, &buf)
+	if err != nil {
+		return nil, 0, err
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes(), numArgs, nil
 }
 
 func FormulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, error) {
@@ -354,11 +341,7 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		if len(code) < size+1 {
 			return nil, nil, io.EOF
 		}
-		return &FormulaTree{
-			EvalFunc: func(_ EvalContext) []byte {
-				return code[1 : 1+size]
-			},
-		}, code[1+size:], nil
+		return DataFormulas(code[1 : 1+size])[0], code[1+size:], nil
 	}
 	// function call expected
 	ret := &FormulaTree{
@@ -407,14 +390,27 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 	return ret, code, nil
 }
 
-func CompileFormula(lib LibraryAccess, numParams int, formulaSource string) (*FormulaTree, []byte, error) {
-	code, err := FormulaSourceToBinary(lib, numParams, stripSpaces(formulaSource))
+func CompileFormula(lib LibraryAccess, formulaSource string) (*FormulaTree, int, []byte, error) {
+	code, numParams, err := FormulaSourceToBinary(lib, stripSpaces(formulaSource))
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 	ret, err := FormulaTreeFromBinary(lib, code)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
-	return ret, code, nil
+	return ret, numParams, code, nil
+}
+
+func DataFormulas(data ...[]byte) []*FormulaTree {
+	ret := make([]*FormulaTree, len(data))
+	for i, d := range data {
+		d1 := d
+		ret[i] = &FormulaTree{
+			EvalFunc: func(_ EvalContext) []byte {
+				return d1
+			},
+		}
+	}
+	return ret
 }

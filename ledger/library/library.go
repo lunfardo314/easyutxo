@@ -116,21 +116,28 @@ func embedLong(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
 	numEmbeddedLong++
 }
 
-func extendLibrary(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) error {
+func extendLibrary(sym string, source string) error {
+	f, numParam, _, err := easyfl.CompileFormula(Library, source)
+	if err != nil {
+		return err
+	}
+
 	if numExtended >= easyfl.MaxNumExtended {
 		panic("too many extended functions")
 	}
 	if Library.ExistsFunction(sym) {
 		return errors.New("repeating symbol '" + sym + "'")
 	}
-	if requiredNumPar > 15 {
+	if numParam > 15 {
 		return errors.New("can't be more than 15 parameters")
 	}
 	dscr := &funDescriptor{
 		sym:               sym,
 		funCode:           uint16(numExtended + easyfl.FirstExtendedFun),
-		requiredNumParams: requiredNumPar,
-		evalFun:           evalFun,
+		requiredNumParams: numParam,
+		evalFun: getExtendFun(func(ctx *RunContext) []byte {
+			return ctx.Eval(f)
+		}),
 	}
 	Library.funByName[sym] = dscr
 	Library.funByFunCode[dscr.funCode] = dscr

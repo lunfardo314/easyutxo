@@ -21,6 +21,13 @@ func (glb *RunContext) Eval(f *easyfl.FormulaTree) []byte {
 	return f.EvalFunc(glb)
 }
 
+func (glb *RunContext) EvalWithArgs(f *easyfl.FormulaTree, args ...[]byte) []byte {
+	glb.pushCallArgs(easyfl.DataFormulas(args...))
+	defer glb.popCallArgs()
+
+	return glb.Eval(f)
+}
+
 func (glb *RunContext) pushEvalArgs(args ...*easyfl.FormulaTree) {
 	glb.EvalStack[glb.evalStackTop] = args
 	glb.evalStackTop++
@@ -31,14 +38,22 @@ func (glb *RunContext) popEvalArgs() {
 	glb.EvalStack[glb.evalStackTop] = nil
 }
 
+func (glb *RunContext) pushCallArgs(args evalArgs) {
+	glb.CallStack[glb.callStackTop] = args
+	glb.callStackTop++
+}
+
+func (glb *RunContext) popCallArgs() {
+	glb.popCallBaseline()
+}
+
 func (glb *RunContext) pushCallBaseline() {
-	glb.CallStack[glb.callStackTop] = glb.EvalStack[glb.evalStackTop-1]
-	glb.evalStackTop++
+	glb.pushCallArgs(glb.EvalStack[glb.evalStackTop-1])
 }
 
 func (glb *RunContext) popCallBaseline() {
 	glb.callStackTop--
-	glb.CallStack[glb.evalStackTop] = nil
+	glb.CallStack[glb.callStackTop] = nil
 }
 
 func (glb *RunContext) arg(n byte) []byte {

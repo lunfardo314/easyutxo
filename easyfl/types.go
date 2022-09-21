@@ -21,7 +21,6 @@ type FunInfo struct {
 
 type FunParsed struct {
 	Sym        string
-	NumParams  int
 	SourceCode string
 }
 

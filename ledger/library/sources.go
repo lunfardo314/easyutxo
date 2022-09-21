@@ -1,20 +1,20 @@
 package library
 
 const SigLockConstraint = `
-def unlockBlock(0) = _atPath(
+func unlockBlock: _atPath(
 	concat(0x0000, _slice(_path, 2, 5))
 )
 
-def referencedConstraint(0) = _atPath(
+func referencedConstraint: _atPath(
 	concat(	_slice(_path,0,2), unlockBlock)
 )
 
-def referencedUnlockBlock(0) = _atPath(
+func referencedUnlockBlock: _atPath(
 	concat(	0, _slice(_path,1,2), unlockBlock) 
 )
 
 // unlock block 2 bytes of index 1 bytes of index of the referenced address block. The constraints should be identical
-def checkED25519RefUnlock(0) = and(
+func checkED25519RefUnlock: and(
 	_not(_equal(_len8(unlockBlock),3)),
 	_equal(
 		referencedConstraint,
@@ -22,16 +22,16 @@ def checkED25519RefUnlock(0) = and(
 	)
 )
 
-def essence(0) = concat(
+func essence: concat(
 	_atPath(0x0001), 
 	_atPath(0x0002), 
 	_atPath(0x0003), 
 	_atPath(0x0004)
 )
 
-def addrED25519FromPubKey(1) = blake2b($0)
+func addrED25519FromPubKey: blake2b($0)
 
-def validSigED25519(0) = and(
+func validSigED25519: and(
 	validSignature(
 		essence, 
 		_slice(unlockBlock(), 0, 64), 
@@ -45,7 +45,7 @@ def validSigED25519(0) = and(
 	)
 )
 
-def sigLocED25519(3) = _if(
+func sigLocED25519: _if(
     _equal(
 		_slice(_path,0,1), 
 		1

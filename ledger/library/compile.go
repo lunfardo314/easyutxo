@@ -48,12 +48,7 @@ func (lib *libraryData) FunctionByCode(funCode uint16) (easyfl.EvalFunction, int
 
 func (lib *libraryData) compileAndAddMany(parsed []*easyfl.FunParsed) error {
 	for _, pf := range parsed {
-		_, err := easyfl.FormulaSourceToBinary(lib, pf.NumParams, pf.SourceCode)
-		if err != nil {
-			return err
-		}
-		// TODO function
-		if err = extendLibrary(pf.Sym, pf.NumParams, nil); err != nil {
+		if err := extendLibrary(pf.Sym, pf.SourceCode); err != nil {
 			return err
 		}
 	}

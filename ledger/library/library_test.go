@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-const formula1 = "def unlockBlock(0) = _atPath(concat(0x0000, _slice(_path, 2, 5)))"
+const formula1 = "func unlockBlock: _atPath(concat(0x0000, _slice(_path, 2, 5)))"
 
 func TestParse(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
@@ -28,8 +28,9 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(ret))
 
-		code, err := easyfl.FormulaSourceToBinary(Library, ret[0].NumParams, ret[0].SourceCode)
+		code, numParams, err := easyfl.FormulaSourceToBinary(Library, ret[0].SourceCode)
 		require.NoError(t, err)
+		require.EqualValues(t, 0, numParams)
 		t.Logf("code len: %d", len(code))
 	})
 	t.Run("4", func(t *testing.T) {
@@ -43,8 +44,9 @@ func TestParse(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(parsed))
 
-		code, err := easyfl.FormulaSourceToBinary(Library, parsed[0].NumParams, parsed[0].SourceCode)
+		code, numParams, err := easyfl.FormulaSourceToBinary(Library, parsed[0].SourceCode)
 		require.NoError(t, err)
+		require.EqualValues(t, 0, numParams)
 		t.Logf("code len: %d", len(code))
 
 		f, err := easyfl.FormulaTreeFromBinary(Library, code)
@@ -55,8 +57,9 @@ func TestParse(t *testing.T) {
 
 func TestEval(t *testing.T) {
 	runTest := func(s string, path []byte) []byte {
-		f, code, err := easyfl.CompileFormula(Library, 0, s)
+		f, numParams, code, err := easyfl.CompileFormula(Library, s)
 		require.NoError(t, err)
+		require.EqualValues(t, 0, numParams)
 
 		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.Eval(f)
@@ -156,17 +159,82 @@ func TestEval(t *testing.T) {
 }
 
 func TestEvalArgs(t *testing.T) {
-	runTest := func(s string, path []byte) []byte {
-		f, code, err := easyfl.CompileFormula(Library, 0, s)
+	runTest := func(s string, path []byte, p ...[]byte) []byte {
+		f, numParams, code, err := easyfl.CompileFormula(Library, s)
 		require.NoError(t, err)
+		if numParams != len(p) {
+			panic("error in the test setup: number of arguments not equal to the number of provided params")
+		}
 
 		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
-		ret := ctx.Eval(f)
+		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
 	}
-	t.Run("$$$", func(t *testing.T) {
-		res := runTest("$0", nil)
+	t.Run("blake2b-1", func(t *testing.T) {
+		res := runTest("blake2b(0x010203)", nil)
+		h := blake2b.Sum256([]byte{0x01, 0x02, 0x03})
+		require.EqualValues(t, h[:], res)
+	})
+	t.Run("blake2b-2", func(t *testing.T) {
+		res := runTest("blake2b(concat())", nil)
+		h := blake2b.Sum256(nil)
+		require.EqualValues(t, h[:], res)
+	})
+	t.Run("$$$-1", func(t *testing.T) {
+		res := runTest("$0", nil, []byte{0x11})
+		require.EqualValues(t, []byte{0x11}, res)
+	})
+	t.Run("$$$-2", func(t *testing.T) {
+		res := runTest("concat($0, $1)", nil, []byte{1}, []byte{2})
+		require.EqualValues(t, []byte{1, 2}, res)
+	})
+	t.Run("$$$-3", func(t *testing.T) {
+		res := runTest("concat($0, $1, $2)", nil, []byte{1}, []byte{2}, []byte{3})
+		require.EqualValues(t, []byte{1, 2, 3}, res)
+	})
+	t.Run("$$$-4", func(t *testing.T) {
+		res := runTest("concat($0, $2)", nil, []byte{1}, []byte{2}, []byte{3})
+		require.EqualValues(t, []byte{1, 3}, res)
+	})
+	t.Run("$$$-5", func(t *testing.T) {
+		res := runTest("concat($0, concat($1, $2))", nil, []byte{1}, []byte{2}, []byte{3})
+		require.EqualValues(t, []byte{1, 2, 3}, res)
+	})
+	t.Run("$$$-6", func(t *testing.T) {
+		res := runTest("concat(concat($0, $1), $2)", nil, []byte{1}, []byte{2}, []byte{3})
+		require.EqualValues(t, []byte{1, 2, 3}, res)
+	})
+	t.Run("$$$-7", func(t *testing.T) {
+		require.Panics(t, func() {
+			runTest("concat($0, $15)", nil, []byte{1}, []byte{2}, []byte{3})
+		})
+	})
+}
+
+func TestExtendLib(t *testing.T) {
+	runTest := func(s string, path []byte, p ...[]byte) []byte {
+		f, numParams, code, err := easyfl.CompileFormula(Library, s)
+		require.NoError(t, err)
+		if numParams != len(p) {
+			panic("error in the test setup: number of arguments not equal to the number of provided params")
+		}
+
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ret := ctx.EvalWithArgs(f, p...)
+		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
+		return ret
+	}
+	t.Run("ext-1", func(t *testing.T) {
+		err := extendLibrary("nil", "concat()")
+		require.NoError(t, err)
+		res := runTest("nil", nil)
 		require.EqualValues(t, 0, len(res))
+	})
+	t.Run("ext-1", func(t *testing.T) {
+		err := extendLibrary("cat2", "concat($0, $1)")
+		require.NoError(t, err)
+		res := runTest("cat2(1,2)", nil)
+		require.EqualValues(t, []byte{1, 2}, res)
 	})
 }
