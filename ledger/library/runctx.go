@@ -21,6 +21,7 @@ func (glb *RunContext) Eval(f *easyfl.FormulaTree) []byte {
 	return f.EvalFunc(glb)
 }
 
+// EvalWithArgs pushes values for argument references
 func (glb *RunContext) EvalWithArgs(f *easyfl.FormulaTree, args ...[]byte) []byte {
 	glb.pushCallArgs(easyfl.DataFormulas(args...))
 	defer glb.popCallArgs()

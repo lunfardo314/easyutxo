@@ -1,6 +1,7 @@
 package library
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 
@@ -223,16 +224,54 @@ func TestExtendLib(t *testing.T) {
 		res := runTest("nil", nil)
 		require.EqualValues(t, 0, len(res))
 	})
-	t.Run("ext-1", func(t *testing.T) {
+	t.Run("ext-2", func(t *testing.T) {
 		err := extendLibrary("nil1", "concat()")
 		require.NoError(t, err)
 		res := runTest("nil1", nil)
 		require.EqualValues(t, 0, len(res))
 	})
-	t.Run("ext-1", func(t *testing.T) {
+	t.Run("ext-3", func(t *testing.T) {
 		err := extendLibrary("cat2", "concat($0, $1)")
 		require.NoError(t, err)
 		res := runTest("cat2(1,2)", nil)
 		require.EqualValues(t, []byte{1, 2}, res)
 	})
+	const complex = `
+	concat(
+		concat(
+			blake2b($1), 
+			concat(
+				$0,
+				$2
+			)
+		),
+		$2
+	)`
+	err := extendLibrary("complex", complex)
+	require.NoError(t, err)
+
+	d := func(i byte) []byte { return []byte{i} }
+	compl := func(d0, d1, d2 []byte) []byte {
+		b1 := blake2b.Sum256(d1)
+		c0 := concat(d0, d2)
+		c1 := concat(b1[:], c0)
+		return concat(c1, d2)
+	}
+	t.Run("ext-4", func(t *testing.T) {
+		res := runTest("complex(0,1,2)", nil)
+		require.EqualValues(t, compl(d(0), d(1), d(2)), res)
+	})
+	t.Run("ext-5", func(t *testing.T) {
+		res := runTest("complex(0,1,complex(2,1,0))", nil)
+		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
+		require.EqualValues(t, exp, res)
+	})
+}
+
+func concat(data ...[]byte) []byte {
+	var buf bytes.Buffer
+	for _, d := range data {
+		buf.Write(d)
+	}
+	return buf.Bytes()
 }
