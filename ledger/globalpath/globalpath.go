@@ -28,7 +28,7 @@ const (
 	TxInputIDsLongIndex
 	TxOutputGroupsIndex
 	TxTimestampIndex
-	TxValidationInputCommitmentIndex
+	TxInputCommitmentIndex
 	TxLocalLibraryIndex
 	TxTreeIndexMax
 )
@@ -40,7 +40,7 @@ var (
 	TxInputIDsLong            = lazyslice.Path(TransactionIndex, TxInputIDsLongIndex)
 	TxOutputGroups            = lazyslice.Path(TransactionIndex, TxOutputGroupsIndex)
 	TxTimestamp               = lazyslice.Path(TransactionIndex, TxTimestampIndex)
-	TxConsumedInputCommitment = lazyslice.Path(TransactionIndex, TxValidationInputCommitmentIndex)
+	TxConsumedInputCommitment = lazyslice.Path(TransactionIndex, TxInputCommitmentIndex)
 	TxLocalLibrary            = lazyslice.Path(TransactionIndex, TxLocalLibraryIndex)
 
 	Consumed        = lazyslice.Path(ConsumedIndex)

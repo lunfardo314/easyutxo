@@ -68,10 +68,18 @@ func init() {
 	embedLong("and", -1, getEvalFun(evalAnd))
 	embedLong("or", -1, getEvalFun(evalOr))
 	embedLong("blake2b", -1, getEvalFun(evalBlake2b))
-	// special
-	embedLong("validSignature", 3, nil)
+	// special transaction related
+	embedLong("validSignature", 3, nil) // TODO
 	//
 	MustExtendLibrary("nil", "or()")
+	MustExtendLibrary("txBytes", "_atPath(0x00)")
+	MustExtendLibrary("txInputIDsBytes", "_atPath(0x0001)")
+	MustExtendLibrary("txOutputBytes", "_atPath(0x0002)")
+	MustExtendLibrary("txTimestampBytes", "_atPath(0x0003)")
+	MustExtendLibrary("txInputCommitmentBytes", "_atPath(0x0004)")
+	MustExtendLibrary("txLocalLibBytes", "_atPath(0x0005)")
+	MustExtendLibrary("txid", "blake2b(txBytes)")
+	MustExtendLibrary("txEssenceBytes", "concat(txInputIDsBytes, txOutputBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
 
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
@@ -179,13 +187,13 @@ func MustExtendWithMany(source string) {
 	}
 }
 
-func getEvalFun(f runnerFunc) easyfl.EvalFunction {
+func getEvalFun(f EvalFunc) easyfl.EvalFunction {
 	return func(glb interface{}) []byte {
 		return f(glb.(*RunContext))
 	}
 }
 
-func getExtendFun(f runnerFunc) easyfl.EvalFunction {
+func getExtendFun(f EvalFunc) easyfl.EvalFunction {
 	return func(glb interface{}) []byte {
 		g := glb.(*RunContext)
 

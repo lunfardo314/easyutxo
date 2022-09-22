@@ -10,7 +10,8 @@ import (
 )
 
 type GlobalContext struct {
-	tree *lazyslice.Tree
+	tree        *lazyslice.Tree
+	rootContext *library.RunContext
 }
 
 const (
@@ -77,12 +78,12 @@ func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 // CreateGlobalContext finds all inputs in the ledger state.
 // Creates a tree with ledger at long index 0 and all inputs at long index 1
 //
-func CreateGlobalContext(tx *Transaction, ledgerState LedgerState) (*GlobalContext, error) {
-
+func CreateGlobalContext(txBytes []byte, ledgerState LedgerState) (*GlobalContext, error) {
+	tx := FromBytes(txBytes)
 	ret := &GlobalContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(2, nil)
 	ret.tree.PutSubtreeAtIdx(tx.Tree(), globalpath.TransactionIndex, nil)                                     // #0 transaction
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.ConsumedIndex, nil)                            // #1 consumed context (inputs, library)
+	ret.tree.PushEmptySubtrees(2, globalpath.Consumed)                                                        // #1 consumed context (inputs, library)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.ConsumedOutputsIndexLong, globalpath.Consumed) // 1 @ 0 consumed outputs
 	ret.tree.PutSubtreeAtIdx(constraintTree, globalpath.ConsumedLibraryIndex, globalpath.Consumed)            // 1 @ 1 script library tree
 
@@ -99,5 +100,39 @@ func CreateGlobalContext(tx *Transaction, ledgerState LedgerState) (*GlobalConte
 	if err != nil {
 		return nil, err
 	}
+	ret.rootContext = library.NewRunContext(ret.tree, nil, nil)
+
 	return ret, nil
+}
+
+var (
+	TransactionBytes        = library.MustMakeEvalFunc("txBytes")
+	TransactionID           = library.MustMakeEvalFunc("txid")
+	TransactionEssenceBytes = library.MustMakeEvalFunc("txEssenceBytes")
+)
+
+func (v *GlobalContext) TransactionBytes() []byte {
+	return TransactionBytes(v.rootContext)
+}
+
+func (v *GlobalContext) TransactionEssenceBytes() []byte {
+	return TransactionEssenceBytes(v.rootContext)
+}
+
+func (v *GlobalContext) TransactionID() []byte {
+	return TransactionID(v.rootContext)
+}
+
+func (v *GlobalContext) Validate() error {
+	return nil
+}
+
+func (v *GlobalContext) RunContext(path, data []byte) *library.RunContext {
+	return library.NewRunContext(v.tree, path, data)
+}
+
+func (v *GlobalContext) Eval(formulaSource string, path, data []byte) []byte {
+	fun := library.MustMakeEvalFunc(formulaSource)
+
+	return fun(v.RunContext(path, data))
 }

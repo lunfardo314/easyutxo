@@ -12,10 +12,10 @@ const (
 	IDLength = 32
 )
 
-type ID [IDLength]byte
+type ID []byte
 
-func (txid *ID) String() string {
-	return hex.EncodeToString(txid[:])
+func (txid ID) String() string {
+	return hex.EncodeToString(txid)
 }
 
 var Path = lazyslice.Path
@@ -24,16 +24,16 @@ type Transaction struct {
 	tree *lazyslice.Tree
 }
 
-// New empty transaction tree skeleton
-func New() *Transaction {
+// NewTransaction empty transaction tree skeleton
+func NewTransaction() *Transaction {
 	ret := &Transaction{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(globalpath.TxTreeIndexMax), nil)
-	ret.tree.PushEmptySubtrees(1, globalpath.TxUnlockParamsLong)
-	ret.tree.PushEmptySubtrees(1, globalpath.TxInputIDsLong)
-	ret.tree.PushEmptySubtrees(1, globalpath.TxOutputGroups)
-	ret.tree.PushEmptySubtrees(1, globalpath.TxTimestamp)
-	ret.tree.PushEmptySubtrees(1, globalpath.TxLocalLibrary)
-	ret.tree.PushEmptySubtrees(1, globalpath.TxConsumedInputCommitment)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxUnlockParamsLongIndex, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxInputIDsLongIndex, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxOutputGroupsIndex, nil)
+	ret.tree.PutDataAtIdx(globalpath.TxTimestampIndex, nil, nil)
+	ret.tree.PutDataAtIdx(globalpath.TxInputCommitmentIndex, nil, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxLocalLibraryIndex, nil)
 	return ret
 }
 
@@ -51,7 +51,8 @@ func (tx *Transaction) Bytes() []byte {
 }
 
 func (tx *Transaction) ID() ID {
-	return blake2b.Sum256(tx.Bytes())
+	ret := blake2b.Sum256(tx.Bytes())
+	return ret[:]
 }
 
 func (tx *Transaction) NumOutputs() int {
@@ -59,12 +60,12 @@ func (tx *Transaction) NumOutputs() int {
 	tx.tree.ForEachSubtree(func(idx byte, subtree *lazyslice.Tree) bool {
 		ret += subtree.NumElements(nil)
 		return true
-	}, globalpath.TxOutputGroups)
+	}, Path(globalpath.TxOutputGroupsIndex))
 	return ret
 }
 
 func (tx *Transaction) NumInputs() int {
-	return tx.tree.NumElementsLong(globalpath.TxInputIDsLong)
+	return tx.tree.NumElementsLong(Path(globalpath.TxInputIDsLongIndex))
 }
 
 func (tx *Transaction) CodeFromLocalLibrary(idx byte) []byte {

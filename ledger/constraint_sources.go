@@ -21,19 +21,11 @@ func checkED25519RefUnlock: and(
 		referencedUnlockBlock
 	)
 )
-
-func essence: concat(
-	_atPath(0x0001), 
-	_atPath(0x0002), 
-	_atPath(0x0003), 
-	_atPath(0x0004)
-)
-
 func addrED25519FromPubKey: blake2b($0)
 
 func validSigED25519: and(
 	validSignature(
-		essence, 
+		txEssenceBytes, 
 		_slice(unlockBlock(), 0, 64), 
 		_slice(unlockBlock(), 64, 96)
 	),

@@ -1,10 +1,10 @@
 package library
 
 import (
-	"bytes"
 	"encoding/binary"
 	"testing"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/stretchr/testify/require"
@@ -248,9 +248,9 @@ func TestExtendLib(t *testing.T) {
 	d := func(i byte) []byte { return []byte{i} }
 	compl := func(d0, d1, d2 []byte) []byte {
 		b1 := blake2b.Sum256(d1)
-		c0 := concat(d0, d2)
-		c1 := concat(b1[:], c0)
-		return concat(c1, d2)
+		c0 := easyutxo.Concat(d0, d2)
+		c1 := easyutxo.Concat(b1[:], c0)
+		return easyutxo.Concat(c1, d2)
 	}
 	t.Run("ext-4", func(t *testing.T) {
 		res := runTest("complex(0,1,2)", nil)
@@ -261,12 +261,4 @@ func TestExtendLib(t *testing.T) {
 		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
 		require.EqualValues(t, exp, res)
 	})
-}
-
-func concat(data ...[]byte) []byte {
-	var buf bytes.Buffer
-	for _, d := range data {
-		buf.Write(d)
-	}
-	return buf.Bytes()
 }

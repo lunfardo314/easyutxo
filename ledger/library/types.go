@@ -1,6 +1,8 @@
 package library
 
 import (
+	"fmt"
+
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -26,4 +28,14 @@ type RunContext struct {
 
 type evalArgs []*easyfl.FormulaTree
 
-type runnerFunc func(ctx *RunContext) []byte
+type EvalFunc func(ctx *RunContext) []byte
+
+func MustMakeEvalFunc(formulaSource string) EvalFunc {
+	f, _, _, err := easyfl.CompileFormula(Library, formulaSource)
+	if err != nil {
+		panic(fmt.Errorf("MustMakeEvalFunc: '%v' -- '%s'", err, formulaSource))
+	}
+	return func(ctx *RunContext) []byte {
+		return ctx.Eval(f)
+	}
+}

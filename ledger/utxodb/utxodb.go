@@ -16,13 +16,16 @@ func New() *UtxoDB {
 	}
 }
 
-func (u *UtxoDB) AddTransaction(tx *ledger.Transaction) error {
-	_, err := ledger.CreateGlobalContext(tx, u)
+func (u *UtxoDB) AddTransaction(txBytes []byte) error {
+	ctx, err := ledger.CreateGlobalContext(txBytes, u)
 	if err != nil {
 		return err
 	}
-	// TODO run validation scripts
+	if err = ctx.Validate(); err != nil {
+		return err
+	}
 	// remove spent outputs
+	tx := ctx.Transaction()
 	tx.ForEachInputID(func(_ uint16, o ledger.OutputID) bool {
 		delete(u.utxo, string(o[:]))
 		return true

@@ -1,6 +1,7 @@
 package easyutxo
 
 import (
+	"bytes"
 	"fmt"
 )
 
@@ -19,4 +20,21 @@ func CatchPanic(f func()) (err error) {
 		f()
 	}()
 	return err
+}
+
+func Concat(data ...[]byte) []byte {
+	var buf bytes.Buffer
+	for _, d := range data {
+		buf.Write(d)
+	}
+	return buf.Bytes()
+}
+
+func EmptySlices(s ...[]byte) bool {
+	for _, sl := range s {
+		if len(sl) != 0 {
+			return false
+		}
+	}
+	return true
 }
