@@ -151,6 +151,8 @@ func splitArgs(argsStr string) ([]string, error) {
 	return ret, nil
 }
 
+// Byte serialization of the formula:
+//
 // prefix[0] || prefix[1] || suffix
 // prefix[0] bits
 // - bit 7 (FirstByteDataMask) : 0 is library function, 1 is inline data

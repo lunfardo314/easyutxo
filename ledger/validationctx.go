@@ -3,16 +3,21 @@ package ledger
 import (
 	"fmt"
 
-	"github.com/lunfardo314/easyutxo/engine"
+	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 	"github.com/lunfardo314/easyutxo/ledger/library"
-	"github.com/lunfardo314/easyutxo/ledger/opcodes"
 )
 
 type GlobalContext struct {
 	tree *lazyslice.Tree
 }
+
+const (
+	InvocationTypeInline = byte(iota)
+	InvocationTypeLocalLib
+	InvocationTypeFirstGlobal
+)
 
 func (v *GlobalContext) Tree() *lazyslice.Tree {
 	return v.tree
@@ -42,29 +47,31 @@ func (v *GlobalContext) CodeFromLocalLibrary(idx byte) []byte {
 	return v.Transaction().CodeFromLocalLibrary(idx)
 }
 
-func (v *GlobalContext) ParseInvocation(invocationFullPath lazyslice.TreePath) (byte, []byte, []byte) {
+func (v *GlobalContext) parseInvocation(invocationFullPath lazyslice.TreePath) ([]byte, []byte) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
-	switch invocation[0] {
-	case library.CodeReservedForLocalInvocations:
-		return invocation[1], v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
-	case library.CodeReservedForInlineInvocations:
-		return invocation[1], invocation[1:], nil
+	if len(invocation) < 1 {
+		panic("empty invocation")
 	}
-	return invocation[1], v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
+	switch invocation[0] {
+	case InvocationTypeLocalLib:
+		if len(invocation) < 2 {
+			panic("wrong invocation")
+		}
+		return v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
+	case InvocationTypeInline:
+		return invocation[1:], nil
+	}
+	return v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
 }
 
-func (v *GlobalContext) RunScript(invocationPath lazyslice.TreePath, invocationIndex byte) {
-	invocationCode, code, data := v.ParseInvocation(v.tree.BytesAtPath(invocationPath))
-	engine.Run(&engine.ScriptInvocationContext{
-		Opcodes:            opcodes.All,
-		Ctx:                v.Tree(),
-		InvocationCode:     invocationCode,
-		InvocationFullPath: invocationPath,
-		InvocationIdx:      invocationIndex,
-		Code:               code,
-		Data:               data,
-		Trace:              false,
-	})
+func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
+	code, data := v.parseInvocation(v.tree.BytesAtPath(invocationPath))
+	ctx := library.NewRunContext(v.tree, invocationPath, data)
+	f, err := easyfl.FormulaTreeFromBinary(library.Library, code)
+	if err != nil {
+		panic(err)
+	}
+	return ctx.Eval(f)
 }
 
 // CreateGlobalContext finds all inputs in the ledger state.
@@ -77,7 +84,7 @@ func CreateGlobalContext(tx *Transaction, ledgerState LedgerState) (*GlobalConte
 	ret.tree.PutSubtreeAtIdx(tx.Tree(), globalpath.TransactionIndex, nil)                                     // #0 transaction
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.ConsumedIndex, nil)                            // #1 consumed context (inputs, library)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.ConsumedOutputsIndexLong, globalpath.Consumed) // 1 @ 0 consumed outputs
-	ret.tree.PutSubtreeAtIdx(library.ScriptLibrary, globalpath.ConsumedLibraryIndex, globalpath.Consumed)     // 1 @ 1 script library tree
+	ret.tree.PutSubtreeAtIdx(constraintTree, globalpath.ConsumedLibraryIndex, globalpath.Consumed)            // 1 @ 1 script library tree
 
 	var err error
 	tx.ForEachInputID(func(idx uint16, oid OutputID) bool {

@@ -1,4 +1,4 @@
-package library
+package ledger
 
 const SigLockConstraint = `
 func unlockBlock: _atPath(

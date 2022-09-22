@@ -19,11 +19,6 @@ func TestCompile(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 	})
-	t.Run("2", func(t *testing.T) {
-		ret, err := easyfl.ParseFunctions(SigLockConstraint)
-		require.NoError(t, err)
-		require.NotNil(t, ret)
-	})
 	t.Run("3", func(t *testing.T) {
 		ret, err := easyfl.ParseFunctions(formula1)
 		require.NoError(t, err)
@@ -56,7 +51,7 @@ func TestEval(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, numParams)
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path, nil)
 		ret := ctx.Eval(f)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -161,7 +156,7 @@ func TestEvalArgs(t *testing.T) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path, nil)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -215,7 +210,7 @@ func TestExtendLib(t *testing.T) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path, nil)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -225,13 +220,13 @@ func TestExtendLib(t *testing.T) {
 		require.EqualValues(t, 0, len(res))
 	})
 	t.Run("ext-2", func(t *testing.T) {
-		err := extendLibrary("nil1", "concat()")
+		err := ExtendLibrary("nil1", "concat()")
 		require.NoError(t, err)
 		res := runTest("nil1", nil)
 		require.EqualValues(t, 0, len(res))
 	})
 	t.Run("ext-3", func(t *testing.T) {
-		err := extendLibrary("cat2", "concat($0, $1)")
+		err := ExtendLibrary("cat2", "concat($0, $1)")
 		require.NoError(t, err)
 		res := runTest("cat2(1,2)", nil)
 		require.EqualValues(t, []byte{1, 2}, res)
@@ -247,7 +242,7 @@ func TestExtendLib(t *testing.T) {
 		),
 		$2
 	)`
-	err := extendLibrary("complex", complex)
+	err := ExtendLibrary("complex", complex)
 	require.NoError(t, err)
 
 	d := func(i byte) []byte { return []byte{i} }

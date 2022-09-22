@@ -2,8 +2,8 @@ package globalpath
 
 import (
 	"bytes"
+	"encoding/binary"
 
-	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -52,8 +52,20 @@ func TransactionOutput(outputGroup, idx byte) lazyslice.TreePath {
 	return lazyslice.PathMakeAppend(TxOutputGroups, outputGroup, idx)
 }
 
+func TransactionOutputBlock(outputGroup, idxInGroup, blockIdx byte) lazyslice.TreePath {
+	return lazyslice.PathMakeAppend(TxOutputGroups, outputGroup, idxInGroup, blockIdx)
+}
+
 func ConsumedOutput(idx uint16) lazyslice.TreePath {
-	return lazyslice.PathMakeAppend(ConsumedOutputs, easyutxo.EncodeInteger(idx)...)
+	var b [2]byte
+	binary.BigEndian.PutUint16(b[:], idx)
+	return lazyslice.PathMakeAppend(ConsumedOutputs, b[0], b[1])
+}
+
+func ConsumedOutputBlock(outputIdx uint16, blockIdx byte) lazyslice.TreePath {
+	var b [2]byte
+	binary.BigEndian.PutUint16(b[:], outputIdx)
+	return lazyslice.PathMakeAppend(ConsumedOutputs, b[0], b[1], blockIdx)
 }
 
 func IsConsumedOutputContext(path lazyslice.TreePath) bool {

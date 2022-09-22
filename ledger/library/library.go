@@ -71,8 +71,7 @@ func init() {
 	// special
 	embedLong("validSignature", 3, nil)
 	//
-	mustExtendLibrary("nil", "or()")
-	mustExtendWitMany(SigLockConstraint)
+	MustExtendLibrary("nil", "or()")
 
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
@@ -120,7 +119,7 @@ func embedLong(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
 	numEmbeddedLong++
 }
 
-func extendLibrary(sym string, source string) error {
+func ExtendLibrary(sym string, source string) error {
 	f, numParam, _, err := easyfl.CompileFormula(Library, source)
 	if err != nil {
 		return err
@@ -149,8 +148,8 @@ func extendLibrary(sym string, source string) error {
 	return nil
 }
 
-func mustExtendLibrary(sym string, source string) {
-	if err := extendLibrary(sym, source); err != nil {
+func MustExtendLibrary(sym string, source string) {
+	if err := ExtendLibrary(sym, source); err != nil {
 		panic(err)
 	}
 }
@@ -167,14 +166,14 @@ func extendWitMany(source string) error {
 		return err
 	}
 	for _, pf := range parsed {
-		if err = extendLibrary(pf.Sym, pf.SourceCode); err != nil {
+		if err = ExtendLibrary(pf.Sym, pf.SourceCode); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func mustExtendWitMany(source string) {
+func MustExtendWithMany(source string) {
 	if err := extendWitMany(source); err != nil {
 		panic(err)
 	}
@@ -268,9 +267,7 @@ func evalPath(glb *RunContext) []byte {
 }
 
 func evalData(glb *RunContext) []byte {
-	inv := glb.globalContext.BytesAtPath(glb.invocationPath)
-	// TODO all kinds of invocation
-	return inv[1:]
+	return glb.invocationData
 }
 
 func evalAtPath(glb *RunContext) []byte {

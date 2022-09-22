@@ -17,6 +17,7 @@ const maxCallDepth = 30
 type RunContext struct {
 	globalContext  *lazyslice.Tree
 	invocationPath lazyslice.TreePath
+	invocationData []byte
 	evalStack      []evalArgs
 	evalStackTop   int
 	callStack      []evalArgs

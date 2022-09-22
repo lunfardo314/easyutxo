@@ -5,10 +5,11 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
-func NewRunContext(dataTree *lazyslice.Tree, path lazyslice.TreePath) *RunContext {
+func NewRunContext(dataTree *lazyslice.Tree, path lazyslice.TreePath, data []byte) *RunContext {
 	return &RunContext{
 		globalContext:  dataTree,
 		invocationPath: path,
+		invocationData: data,
 		evalStack:      make([]evalArgs, maxCallDepth),
 		callStack:      make([]evalArgs, maxCallDepth),
 	}

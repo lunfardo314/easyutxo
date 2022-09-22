@@ -71,7 +71,7 @@ func (v *GlobalContext) ValidateConsumedOutput(outputGroup, idx byte) {
 	o := v.Output(outputGroup, idx)
 	invocationList := o.tree.GetDataAtIdx(0, nil)
 	for _, invokeAtIdx := range invocationList {
-		v.RunScript(globalpath.TransactionOutput(outputGroup, idx), invokeAtIdx)
+		v.Invoke(globalpath.TransactionOutputBlock(outputGroup, idx, invokeAtIdx))
 	}
 }
 
@@ -79,7 +79,7 @@ func (v *GlobalContext) ValidateTransactionOutput(idx uint16) {
 	o := v.ConsumedOutput(idx)
 	invocationList := o.tree.GetDataAtIdx(0, nil)
 	for _, invokeAtIdx := range invocationList {
-		v.RunScript(globalpath.ConsumedOutput(idx), invokeAtIdx)
+		v.Invoke(globalpath.ConsumedOutputBlock(idx, invokeAtIdx))
 	}
 }
 

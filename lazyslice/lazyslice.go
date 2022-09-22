@@ -352,7 +352,7 @@ func (st *Tree) getSubtree(idx byte) *Tree {
 	return TreeFromBytes(st.sa.At(int(idx)))
 }
 
-// PushData Array at the end of the globalpath must exist and must be Array
+// PushData Array at the end of the global path must exist and must be Array
 func (st *Tree) PushData(data []byte, path TreePath) int {
 	if len(path) == 0 {
 		return st.sa.Push(data)
