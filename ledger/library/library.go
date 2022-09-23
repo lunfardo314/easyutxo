@@ -22,31 +22,37 @@ var (
 		funByName:    make(map[string]*funDescriptor),
 		funByFunCode: make(map[uint16]*funDescriptor),
 	}
-	numEmbeddedShort int
-	numEmbeddedLong  int
-	numExtended      int
+	numEmbeddedShort   int
+	numEmbeddedLong    int
+	numExtended        int
+	FuncCodeRequireAll uint16
+	FuncCodeRequireAny uint16
 )
 
 func init() {
-	embedShort("slice", 3, getEvalFun(evalSlice))
-	embedShort("equal", 2, getEvalFun(evalEqual))
-	embedShort("len8", 1, getEvalFun(evalLen8))
-	embedShort("len16", 1, getEvalFun(evalLen16))
-	embedShort("not", 1, getEvalFun(evalNot))
-	embedShort("if", 3, getEvalFun(evalIf))
-	embedShort("isZero", 1, getEvalFun(evalIsZero))
+	embedShort("slice", 3, ev(evalSlice))
+	embedShort("equal", 2, ev(evalEqual))
+	embedShort("len8", 1, ev(evalLen8))
+	embedShort("len16", 1, ev(evalLen16))
+	embedShort("not", 1, ev(evalNot))
+	embedShort("if", 3, ev(evalIf))
+	embedShort("isZero", 1, ev(evalIsZero))
+
+	// the two codes needed explicitly for the construction of the output
+	FuncCodeRequireAll = embedShort("requireAll", 1, ev(evalRequireAll))
+	FuncCodeRequireAny = embedShort("requireAny", 1, ev(evalRequireAny))
 	// safe arithmetics
-	embedShort("sum8", 2, getEvalFun(evalMustSum8))
-	embedShort("sum8_16", 2, getEvalFun(evalSum8_16))
-	embedShort("sum16", 2, getEvalFun(evalMustSum16))
-	embedShort("sum16_32", 2, getEvalFun(evalSum16_32))
-	embedShort("sum32", 2, getEvalFun(evalMustSum32))
-	embedShort("sum32_64", 2, getEvalFun(evalSum32_64))
-	embedShort("sum64", 2, getEvalFun(evalMustSum64))
-	embedShort("sub8", 2, getEvalFun(evalMustSub8))
+	embedShort("sum8", 2, ev(evalMustSum8))
+	embedShort("sum8_16", 2, ev(evalSum8_16))
+	embedShort("sum16", 2, ev(evalMustSum16))
+	embedShort("sum16_32", 2, ev(evalSum16_32))
+	embedShort("sum32", 2, ev(evalMustSum32))
+	embedShort("sum32_64", 2, ev(evalSum32_64))
+	embedShort("sum64", 2, ev(evalMustSum64))
+	embedShort("sub8", 2, ev(evalMustSub8))
 	// comparison
-	embedShort("lessThan", 2, getEvalFun(evalLessThan))
-	embedShort("lessOrEqualThan", 2, getEvalFun(evalLessOrEqualThan))
+	embedShort("lessThan", 2, ev(evalLessThan))
+	embedShort("lessOrEqualThan", 2, ev(evalLessOrEqualThan))
 	// argument access
 	embedShort("$0", 0, getArgFun(0))
 	embedShort("$1", 0, getArgFun(1))
@@ -65,17 +71,16 @@ func init() {
 	embedShort("$14", 0, getArgFun(14))
 	embedShort("$15", 0, getArgFun(15))
 	// context access
-	embedShort("@", 0, getEvalFun(evalPath))
-	embedShort("atPath", 1, getEvalFun(evalAtPath))
+	embedShort("@", 0, ev(evalPath))
+	embedShort("atPath", 1, ev(evalAtPath))
 	// stateless varargs
-	embedLong("concat", -1, getEvalFun(evalConcat))
-	embedLong("and", -1, getEvalFun(evalAnd))
-	embedLong("or", -1, getEvalFun(evalOr))
+	embedLong("concat", -1, ev(evalConcat))
+	embedLong("and", -1, ev(evalAnd))
+	embedLong("or", -1, ev(evalOr))
 
-	embedLong("blake2b", -1, getEvalFun(evalBlake2b))
+	embedLong("blake2b", -1, ev(evalBlake2b))
 	// special transaction related
-	embedLong("validSignatureED25519", 3, getEvalFun(evalValidSigED25519))
-	//
+	embedLong("validSignatureED25519", 3, ev(evalValidSigED25519))
 
 	MustExtendLibrary("nil", "or()")
 	MustExtendLibrary("tail", "slice($0, $1, sub8(len8($0),1))")
@@ -83,9 +88,6 @@ func init() {
 	MustExtendLibrary("greaterThan", "not(lessOrEqualThan($0,$1))")
 	MustExtendLibrary("greaterOrEqualThan", "not(lessThan($0,$1))")
 
-	MustExtendLibrary("constraint", "atPath(@)")
-	MustExtendLibrary("constraintData", "if(equal(slice(constraint,0,1), 0),nil,tail(constraint,1))")
-	MustExtendLibrary("outputIndex", "slice(@,2,4)")
 	MustExtendLibrary("txBytes", "atPath(0x00)")
 	MustExtendLibrary("txInputIDsBytes", "atPath(0x0001)")
 	MustExtendLibrary("txOutputBytes", "atPath(0x0002)")
@@ -94,10 +96,15 @@ func init() {
 	MustExtendLibrary("txLocalLibBytes", "atPath(0x0005)")
 	MustExtendLibrary("txid", "blake2b(txBytes)")
 	MustExtendLibrary("txEssenceBytes", "concat(txInputIDsBytes, txOutputBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
-
-	MustExtendLibrary("unlockBlock", "atPath(concat(0, 0, slice(@, 2, 5)))")
-	MustExtendLibrary("referencedConstraint", "atPath(concat(slice(@,0,2), unlockBlock))")
 	MustExtendLibrary("addrED25519FromPubKey", "blake2b($0)")
+
+	MustExtendLibrary("selfConstraint", "atPath(@)")
+	MustExtendLibrary("selfConstraintData", "if(equal(slice(selfConstraint,0,1), 0),nil,tail(selfConstraint,1))")
+	MustExtendLibrary("selfOutputIndex", "slice(@,2,4)")
+	MustExtendLibrary("selfUnlockBlock", "atPath(concat(0, 0, slice(@, 2, 5)))")
+	MustExtendLibrary("selfReferencedConstraint", "atPath(concat(slice(@,0,2), selfUnlockBlock))")
+	MustExtendLibrary("selfConsumedContext", "equal(slice(@,0,2), 0x0100)")
+	MustExtendLibrary("selfOutputContext", "not(selfConsumedContext)")
 
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
@@ -107,7 +114,7 @@ func init() {
 		numEmbeddedShort, easyfl.MaxNumEmbeddedShort, numEmbeddedLong, easyfl.MaxNumEmbeddedLong, numExtended, easyfl.MaxNumExtended)
 }
 
-func embedShort(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
+func embedShort(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) uint16 {
 	if numEmbeddedShort >= easyfl.MaxNumEmbeddedShort {
 		panic("too many embedded short functions")
 	}
@@ -124,9 +131,11 @@ func embedShort(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
 	Library.funByName[sym] = dscr
 	Library.funByFunCode[dscr.funCode] = dscr
 	numEmbeddedShort++
+
+	return dscr.funCode
 }
 
-func embedLong(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
+func embedLong(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) uint16 {
 	if numEmbeddedLong >= easyfl.MaxNumEmbeddedLong {
 		panic("too many embedded long functions")
 	}
@@ -143,22 +152,24 @@ func embedLong(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
 	Library.funByName[sym] = dscr
 	Library.funByFunCode[dscr.funCode] = dscr
 	numEmbeddedLong++
+
+	return dscr.funCode
 }
 
-func ExtendLibrary(sym string, source string) error {
+func ExtendLibrary(sym string, source string) (uint16, error) {
 	f, numParam, _, err := easyfl.CompileFormula(Library, source)
 	if err != nil {
-		return fmt.Errorf("error while compiling '%s': %v", sym, err)
+		return 0, fmt.Errorf("error while compiling '%s': %v", sym, err)
 	}
 
 	if numExtended >= easyfl.MaxNumExtended {
 		panic("too many extended functions")
 	}
 	if Library.ExistsFunction(sym) {
-		return errors.New("repeating symbol '" + sym + "'")
+		return 0, errors.New("repeating symbol '" + sym + "'")
 	}
 	if numParam > 15 {
-		return errors.New("can't be more than 15 parameters")
+		return 0, errors.New("can't be more than 15 parameters")
 	}
 	dscr := &funDescriptor{
 		sym:               sym,
@@ -171,13 +182,15 @@ func ExtendLibrary(sym string, source string) error {
 	Library.funByName[sym] = dscr
 	Library.funByFunCode[dscr.funCode] = dscr
 	numExtended++
-	return nil
+	return dscr.funCode, nil
 }
 
-func MustExtendLibrary(sym string, source string) {
-	if err := ExtendLibrary(sym, source); err != nil {
+func MustExtendLibrary(sym string, source string) uint16 {
+	ret, err := ExtendLibrary(sym, source)
+	if err != nil {
 		panic(err)
 	}
+	return ret
 }
 
 func mustUniqueName(sym string) {
@@ -192,7 +205,8 @@ func extendWitMany(source string) error {
 		return err
 	}
 	for _, pf := range parsed {
-		if err = ExtendLibrary(pf.Sym, pf.SourceCode); err != nil {
+		_, err = ExtendLibrary(pf.Sym, pf.SourceCode)
+		if err != nil {
 			return err
 		}
 	}
@@ -205,7 +219,7 @@ func MustExtendWithMany(source string) {
 	}
 }
 
-func getEvalFun(f EvalFunc) easyfl.EvalFunction {
+func ev(f EvalFunc) easyfl.EvalFunction {
 	return func(glb interface{}) []byte {
 		return f(glb.(*RunContext))
 	}
@@ -453,6 +467,44 @@ func evalValidSigED25519(glb *RunContext) []byte {
 
 	if ed25519.Verify(pubKey, essence, signature) {
 		return []byte{0xff}
+	}
+	return nil
+}
+
+func evalRequireAll(glb *RunContext) []byte {
+	blockIndices := glb.arg(0)
+	myIdx := glb.invocationPath[len(glb.invocationPath)-1]
+	path := make([]byte, len(glb.invocationPath))
+	copy(path, glb.invocationPath)
+
+	for _, idx := range blockIndices {
+		if idx <= myIdx {
+			// only forward
+			panic("evalRequireAll: can only invoke constraints forward")
+		}
+		path[len(path)-1] = idx
+		if len(invokeConstraint(glb.dataTree, path)) == 0 {
+			return nil
+		}
+	}
+	return []byte{0xff}
+}
+
+func evalRequireAny(glb *RunContext) []byte {
+	blockIndices := glb.arg(0)
+	myIdx := glb.invocationPath[len(glb.invocationPath)-1]
+	path := make([]byte, len(glb.invocationPath))
+	copy(path, glb.invocationPath)
+
+	for _, idx := range blockIndices {
+		if idx <= myIdx {
+			// only forward
+			panic("evalRequireAll: can only invoke constraints forward")
+		}
+		path[len(path)-1] = idx
+		if len(invokeConstraint(glb.dataTree, path)) != 0 {
+			return []byte{0xff}
+		}
 	}
 	return nil
 }

@@ -27,7 +27,16 @@ type RunContext struct {
 
 type evalArgs []*easyfl.FormulaTree
 
-type EvalFunc func(ctx *RunContext) []byte
+type (
+	EvalFunc             func(ctx *RunContext) []byte
+	InvokeConstraintFunc func(*lazyslice.Tree, lazyslice.TreePath) []byte
+)
+
+var invokeConstraint InvokeConstraintFunc
+
+func RegisterInvokeConstraintFunc(f InvokeConstraintFunc) {
+	invokeConstraint = f
+}
 
 func MustMakeEvalFunc(formulaSource string) EvalFunc {
 	f, _, _, err := easyfl.CompileFormula(Library, formulaSource)

@@ -20,6 +20,14 @@ const (
 	InvocationTypeFirstGlobal
 )
 
+func init() {
+	library.RegisterInvokeConstraintFunc(invokeConstraintFunc)
+}
+
+func invokeConstraintFunc(tree *lazyslice.Tree, path lazyslice.TreePath) []byte {
+	return GlobalContextFromTree(tree).Invoke(path)
+}
+
 func (v *GlobalContext) Tree() *lazyslice.Tree {
 	return v.tree
 }
@@ -65,20 +73,10 @@ func (v *GlobalContext) parseInvocationCode(invocationFullPath lazyslice.TreePat
 	return v.CodeFromGlobalLibrary(invocation[0])
 }
 
-func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
-	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
-	ctx := library.NewRunContext(v.tree, invocationPath)
-	f, err := easyfl.FormulaTreeFromBinary(library.Library, code)
-	if err != nil {
-		panic(err)
-	}
-	return ctx.Eval(f)
-}
-
-// CreateGlobalContext finds all inputs in the ledger state.
+// GlobalContextFromTransaction finds all inputs in the ledger state.
 // Creates a tree with ledger at long index 0 and all inputs at long index 1
 //
-func CreateGlobalContext(txBytes []byte, ledgerState LedgerState) (*GlobalContext, error) {
+func GlobalContextFromTransaction(txBytes []byte, ledgerState LedgerState) (*GlobalContext, error) {
 	tx := FromBytes(txBytes)
 	ret := &GlobalContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(2, nil)
@@ -103,6 +101,13 @@ func CreateGlobalContext(txBytes []byte, ledgerState LedgerState) (*GlobalContex
 	ret.rootContext = library.NewRunContext(ret.tree, nil)
 
 	return ret, nil
+}
+
+func GlobalContextFromTree(dataTree *lazyslice.Tree) *GlobalContext {
+	return &GlobalContext{
+		tree:        dataTree,
+		rootContext: library.NewRunContext(dataTree, nil),
+	}
 }
 
 var (
@@ -131,8 +136,18 @@ func (v *GlobalContext) RunContext(path []byte) *library.RunContext {
 	return library.NewRunContext(v.tree, path)
 }
 
-func (v *GlobalContext) Eval(formulaSource string, path, data []byte) []byte {
+func (v *GlobalContext) Eval(formulaSource string, path []byte) []byte {
 	fun := library.MustMakeEvalFunc(formulaSource)
 
 	return fun(v.RunContext(path))
+}
+
+func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
+	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
+	ctx := library.NewRunContext(v.tree, invocationPath)
+	f, err := easyfl.FormulaTreeFromBinary(library.Library, code)
+	if err != nil {
+		panic(err)
+	}
+	return ctx.Eval(f)
 }

@@ -17,7 +17,7 @@ func New() *UtxoDB {
 }
 
 func (u *UtxoDB) AddTransaction(txBytes []byte) error {
-	ctx, err := ledger.CreateGlobalContext(txBytes, u)
+	ctx, err := ledger.GlobalContextFromTransaction(txBytes, u)
 	if err != nil {
 		return err
 	}

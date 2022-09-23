@@ -227,13 +227,13 @@ func TestExtendLib(t *testing.T) {
 		require.EqualValues(t, 0, len(res))
 	})
 	t.Run("ext-2", func(t *testing.T) {
-		err := ExtendLibrary("nil1", "concat()")
+		_, err := ExtendLibrary("nil1", "concat()")
 		require.NoError(t, err)
 		res := runTest("nil1", nil)
 		require.EqualValues(t, 0, len(res))
 	})
 	t.Run("ext-3", func(t *testing.T) {
-		err := ExtendLibrary("cat2", "concat($0, $1)")
+		_, err := ExtendLibrary("cat2", "concat($0, $1)")
 		require.NoError(t, err)
 		res := runTest("cat2(1,2)", nil)
 		require.EqualValues(t, []byte{1, 2}, res)
@@ -249,7 +249,7 @@ func TestExtendLib(t *testing.T) {
 		),
 		$2
 	)`
-	err := ExtendLibrary("complex", complex)
+	_, err := ExtendLibrary("complex", complex)
 	require.NoError(t, err)
 
 	d := func(i byte) []byte { return []byte{i} }

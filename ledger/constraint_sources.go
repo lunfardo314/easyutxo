@@ -7,32 +7,38 @@ const SigLockConstraint = `
 // (b0, b1) must point to the place strongly preceding the current one. It prevents cycle and guarantees
 // at least one (normally) of sig-locked outputs is unlocked with signature
 
-func unlockedWithReference: and(
-	equal(len8(unlockBlock), 3),
-	lessThan(slice(unlockBlock,0,2), outputIndex),
-	equal(constraint, referencedConstraint)
+func selfUnlockedWithReference: and(
+	equal(len8(selfUnlockBlock), 3),
+	lessThan(slice(selfUnlockBlock,0,2), selfOutputIndex),
+	equal(selfConstraint, selfReferencedConstraint)
 )
 
 // otherwise, the signature must be valid and hash of the public key must be equal to the provided address
 
-func unlockedWithSigED25519: and(
+func selfUnlockedWithSigED25519: and(
 	validSignatureED25519(
 		txEssenceBytes, 
-		slice(unlockBlock, 0, 64), 
-		slice(unlockBlock, 64, 96)
+		slice(selfUnlockBlock, 0, 64), 
+		slice(selfUnlockBlock, 64, 96)
 	),
 	equal(
-		constraintData, 
+		selfConstraintData, 
 		addrED25519FromPubKey(
-			slice(unlockBlock, 64, 96)
+			slice(selfUnlockBlock, 64, 96)
 		)
 	)
 )
 
-// the interpreter first will check first condition and if it is true, won't evaluate the second one 
+// if it is 'consumed' invocation context, only size of the address is checked
+// Otherwise the first will check first condition if it is unlocked by reference, otherwise checks unlocking signature
+// Second condition not evaluated if the first is true 
 
-func sigLocED25519: or(
-	unlockedWithReference,
-	unlockedWithSigED25519
+func sigLocED25519: if(
+	selfConsumedContext,
+    equal( len8(selfConstraintData), 32),
+	or(
+		selfUnlockedWithReference,
+		selfUnlockedWithSigED25519
+	)
 )
 `
