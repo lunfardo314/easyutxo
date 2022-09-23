@@ -42,6 +42,7 @@ func init() {
 	embedShort("_sum32", 2, getEvalFun(evalMustSum32))
 	embedShort("_sum32_64", 2, getEvalFun(evalSum32_64))
 	embedShort("_sum64", 2, getEvalFun(evalMustSum64))
+	embedShort("_sub8", 2, getEvalFun(evalMustSub8))
 	// argument access
 	embedShort("$0", 0, getArgFun(0))
 	embedShort("$1", 0, getArgFun(1))
@@ -60,18 +61,22 @@ func init() {
 	embedShort("$14", 0, getArgFun(14))
 	embedShort("$15", 0, getArgFun(15))
 	// context access
-	embedShort("_data", 0, getEvalFun(evalData))
-	embedShort("_path", 0, getEvalFun(evalPath))
+	embedShort("@", 0, getEvalFun(evalPath))
 	embedShort("_atPath", 1, getEvalFun(evalAtPath))
 	// stateless varargs
 	embedLong("concat", -1, getEvalFun(evalConcat))
 	embedLong("and", -1, getEvalFun(evalAnd))
 	embedLong("or", -1, getEvalFun(evalOr))
+
 	embedLong("blake2b", -1, getEvalFun(evalBlake2b))
 	// special transaction related
 	embedLong("validSignature", 3, nil) // TODO
 	//
+
 	MustExtendLibrary("nil", "or()")
+	MustExtendLibrary("rest", "_slice($0, $1, _sub8(_len8($0),1))")
+	MustExtendLibrary("invocation", "_atPath(@)")
+	MustExtendLibrary("invocationData", "_if(_equal(_slice(invocation,0,1), 0),nil,rest(invocation,1))")
 	MustExtendLibrary("txBytes", "_atPath(0x00)")
 	MustExtendLibrary("txInputIDsBytes", "_atPath(0x0001)")
 	MustExtendLibrary("txOutputBytes", "_atPath(0x0002)")
@@ -274,12 +279,8 @@ func evalPath(glb *RunContext) []byte {
 	return glb.invocationPath
 }
 
-func evalData(glb *RunContext) []byte {
-	return glb.invocationData
-}
-
 func evalAtPath(glb *RunContext) []byte {
-	return glb.globalContext.BytesAtPath(glb.arg(0))
+	return glb.dataTree.BytesAtPath(glb.arg(0))
 }
 
 func evalConcat(glb *RunContext) []byte {
@@ -387,4 +388,12 @@ func evalMustSum64(glb *RunContext) []byte {
 	ret := make([]byte, 8)
 	binary.BigEndian.PutUint64(ret, s0+s1)
 	return ret
+}
+
+func evalMustSub8(glb *RunContext) []byte {
+	a0, a1 := mustArithmArgs(glb, 1)
+	if a0[0] < a1[0] {
+		panic("_mustSub8: underflow in subtraction")
+	}
+	return []byte{a0[0] - a1[0]}
 }

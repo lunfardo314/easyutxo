@@ -2,15 +2,15 @@ package ledger
 
 const SigLockConstraint = `
 func unlockBlock: _atPath(
-	concat(0x0000, _slice(_path, 2, 5))
+	concat(0x0000, _slice(@, 2, 5))
 )
 
 func referencedConstraint: _atPath(
-	concat(	_slice(_path,0,2), unlockBlock)
+	concat(	_slice(@,0,2), unlockBlock)
 )
 
 func referencedUnlockBlock: _atPath(
-	concat(	0, _slice(_path,1,2), unlockBlock) 
+	concat(	0, _slice(@,1,2), unlockBlock) 
 )
 
 // unlock block 2 bytes of index 1 bytes of index of the referenced address block. The constraints should be identical
@@ -30,7 +30,7 @@ func validSigED25519: and(
 		_slice(unlockBlock(), 64, 96)
 	),
 	_equal(
-		_data, 
+		invocationData, 
 		addrED25519FromPubKey(
 			_slice(unlockBlock(), 64, 96)
 		)
@@ -39,10 +39,10 @@ func validSigED25519: and(
 
 func sigLocED25519: _if(
     _equal(
-		_slice(_path,0,1), 
+		_slice(@,0,1), 
 		1
 	),    // consumed output
-    _equal(_len8(_data), 32),         // ok if len of the data is 32, otherwise fail
+    _equal(_len8(invocationData), 32),         // ok if len of the data is 32, otherwise fail
 	_if(
 		_equal(_len8(unlockBlock), 3),    // references
 		checkED25519RefUnlock,

@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-const formula1 = "func unlockBlock: _atPath(concat(0x0000, _slice(_path, 2, 5)))"
+const formula1 = "func unlockBlock: _atPath(concat(0x0000, _slice(@, 2, 5)))"
 
 func TestCompile(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
@@ -51,19 +51,19 @@ func TestEval(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, numParams)
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path, nil)
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.Eval(f)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
 	}
 	t.Run("1", func(t *testing.T) {
 		path := lazyslice.Path(0, 2)
-		res := runTest("_path", path)
+		res := runTest("@", path)
 		require.EqualValues(t, path, res)
 	})
 	t.Run("2", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("_len8(_path)", path)
+		res := runTest("_len8(@)", path)
 		require.EqualValues(t, []byte{3}, res)
 	})
 	t.Run("3", func(t *testing.T) {
@@ -80,17 +80,24 @@ func TestEval(t *testing.T) {
 	})
 	t.Run("6", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("_if(_equal(_len8(_path),3), 0x01, 0x05)", path)
+		res := runTest("_if(_equal(_len8(@),3), 0x01, 0x05)", path)
 		require.EqualValues(t, []byte{1}, res)
 	})
 	t.Run("7", func(t *testing.T) {
 		path := lazyslice.Path(1, 2)
-		res := runTest("_if(_equal(_len8(_path),3), 0x01, 0x05)", path)
+		res := runTest("_if(_equal(_len8(@),3), 0x01, 0x05)", path)
 		require.EqualValues(t, []byte{5}, res)
 	})
 	t.Run("8", func(t *testing.T) {
+		const longer = `
+			_if(
+				_not(_equal(_len8(@),3)),   // comment 1 
+				0x01,    
+				// comment without code
+				0x0506     // comment2
+			)`
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("_if(_not(_equal(_len8(_path),3)), 0x01, 0x0506)", path)
+		res := runTest(longer, path)
 		require.EqualValues(t, []byte{5, 6}, res)
 	})
 	t.Run("9", func(t *testing.T) {
@@ -156,7 +163,7 @@ func TestEvalArgs(t *testing.T) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path, nil)
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -210,7 +217,7 @@ func TestExtendLib(t *testing.T) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path, nil)
+		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret

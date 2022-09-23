@@ -17,9 +17,8 @@ type funDescriptor struct {
 const maxCallDepth = 30
 
 type RunContext struct {
-	globalContext  *lazyslice.Tree
+	dataTree       *lazyslice.Tree
 	invocationPath lazyslice.TreePath
-	invocationData []byte
 	evalStack      []evalArgs
 	evalStackTop   int
 	callStack      []evalArgs

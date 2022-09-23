@@ -393,7 +393,8 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 }
 
 func CompileFormula(lib LibraryAccess, formulaSource string) (*FormulaTree, int, []byte, error) {
-	code, numParams, err := FormulaSourceToBinary(lib, stripSpaces(formulaSource))
+	src := strings.Join(splitLinesStripComments(formulaSource), "")
+	code, numParams, err := FormulaSourceToBinary(lib, stripSpaces(src))
 	if err != nil {
 		return nil, 0, nil, err
 	}

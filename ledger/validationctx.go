@@ -48,7 +48,7 @@ func (v *GlobalContext) CodeFromLocalLibrary(idx byte) []byte {
 	return v.Transaction().CodeFromLocalLibrary(idx)
 }
 
-func (v *GlobalContext) parseInvocation(invocationFullPath lazyslice.TreePath) ([]byte, []byte) {
+func (v *GlobalContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) []byte {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	if len(invocation) < 1 {
 		panic("empty invocation")
@@ -58,16 +58,16 @@ func (v *GlobalContext) parseInvocation(invocationFullPath lazyslice.TreePath) (
 		if len(invocation) < 2 {
 			panic("wrong invocation")
 		}
-		return v.CodeFromLocalLibrary(invocation[1]), invocation[2:]
+		return v.CodeFromLocalLibrary(invocation[1])
 	case InvocationTypeInline:
-		return invocation[1:], nil
+		return invocation[1:]
 	}
-	return v.CodeFromGlobalLibrary(invocation[0]), invocation[1:]
+	return v.CodeFromGlobalLibrary(invocation[0])
 }
 
 func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
-	code, data := v.parseInvocation(v.tree.BytesAtPath(invocationPath))
-	ctx := library.NewRunContext(v.tree, invocationPath, data)
+	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
+	ctx := library.NewRunContext(v.tree, invocationPath)
 	f, err := easyfl.FormulaTreeFromBinary(library.Library, code)
 	if err != nil {
 		panic(err)
@@ -100,7 +100,7 @@ func CreateGlobalContext(txBytes []byte, ledgerState LedgerState) (*GlobalContex
 	if err != nil {
 		return nil, err
 	}
-	ret.rootContext = library.NewRunContext(ret.tree, nil, nil)
+	ret.rootContext = library.NewRunContext(ret.tree, nil)
 
 	return ret, nil
 }
@@ -127,12 +127,12 @@ func (v *GlobalContext) Validate() error {
 	return nil
 }
 
-func (v *GlobalContext) RunContext(path, data []byte) *library.RunContext {
-	return library.NewRunContext(v.tree, path, data)
+func (v *GlobalContext) RunContext(path []byte) *library.RunContext {
+	return library.NewRunContext(v.tree, path)
 }
 
 func (v *GlobalContext) Eval(formulaSource string, path, data []byte) []byte {
 	fun := library.MustMakeEvalFunc(formulaSource)
 
-	return fun(v.RunContext(path, data))
+	return fun(v.RunContext(path))
 }
