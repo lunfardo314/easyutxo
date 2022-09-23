@@ -33,6 +33,6 @@ type EvalFunction func(glb interface{}) []byte
 
 type LibraryAccess interface {
 	ExistsFunction(sym string) bool
-	FunctionByName(sym string, numParams int) (*FunInfo, error)
+	FunctionByName(sym string) (*FunInfo, error)
 	FunctionByCode(funCode uint16) (EvalFunction, int, error)
 }

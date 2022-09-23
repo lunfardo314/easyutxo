@@ -13,10 +13,7 @@ func (lib *libraryData) ExistsFunction(sym string) bool {
 	return found
 }
 
-func (lib *libraryData) FunctionByName(sym string, numArgs int) (*easyfl.FunInfo, error) {
-	if numArgs > easyfl.MaxParameters {
-		return nil, fmt.Errorf("can't be more than 15 arguments in the call")
-	}
+func (lib *libraryData) FunctionByName(sym string) (*easyfl.FunInfo, error) {
 	fd, found := Library.funByName[sym]
 	if !found {
 		return nil, fmt.Errorf("no such function in the library: '%s'", sym)

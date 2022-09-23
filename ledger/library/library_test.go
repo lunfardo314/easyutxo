@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-const formula1 = "func unlockBlock: _atPath(concat(0x0000, _slice(@, 2, 5)))"
+const formula1 = "func unlockBlock: atPath(concat(0x0000, slice(@, 2, 5)))"
 
 func TestCompile(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestEval(t *testing.T) {
 	})
 	t.Run("2", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("_len8(@)", path)
+		res := runTest("len8(@)", path)
 		require.EqualValues(t, []byte{3}, res)
 	})
 	t.Run("3", func(t *testing.T) {
@@ -75,23 +75,23 @@ func TestEval(t *testing.T) {
 		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, res)
 	})
 	t.Run("5", func(t *testing.T) {
-		res := runTest("_slice(concat(concat(1,2),concat(3,4,5)),2,4)", nil)
+		res := runTest("slice(concat(concat(1,2),concat(3,4,5)),2,4)", nil)
 		require.EqualValues(t, []byte{3, 4}, res)
 	})
 	t.Run("6", func(t *testing.T) {
 		path := lazyslice.Path(1, 2, 1)
-		res := runTest("_if(_equal(_len8(@),3), 0x01, 0x05)", path)
+		res := runTest("if(equal(len8(@),3), 0x01, 0x05)", path)
 		require.EqualValues(t, []byte{1}, res)
 	})
 	t.Run("7", func(t *testing.T) {
 		path := lazyslice.Path(1, 2)
-		res := runTest("_if(_equal(_len8(@),3), 0x01, 0x05)", path)
+		res := runTest("if(equal(len8(@),3), 0x01, 0x05)", path)
 		require.EqualValues(t, []byte{5}, res)
 	})
 	t.Run("8", func(t *testing.T) {
 		const longer = `
-			_if(
-				_not(_equal(_len8(@),3)),   // comment 1 
+			if(
+				not(equal(len8(@),3)),   // comment 1 
 				0x01,    
 				// comment without code
 				0x0506     // comment2
@@ -125,22 +125,22 @@ func TestEval(t *testing.T) {
 		require.EqualValues(t, b[:], res)
 	})
 	t.Run("15", func(t *testing.T) {
-		res := runTest("_isZero(0x000000)", nil)
+		res := runTest("isZero(0x000000)", nil)
 		require.True(t, len(res) > 0)
 	})
 	t.Run("16", func(t *testing.T) {
-		res := runTest("_isZero(0x002000)", nil)
+		res := runTest("isZero(0x002000)", nil)
 		require.True(t, len(res) == 0)
 	})
 	t.Run("17", func(t *testing.T) {
-		res := runTest("_sum8_16(100, 160)", nil)
+		res := runTest("sum8_16(100, 160)", nil)
 		var b [2]byte
 		binary.BigEndian.PutUint16(b[:], 260)
 		require.EqualValues(t, b[:], res)
 	})
 	t.Run("17", func(t *testing.T) {
 		require.Panics(t, func() {
-			runTest("_sum8(100, 160)", nil)
+			runTest("sum8(100, 160)", nil)
 		})
 	})
 	t.Run("blake2b-1", func(t *testing.T) {

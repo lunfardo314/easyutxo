@@ -2,6 +2,7 @@ package library
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -27,22 +28,25 @@ var (
 )
 
 func init() {
-	embedShort("_slice", 3, getEvalFun(evalSlice))
-	embedShort("_equal", 2, getEvalFun(evalEqual))
-	embedShort("_len8", 1, getEvalFun(evalLen8))
-	embedShort("_len16", 1, getEvalFun(evalLen16))
-	embedShort("_not", 1, getEvalFun(evalNot))
-	embedShort("_if", 3, getEvalFun(evalIf))
-	embedShort("_isZero", 1, getEvalFun(evalIsZero))
+	embedShort("slice", 3, getEvalFun(evalSlice))
+	embedShort("equal", 2, getEvalFun(evalEqual))
+	embedShort("len8", 1, getEvalFun(evalLen8))
+	embedShort("len16", 1, getEvalFun(evalLen16))
+	embedShort("not", 1, getEvalFun(evalNot))
+	embedShort("if", 3, getEvalFun(evalIf))
+	embedShort("isZero", 1, getEvalFun(evalIsZero))
 	// safe arithmetics
-	embedShort("_sum8", 2, getEvalFun(evalMustSum8))
-	embedShort("_sum8_16", 2, getEvalFun(evalSum8_16))
-	embedShort("_sum16", 2, getEvalFun(evalMustSum16))
-	embedShort("_sum16_32", 2, getEvalFun(evalSum16_32))
-	embedShort("_sum32", 2, getEvalFun(evalMustSum32))
-	embedShort("_sum32_64", 2, getEvalFun(evalSum32_64))
-	embedShort("_sum64", 2, getEvalFun(evalMustSum64))
-	embedShort("_sub8", 2, getEvalFun(evalMustSub8))
+	embedShort("sum8", 2, getEvalFun(evalMustSum8))
+	embedShort("sum8_16", 2, getEvalFun(evalSum8_16))
+	embedShort("sum16", 2, getEvalFun(evalMustSum16))
+	embedShort("sum16_32", 2, getEvalFun(evalSum16_32))
+	embedShort("sum32", 2, getEvalFun(evalMustSum32))
+	embedShort("sum32_64", 2, getEvalFun(evalSum32_64))
+	embedShort("sum64", 2, getEvalFun(evalMustSum64))
+	embedShort("sub8", 2, getEvalFun(evalMustSub8))
+	// comparison
+	embedShort("lessThan", 2, getEvalFun(evalLessThan))
+	embedShort("lessOrEqualThan", 2, getEvalFun(evalLessOrEqualThan))
 	// argument access
 	embedShort("$0", 0, getArgFun(0))
 	embedShort("$1", 0, getArgFun(1))
@@ -62,7 +66,7 @@ func init() {
 	embedShort("$15", 0, getArgFun(15))
 	// context access
 	embedShort("@", 0, getEvalFun(evalPath))
-	embedShort("_atPath", 1, getEvalFun(evalAtPath))
+	embedShort("atPath", 1, getEvalFun(evalAtPath))
 	// stateless varargs
 	embedLong("concat", -1, getEvalFun(evalConcat))
 	embedLong("and", -1, getEvalFun(evalAnd))
@@ -70,21 +74,30 @@ func init() {
 
 	embedLong("blake2b", -1, getEvalFun(evalBlake2b))
 	// special transaction related
-	embedLong("validSignature", 3, nil) // TODO
+	embedLong("validSignatureED25519", 3, getEvalFun(evalValidSigED25519))
 	//
 
 	MustExtendLibrary("nil", "or()")
-	MustExtendLibrary("rest", "_slice($0, $1, _sub8(_len8($0),1))")
-	MustExtendLibrary("invocation", "_atPath(@)")
-	MustExtendLibrary("invocationData", "_if(_equal(_slice(invocation,0,1), 0),nil,rest(invocation,1))")
-	MustExtendLibrary("txBytes", "_atPath(0x00)")
-	MustExtendLibrary("txInputIDsBytes", "_atPath(0x0001)")
-	MustExtendLibrary("txOutputBytes", "_atPath(0x0002)")
-	MustExtendLibrary("txTimestampBytes", "_atPath(0x0003)")
-	MustExtendLibrary("txInputCommitmentBytes", "_atPath(0x0004)")
-	MustExtendLibrary("txLocalLibBytes", "_atPath(0x0005)")
+	MustExtendLibrary("tail", "slice($0, $1, sub8(len8($0),1))")
+
+	MustExtendLibrary("greaterThan", "not(lessOrEqualThan($0,$1))")
+	MustExtendLibrary("greaterOrEqualThan", "not(lessThan($0,$1))")
+
+	MustExtendLibrary("constraint", "atPath(@)")
+	MustExtendLibrary("constraintData", "if(equal(slice(constraint,0,1), 0),nil,tail(constraint,1))")
+	MustExtendLibrary("outputIndex", "slice(@,2,4)")
+	MustExtendLibrary("txBytes", "atPath(0x00)")
+	MustExtendLibrary("txInputIDsBytes", "atPath(0x0001)")
+	MustExtendLibrary("txOutputBytes", "atPath(0x0002)")
+	MustExtendLibrary("txTimestampBytes", "atPath(0x0003)")
+	MustExtendLibrary("txInputCommitmentBytes", "atPath(0x0004)")
+	MustExtendLibrary("txLocalLibBytes", "atPath(0x0005)")
 	MustExtendLibrary("txid", "blake2b(txBytes)")
 	MustExtendLibrary("txEssenceBytes", "concat(txInputIDsBytes, txOutputBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
+
+	MustExtendLibrary("unlockBlock", "atPath(concat(0, 0, slice(@, 2, 5)))")
+	MustExtendLibrary("referencedConstraint", "atPath(concat(slice(@,0,2), unlockBlock))")
+	MustExtendLibrary("addrED25519FromPubKey", "blake2b($0)")
 
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
@@ -135,7 +148,7 @@ func embedLong(sym string, requiredNumPar int, evalFun easyfl.EvalFunction) {
 func ExtendLibrary(sym string, source string) error {
 	f, numParam, _, err := easyfl.CompileFormula(Library, source)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while compiling '%s': %v", sym, err)
 	}
 
 	if numExtended >= easyfl.MaxNumExtended {
@@ -396,4 +409,50 @@ func evalMustSub8(glb *RunContext) []byte {
 		panic("_mustSub8: underflow in subtraction")
 	}
 	return []byte{a0[0] - a1[0]}
+}
+
+func evalLessThan(glb *RunContext) []byte {
+	a0 := glb.arg(0)
+	a1 := glb.arg(1)
+	if len(a0) != len(a1) {
+		panic("evalLessThan: operands must be equal length")
+	}
+	allEqual := true
+	for i := range a0 {
+		if a0[i] > a1[1] {
+			return nil // false
+		}
+		if a0[i] < a1[1] {
+			allEqual = false
+		}
+	}
+	if allEqual {
+		return nil
+	}
+	return []byte{0xff}
+}
+
+func evalLessOrEqualThan(glb *RunContext) []byte {
+	a0 := glb.arg(0)
+	a1 := glb.arg(1)
+	if len(a0) != len(a1) {
+		panic("evalLessThan: operands must be equal length")
+	}
+	for i := range a0 {
+		if a0[i] > a1[1] {
+			return nil // false
+		}
+	}
+	return []byte{0xff}
+}
+
+func evalValidSigED25519(glb *RunContext) []byte {
+	essence := glb.arg(0)
+	signature := glb.arg(1)
+	pubKey := glb.arg(2)
+
+	if ed25519.Verify(pubKey, essence, signature) {
+		return []byte{0xff}
+	}
+	return nil
 }

@@ -106,6 +106,9 @@ func parseFormula(s string) (*parsedFormula, error) {
 		}
 		f.params = append(f.params, ff)
 	}
+	if len(f.params) > MaxParameters {
+		return nil, fmt.Errorf("can't be more than %d parameters", MaxParameters)
+	}
 	return f, nil
 }
 
@@ -264,9 +267,12 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) 
 	}
 	// either has arguments or not literal
 	// try if it is a short call
-	fi, err := lib.FunctionByName(f.sym, len(f.params))
+	fi, err := lib.FunctionByName(f.sym)
 	if err != nil {
 		return 0, err
+	}
+	if fi.NumParams >= 0 && fi.NumParams != len(f.params) {
+		return 0, fmt.Errorf("%d params required, got %d: '%s'", fi.NumParams, len(f.params), f.sym)
 	}
 	var callBytes []byte
 	numArgs := 0
