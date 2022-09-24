@@ -51,7 +51,7 @@ func TestEval(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, numParams)
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.Eval(f)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -163,7 +163,7 @@ func TestEvalArgs(t *testing.T) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -217,7 +217,7 @@ func TestExtendLib(t *testing.T) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewRunContext(lazyslice.TreeEmpty(), path)
+		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -267,5 +267,77 @@ func TestExtendLib(t *testing.T) {
 		res := runTest("complex(0,1,complex(2,1,0))", nil)
 		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
 		require.EqualValues(t, exp, res)
+	})
+}
+
+func num(n any) []byte {
+	switch n := n.(type) {
+	case byte:
+		return []byte{n}
+	case uint16:
+		var b [2]byte
+		binary.BigEndian.PutUint16(b[:], n)
+		return b[:]
+	case uint32:
+		var b [4]byte
+		binary.BigEndian.PutUint32(b[:], n)
+		return b[:]
+	case uint64:
+		var b [8]byte
+		binary.BigEndian.PutUint64(b[:], n)
+		return b[:]
+	case int:
+		var b [8]byte
+		binary.BigEndian.PutUint64(b[:], uint64(n))
+		return b[:]
+	}
+	panic("wrong type")
+}
+
+func TestComparison(t *testing.T) {
+	runTest := func(s string, path []byte, a0, a1 []byte) bool {
+		f, numParams, code, err := easyfl.CompileFormula(Library, s)
+		require.NoError(t, err)
+		require.EqualValues(t, 2, numParams)
+
+		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
+		ret := ctx.EvalWithArgs(f, a0, a1)
+		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
+		if len(ret) == 0 {
+			return false
+		}
+		return true
+	}
+	t.Run("lessThan", func(t *testing.T) {
+		res := runTest("lessThan($0,$1)", nil, num(1), num(5))
+		require.True(t, res)
+		res = runTest("lessThan($0,$1)", nil, num(10), num(5))
+		require.False(t, res)
+		res = runTest("lessThan($0,$1)", nil, num(100), num(100))
+		require.False(t, res)
+		res = runTest("lessThan($0,$1)", nil, num(1000), num(100000000))
+		require.True(t, res)
+		res = runTest("lessThan($0,$1)", nil, num(100000000), num(100000000))
+		require.False(t, res)
+		res = runTest("lessThan($0,$1)", nil, num(uint16(100)), num(uint16(150)))
+		require.True(t, res)
+		res = runTest("lessThan($0,$1)", nil, num(uint32(100)), num(uint32(150)))
+		require.True(t, res)
+	})
+	t.Run("lessThan", func(t *testing.T) {
+		res := runTest("lessOrEqualThan($0,$1)", nil, num(1), num(5))
+		require.True(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", nil, num(10), num(5))
+		require.False(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", nil, num(100), num(100))
+		require.False(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", nil, num(1000), num(100000000))
+		require.True(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", nil, num(100000000), num(100000000))
+		require.False(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", nil, num(uint16(100)), num(uint16(150)))
+		require.True(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", nil, num(uint32(100)), num(uint32(150)))
+		require.True(t, res)
 	})
 }

@@ -1,12 +1,13 @@
 package easyfl
 
 const (
-	MaxNumEmbeddedShort  = 64
-	FirstEmbeddedLongFun = MaxNumEmbeddedShort
-	MaxNumEmbeddedLong   = 256
-	FirstExtendedFun     = FirstEmbeddedLongFun + MaxNumEmbeddedLong
-	MaxFunCode           = 1023
-	MaxNumExtended       = MaxFunCode - FirstExtendedFun
+	EmbeddedReservedUntil = 15
+	MaxNumEmbeddedShort   = 64
+	FirstEmbeddedLongFun  = MaxNumEmbeddedShort
+	MaxNumEmbeddedLong    = 256
+	FirstExtendedFun      = FirstEmbeddedLongFun + MaxNumEmbeddedLong
+	MaxFunCode            = 1023
+	MaxNumExtended        = MaxFunCode - FirstExtendedFun
 
 	MaxParameters = 15
 )
@@ -29,7 +30,7 @@ type FormulaTree struct {
 	EvalFunc EvalFunction
 }
 
-type EvalFunction func(glb interface{}) []byte
+type EvalFunction func(glb *RunContext) []byte
 
 type LibraryAccess interface {
 	ExistsFunction(sym string) bool

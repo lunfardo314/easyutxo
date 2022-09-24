@@ -98,7 +98,7 @@ func GlobalContextFromTransaction(txBytes []byte, ledgerState LedgerState) (*Glo
 	if err != nil {
 		return nil, err
 	}
-	ret.rootContext = library.NewRunContext(ret.tree, nil)
+	ret.rootContext = library.NewGlobalContext(ret.tree, nil)
 
 	return ret, nil
 }
@@ -106,7 +106,7 @@ func GlobalContextFromTransaction(txBytes []byte, ledgerState LedgerState) (*Glo
 func GlobalContextFromTree(dataTree *lazyslice.Tree) *GlobalContext {
 	return &GlobalContext{
 		tree:        dataTree,
-		rootContext: library.NewRunContext(dataTree, nil),
+		rootContext: library.NewGlobalContext(dataTree, nil),
 	}
 }
 
@@ -133,7 +133,7 @@ func (v *GlobalContext) Validate() error {
 }
 
 func (v *GlobalContext) RunContext(path []byte) *library.RunContext {
-	return library.NewRunContext(v.tree, path)
+	return library.NewGlobalContext(v.tree, path)
 }
 
 func (v *GlobalContext) Eval(formulaSource string, path []byte) []byte {
@@ -144,7 +144,7 @@ func (v *GlobalContext) Eval(formulaSource string, path []byte) []byte {
 
 func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
-	ctx := library.NewRunContext(v.tree, invocationPath)
+	ctx := library.NewGlobalContext(v.tree, invocationPath)
 	f, err := easyfl.FormulaTreeFromBinary(library.Library, code)
 	if err != nil {
 		panic(err)

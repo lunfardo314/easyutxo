@@ -22,7 +22,7 @@ var (
 		funByName:    make(map[string]*funDescriptor),
 		funByFunCode: make(map[uint16]*funDescriptor),
 	}
-	numEmbeddedShort   int
+	numEmbeddedShort   = easyfl.EmbeddedReservedUntil + 1
 	numEmbeddedLong    int
 	numExtended        int
 	FuncCodeRequireAll uint16
@@ -30,61 +30,45 @@ var (
 )
 
 func init() {
-	embedShort("slice", 3, ev(evalSlice))
-	embedShort("equal", 2, ev(evalEqual))
-	embedShort("len8", 1, ev(evalLen8))
-	embedShort("len16", 1, ev(evalLen16))
-	embedShort("not", 1, ev(evalNot))
-	embedShort("if", 3, ev(evalIf))
-	embedShort("isZero", 1, ev(evalIsZero))
+	// argument access
+	embedShort("slice", 3, evalSlice)
+	embedShort("equal", 2, evalEqual)
+	embedShort("len8", 1, evalLen8)
+	embedShort("len16", 1, evalLen16)
+	embedShort("not", 1, evalNot)
+	embedShort("if", 3, evalIf)
+	embedShort("isZero", 1, evalIsZero)
 
 	// the two codes needed explicitly for the construction of the output
-	FuncCodeRequireAll = embedShort("requireAll", 1, ev(evalRequireAll))
-	FuncCodeRequireAny = embedShort("requireAny", 1, ev(evalRequireAny))
+	FuncCodeRequireAll = embedShort("requireAll", 1, evalRequireAll)
+	FuncCodeRequireAny = embedShort("requireAny", 1, evalRequireAny)
 	// safe arithmetics
-	embedShort("sum8", 2, ev(evalMustSum8))
-	embedShort("sum8_16", 2, ev(evalSum8_16))
-	embedShort("sum16", 2, ev(evalMustSum16))
-	embedShort("sum16_32", 2, ev(evalSum16_32))
-	embedShort("sum32", 2, ev(evalMustSum32))
-	embedShort("sum32_64", 2, ev(evalSum32_64))
-	embedShort("sum64", 2, ev(evalMustSum64))
-	embedShort("sub8", 2, ev(evalMustSub8))
+	embedShort("sum8", 2, evalMustSum8)
+	embedShort("sum8_16", 2, evalSum8_16)
+	embedShort("sum16", 2, evalMustSum16)
+	embedShort("sum16_32", 2, evalSum16_32)
+	embedShort("sum32", 2, evalMustSum32)
+	embedShort("sum32_64", 2, evalSum32_64)
+	embedShort("sum64", 2, evalMustSum64)
+	embedShort("sub8", 2, evalMustSub8)
 	// comparison
-	embedShort("lessThan", 2, ev(evalLessThan))
-	embedShort("lessOrEqualThan", 2, ev(evalLessOrEqualThan))
-	// argument access
-	embedShort("$0", 0, getArgFun(0))
-	embedShort("$1", 0, getArgFun(1))
-	embedShort("$2", 0, getArgFun(2))
-	embedShort("$3", 0, getArgFun(3))
-	embedShort("$4", 0, getArgFun(4))
-	embedShort("$5", 0, getArgFun(5))
-	embedShort("$6", 0, getArgFun(6))
-	embedShort("$7", 0, getArgFun(7))
-	embedShort("$8", 0, getArgFun(8))
-	embedShort("$9", 0, getArgFun(9))
-	embedShort("$10", 0, getArgFun(10))
-	embedShort("$11", 0, getArgFun(11))
-	embedShort("$12", 0, getArgFun(12))
-	embedShort("$13", 0, getArgFun(13))
-	embedShort("$14", 0, getArgFun(14))
-	embedShort("$15", 0, getArgFun(15))
+	embedShort("lessThan", 2, evalLessThan)
 	// context access
-	embedShort("@", 0, ev(evalPath))
-	embedShort("atPath", 1, ev(evalAtPath))
+	embedShort("@", 0, evalPath)
+	embedShort("atPath", 1, evalAtPath)
 	// stateless varargs
-	embedLong("concat", -1, ev(evalConcat))
-	embedLong("and", -1, ev(evalAnd))
-	embedLong("or", -1, ev(evalOr))
+	embedLong("concat", -1, evalConcat)
+	embedLong("and", -1, evalAnd)
+	embedLong("or", -1, evalOr)
 
-	embedLong("blake2b", -1, ev(evalBlake2b))
+	embedLong("blake2b", -1, evalBlake2b)
 	// special transaction related
-	embedLong("validSignatureED25519", 3, ev(evalValidSigED25519))
+	embedLong("validSignatureED25519", 3, evalValidSigED25519)
 
 	MustExtendLibrary("nil", "or()")
 	MustExtendLibrary("tail", "slice($0, $1, sub8(len8($0),1))")
 
+	MustExtendLibrary("lessOrEqualThan", "or(lessThan($0,$1),equal($0,$1))")
 	MustExtendLibrary("greaterThan", "not(lessOrEqualThan($0,$1))")
 	MustExtendLibrary("greaterOrEqualThan", "not(lessThan($0,$1))")
 
@@ -175,9 +159,9 @@ func ExtendLibrary(sym string, source string) (uint16, error) {
 		sym:               sym,
 		funCode:           uint16(numExtended + easyfl.FirstExtendedFun),
 		requiredNumParams: numParam,
-		evalFun: getExtendFun(func(ctx *RunContext) []byte {
+		evalFun: func(ctx *easyfl.RunContext) []byte {
 			return ctx.Eval(f)
-		}),
+		},
 	}
 	Library.funByName[sym] = dscr
 	Library.funByFunCode[dscr.funCode] = dscr
@@ -219,56 +203,30 @@ func MustExtendWithMany(source string) {
 	}
 }
 
-func ev(f EvalFunc) easyfl.EvalFunction {
-	return func(glb interface{}) []byte {
-		return f(glb.(*RunContext))
-	}
-}
-
-func getExtendFun(f EvalFunc) easyfl.EvalFunction {
-	return func(glb interface{}) []byte {
-		g := glb.(*RunContext)
-
-		g.pushCallBaseline()
-		defer g.popCallBaseline()
-
-		return f(g)
-	}
-}
-
-func getArgFun(n byte) easyfl.EvalFunction {
-	if n > 15 {
-		panic("getArgFun: can be > 15")
-	}
-	return func(glb interface{}) []byte {
-		return glb.(*RunContext).callArg(n)
-	}
-}
-
-func evalSlice(glb *RunContext) []byte {
-	data := glb.arg(0)
-	from := glb.arg(1)
-	to := glb.arg(2)
+func evalSlice(glb *easyfl.RunContext) []byte {
+	data := glb.Arg(0)
+	from := glb.Arg(1)
+	to := glb.Arg(2)
 	return data[from[0]:to[0]]
 }
 
-func evalEqual(glb *RunContext) []byte {
-	if bytes.Equal(glb.arg(0), glb.arg(1)) {
+func evalEqual(glb *easyfl.RunContext) []byte {
+	if bytes.Equal(glb.Arg(0), glb.Arg(1)) {
 		return []byte{0xff}
 	}
 	return nil
 }
 
-func evalLen8(glb *RunContext) []byte {
-	sz := len(glb.arg(0))
+func evalLen8(glb *easyfl.RunContext) []byte {
+	sz := len(glb.Arg(0))
 	if sz > math.MaxUint8 {
 		panic("len8: size of the data > 255")
 	}
 	return []byte{byte(sz)}
 }
 
-func evalLen16(glb *RunContext) []byte {
-	data := glb.arg(0)
+func evalLen16(glb *easyfl.RunContext) []byte {
+	data := glb.Arg(0)
 	if len(data) > math.MaxUint16 {
 		panic("len16: size of the data > uint16")
 	}
@@ -277,17 +235,17 @@ func evalLen16(glb *RunContext) []byte {
 	return ret[:]
 }
 
-func evalIf(glb *RunContext) []byte {
-	cond := glb.arg(0)
+func evalIf(glb *easyfl.RunContext) []byte {
+	cond := glb.Arg(0)
 	if len(cond) != 0 {
 		// true
-		return glb.arg(1)
+		return glb.Arg(1)
 	}
-	return glb.arg(2)
+	return glb.Arg(2)
 }
 
-func evalIsZero(glb *RunContext) []byte {
-	for _, b := range glb.arg(0) {
+func evalIsZero(glb *easyfl.RunContext) []byte {
+	for _, b := range glb.Arg(0) {
 		if b != 0 {
 			return nil
 		}
@@ -295,62 +253,62 @@ func evalIsZero(glb *RunContext) []byte {
 	return []byte{0xff}
 }
 
-func evalNot(glb *RunContext) []byte {
-	if len(glb.arg(0)) == 0 {
+func evalNot(glb *easyfl.RunContext) []byte {
+	if len(glb.Arg(0)) == 0 {
 		return []byte{0xff}
 	}
 	return nil
 }
 
-func evalPath(glb *RunContext) []byte {
-	return glb.invocationPath
+func evalPath(glb *easyfl.RunContext) []byte {
+	return glb.Global().(*GlobalContext).invocationPath
 }
 
-func evalAtPath(glb *RunContext) []byte {
-	return glb.dataTree.BytesAtPath(glb.arg(0))
+func evalAtPath(glb *easyfl.RunContext) []byte {
+	return glb.Global().(*GlobalContext).dataTree.BytesAtPath(glb.Arg(0))
 }
 
-func evalConcat(glb *RunContext) []byte {
+func evalConcat(glb *easyfl.RunContext) []byte {
 	var buf bytes.Buffer
-	for i := byte(0); i < glb.arity(); i++ {
-		buf.Write(glb.arg(i))
+	for i := byte(0); i < glb.Arity(); i++ {
+		buf.Write(glb.Arg(i))
 	}
 	return buf.Bytes()
 }
 
-func evalAnd(glb *RunContext) []byte {
-	for i := byte(0); i < glb.arity(); i++ {
-		if len(glb.arg(i)) == 0 {
+func evalAnd(glb *easyfl.RunContext) []byte {
+	for i := byte(0); i < glb.Arity(); i++ {
+		if len(glb.Arg(i)) == 0 {
 			return nil
 		}
 	}
 	return []byte{0xff}
 }
 
-func evalOr(glb *RunContext) []byte {
-	for i := byte(0); i < glb.arity(); i++ {
-		if len(glb.arg(i)) != 0 {
+func evalOr(glb *easyfl.RunContext) []byte {
+	for i := byte(0); i < glb.Arity(); i++ {
+		if len(glb.Arg(i)) != 0 {
 			return []byte{0xff}
 		}
 	}
 	return nil
 }
 
-func evalBlake2b(glb *RunContext) []byte {
+func evalBlake2b(glb *easyfl.RunContext) []byte {
 	ret := blake2b.Sum256(evalConcat(glb))
 	return ret[:]
 }
 
-func mustArithmArgs(glb *RunContext, bytesSize int) ([]byte, []byte) {
-	a0 := glb.arg(0)
-	a1 := glb.arg(1)
+func mustArithmArgs(glb *easyfl.RunContext, bytesSize int) ([]byte, []byte) {
+	a0 := glb.Arg(0)
+	a1 := glb.Arg(1)
 	if len(a0) != bytesSize || len(a1) != bytesSize {
 		panic(fmt.Errorf("%d-bytes size parameters expected", bytesSize))
 	}
 	return a0, a1
 }
 
-func evalSum8_16(glb *RunContext) []byte {
+func evalSum8_16(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 1)
 	sum := uint16(a0[0]) + uint16(a1[0])
 	ret := make([]byte, 2)
@@ -358,7 +316,7 @@ func evalSum8_16(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSum8(glb *RunContext) []byte {
+func evalMustSum8(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 1)
 	sum := int(a0[0]) + int(a1[0])
 	if sum > 255 {
@@ -367,7 +325,7 @@ func evalMustSum8(glb *RunContext) []byte {
 	return []byte{byte(sum)}
 }
 
-func evalSum16_32(glb *RunContext) []byte {
+func evalSum16_32(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 2)
 	sum := uint32(binary.BigEndian.Uint16(a0)) + uint32(binary.BigEndian.Uint16(a1))
 	ret := make([]byte, 4)
@@ -375,7 +333,7 @@ func evalSum16_32(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSum16(glb *RunContext) []byte {
+func evalMustSum16(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 2)
 	sum := uint32(binary.BigEndian.Uint16(a0)) + uint32(binary.BigEndian.Uint16(a1))
 	if sum > math.MaxUint16 {
@@ -386,7 +344,7 @@ func evalMustSum16(glb *RunContext) []byte {
 	return ret
 }
 
-func evalSum32_64(glb *RunContext) []byte {
+func evalSum32_64(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 4)
 	sum := uint64(binary.BigEndian.Uint32(a0)) + uint64(binary.BigEndian.Uint32(a1))
 	ret := make([]byte, 8)
@@ -394,7 +352,7 @@ func evalSum32_64(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSum32(glb *RunContext) []byte {
+func evalMustSum32(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 4)
 	sum := uint64(binary.BigEndian.Uint32(a0)) + uint64(binary.BigEndian.Uint32(a1))
 	if sum > math.MaxUint32 {
@@ -405,7 +363,7 @@ func evalMustSum32(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSum64(glb *RunContext) []byte {
+func evalMustSum64(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 8)
 	s0 := binary.BigEndian.Uint64(a0)
 	s1 := binary.BigEndian.Uint64(a1)
@@ -417,7 +375,7 @@ func evalMustSum64(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSub8(glb *RunContext) []byte {
+func evalMustSub8(glb *easyfl.RunContext) []byte {
 	a0, a1 := mustArithmArgs(glb, 1)
 	if a0[0] < a1[0] {
 		panic("_mustSub8: underflow in subtraction")
@@ -425,45 +383,25 @@ func evalMustSub8(glb *RunContext) []byte {
 	return []byte{a0[0] - a1[0]}
 }
 
-func evalLessThan(glb *RunContext) []byte {
-	a0 := glb.arg(0)
-	a1 := glb.arg(1)
-	if len(a0) != len(a1) {
-		panic("evalLessThan: operands must be equal length")
-	}
-	allEqual := true
-	for i := range a0 {
-		if a0[i] > a1[1] {
-			return nil // false
-		}
-		if a0[i] < a1[1] {
-			allEqual = false
-		}
-	}
-	if allEqual {
-		return nil
-	}
-	return []byte{0xff}
-}
-
-func evalLessOrEqualThan(glb *RunContext) []byte {
-	a0 := glb.arg(0)
-	a1 := glb.arg(1)
+// lexicographical comparison of two slices of equal length
+func evalLessThan(glb *easyfl.RunContext) []byte {
+	a0 := glb.Arg(0)
+	a1 := glb.Arg(1)
 	if len(a0) != len(a1) {
 		panic("evalLessThan: operands must be equal length")
 	}
 	for i := range a0 {
-		if a0[i] > a1[1] {
-			return nil // false
+		if a0[i] < a1[i] {
+			return []byte{0xff} // true
 		}
 	}
-	return []byte{0xff}
+	return nil
 }
 
-func evalValidSigED25519(glb *RunContext) []byte {
-	essence := glb.arg(0)
-	signature := glb.arg(1)
-	pubKey := glb.arg(2)
+func evalValidSigED25519(glb *easyfl.RunContext) []byte {
+	essence := glb.Arg(0)
+	signature := glb.Arg(1)
+	pubKey := glb.Arg(2)
 
 	if ed25519.Verify(pubKey, essence, signature) {
 		return []byte{0xff}
@@ -471,30 +409,32 @@ func evalValidSigED25519(glb *RunContext) []byte {
 	return nil
 }
 
-func evalRequireAll(glb *RunContext) []byte {
-	blockIndices := glb.arg(0)
-	myIdx := glb.invocationPath[len(glb.invocationPath)-1]
-	path := make([]byte, len(glb.invocationPath))
-	copy(path, glb.invocationPath)
+func evalRequireAll(glb *easyfl.RunContext) []byte {
+	blockIndices := glb.Arg(0)
+	path := glb.Global().(*GlobalContext).invocationPath
+	myIdx := path[len(path)-1]
+	pathCopy := make([]byte, len(path))
+	copy(pathCopy, path)
 
 	for _, idx := range blockIndices {
 		if idx <= myIdx {
 			// only forward
 			panic("evalRequireAll: can only invoke constraints forward")
 		}
-		path[len(path)-1] = idx
-		if len(invokeConstraint(glb.dataTree, path)) == 0 {
+		pathCopy[len(path)-1] = idx
+		if len(invokeConstraint(glb.Global().(*GlobalContext).dataTree, path)) == 0 {
 			return nil
 		}
 	}
 	return []byte{0xff}
 }
 
-func evalRequireAny(glb *RunContext) []byte {
-	blockIndices := glb.arg(0)
-	myIdx := glb.invocationPath[len(glb.invocationPath)-1]
-	path := make([]byte, len(glb.invocationPath))
-	copy(path, glb.invocationPath)
+func evalRequireAny(glb *easyfl.RunContext) []byte {
+	blockIndices := glb.Arg(0)
+	path := glb.Global().(*GlobalContext).invocationPath
+	myIdx := path[len(path)-1]
+	pathCopy := make([]byte, len(path))
+	copy(pathCopy, path)
 
 	for _, idx := range blockIndices {
 		if idx <= myIdx {
@@ -502,7 +442,7 @@ func evalRequireAny(glb *RunContext) []byte {
 			panic("evalRequireAll: can only invoke constraints forward")
 		}
 		path[len(path)-1] = idx
-		if len(invokeConstraint(glb.dataTree, path)) != 0 {
+		if len(invokeConstraint(glb.Global().(*GlobalContext).dataTree, path)) != 0 {
 			return []byte{0xff}
 		}
 	}

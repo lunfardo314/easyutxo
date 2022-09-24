@@ -178,7 +178,25 @@ const (
 )
 
 func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) (int, error) {
+	numArgs := 0
 	if len(f.params) == 0 {
+		// parameter reference
+		if strings.HasPrefix(f.sym, "$") {
+			n, err := strconv.Atoi(f.sym[1:])
+			if err != nil {
+				return 0, err
+			}
+			if n < 0 || n > MaxParameters {
+				return 0, fmt.Errorf("wrong argument reference '%s'", f.sym)
+			}
+			if numArgs < n+1 {
+				numArgs = n + 1
+			}
+			if _, err = w.Write([]byte{byte(n)}); err != nil {
+				return 0, err
+			}
+			return 0, nil
+		}
 		// write inline data
 		n, err := strconv.Atoi(f.sym)
 		if err == nil {
@@ -274,21 +292,11 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) 
 	if fi.NumParams >= 0 && fi.NumParams != len(f.params) {
 		return 0, fmt.Errorf("%d params required, got %d: '%s'", fi.NumParams, len(f.params), f.sym)
 	}
-	var callBytes []byte
-	numArgs := 0
 
+	var callBytes []byte
 	if fi.IsShort {
-		if strings.HasPrefix(fi.Sym, "$") {
-			n, err := strconv.Atoi(fi.Sym[1:])
-			if err != nil {
-				return 0, err
-			}
-			if n < 0 || n > MaxParameters {
-				return 0, fmt.Errorf("wrong argument reference '%s'", fi.Sym)
-			}
-			if numArgs < n+1 {
-				numArgs = n + 1
-			}
+		if fi.FunCode <= 15 {
+			panic("internal inconsistency: fi.FunCode <= 15")
 		}
 		callBytes = []byte{byte(fi.FunCode)}
 	} else {
@@ -362,9 +370,16 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 
 	if code[0]&FirstByteLongCallMask == 0 {
 		// short call
-		evalFun, arity, err = lib.FunctionByCode(uint16(code[0]))
-		if err != nil {
-			return nil, nil, err
+		if code[0] < EmbeddedReservedUntil {
+			// param reference
+			evalFun = func(glb *RunContext) []byte {
+				panic(fmt.Errorf("$%d not implemented", code[0]))
+			}
+		} else {
+			evalFun, arity, err = lib.FunctionByCode(uint16(code[0]))
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 		code = code[1:]
 	} else {
@@ -416,7 +431,7 @@ func DataFormulas(data ...[]byte) []*FormulaTree {
 	for i, d := range data {
 		d1 := d
 		ret[i] = &FormulaTree{
-			EvalFunc: func(_ interface{}) []byte {
+			EvalFunc: func(_ *RunContext) []byte {
 				return d1
 			},
 		}

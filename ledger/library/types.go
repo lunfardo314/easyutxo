@@ -16,19 +16,15 @@ type funDescriptor struct {
 
 const maxCallDepth = 30
 
-type RunContext struct {
+type GlobalContext struct {
 	dataTree       *lazyslice.Tree
 	invocationPath lazyslice.TreePath
-	evalStack      []evalArgs
-	evalStackTop   int
-	callStack      []evalArgs
-	callStackTop   int
 }
 
 type evalArgs []*easyfl.FormulaTree
 
 type (
-	EvalFunc             func(ctx *RunContext) []byte
+	EvalFunc             func(ctx *easyfl.RunContext) []byte
 	InvokeConstraintFunc func(*lazyslice.Tree, lazyslice.TreePath) []byte
 )
 
@@ -43,7 +39,7 @@ func MustMakeEvalFunc(formulaSource string) EvalFunc {
 	if err != nil {
 		panic(fmt.Errorf("MustMakeEvalFunc: '%v' -- '%s'", err, formulaSource))
 	}
-	return func(ctx *RunContext) []byte {
+	return func(ctx *easyfl.RunContext) []byte {
 		return ctx.Eval(f)
 	}
 }
