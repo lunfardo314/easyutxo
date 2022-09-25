@@ -6,7 +6,6 @@ import (
 
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"github.com/lunfardo314/easyutxo/ledger/library"
 )
 
 var constraints [256][]byte
@@ -19,7 +18,7 @@ const (
 )
 
 func init() {
-	library.MustExtendWithMany(SigLockConstraint)
+	easyfl.MustExtendWithMany(SigLockConstraint)
 
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
 
@@ -35,7 +34,7 @@ func registerConstraint(invocationCode byte, source string) error {
 	if constraints[invocationCode] != nil {
 		return fmt.Errorf("repeating invocation code %d: '%s'", invocationCode, source)
 	}
-	_, numParams, code, err := easyfl.CompileFormula(library.Library, source)
+	_, numParams, code, err := easyfl.CompileFormula(easyfl.theLibrary, source)
 	if err != nil {
 		return err
 	}

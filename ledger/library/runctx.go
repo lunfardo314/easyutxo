@@ -12,12 +12,12 @@ func NewGlobalContext(dataTree *lazyslice.Tree, path lazyslice.TreePath) *Global
 	}
 }
 
-func (glb *GlobalContext) Eval(f *easyfl.FormulaTree) []byte {
+func (glb *GlobalContext) Eval(f *easyfl.Expression) []byte {
 	return easyfl.NewRunContext(glb).Eval(f)
 }
 
 // EvalWithArgs pushes values for argument references
-func (glb *GlobalContext) EvalWithArgs(f *easyfl.FormulaTree, args ...[]byte) []byte {
+func (glb *GlobalContext) EvalWithArgs(f *easyfl.Expression, args ...[]byte) []byte {
 	// TODO
 	return glb.Eval(f)
 }

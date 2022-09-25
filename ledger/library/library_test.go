@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/lunfardo314/easyutxo"
-	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/blake2b"
 )
@@ -15,31 +15,31 @@ const formula1 = "func unlockBlock: atPath(concat(0x0000, slice(@, 2, 5)))"
 
 func TestCompile(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		ret, err := easyfl.ParseFunctions(formula1)
+		ret, err := ParseFunctions(formula1)
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 	})
 	t.Run("3", func(t *testing.T) {
-		ret, err := easyfl.ParseFunctions(formula1)
+		ret, err := ParseFunctions(formula1)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(ret))
 
-		code, numParams, err := easyfl.FormulaSourceToBinary(Library, ret[0].SourceCode)
+		code, numParams, err := FormulaSourceToBinary(Library, ret[0].SourceCode)
 		require.NoError(t, err)
 		require.EqualValues(t, 0, numParams)
 		t.Logf("code len: %d", len(code))
 	})
 	t.Run("4", func(t *testing.T) {
-		parsed, err := easyfl.ParseFunctions(formula1)
+		parsed, err := ParseFunctions(formula1)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(parsed))
 
-		code, numParams, err := easyfl.FormulaSourceToBinary(Library, parsed[0].SourceCode)
+		code, numParams, err := FormulaSourceToBinary(Library, parsed[0].SourceCode)
 		require.NoError(t, err)
 		require.EqualValues(t, 0, numParams)
 		t.Logf("code len: %d", len(code))
 
-		f, err := easyfl.FormulaTreeFromBinary(Library, code)
+		f, err := FormulaTreeFromBinary(Library, code)
 		require.NoError(t, err)
 		require.NotNil(t, f)
 	})
@@ -47,11 +47,11 @@ func TestCompile(t *testing.T) {
 
 func TestEval(t *testing.T) {
 	runTest := func(s string, path []byte) []byte {
-		f, numParams, code, err := easyfl.CompileFormula(Library, s)
+		f, numParams, code, err := CompileFormula(Library, s)
 		require.NoError(t, err)
 		require.EqualValues(t, 0, numParams)
 
-		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
+		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.Eval(f)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -157,13 +157,13 @@ func TestEval(t *testing.T) {
 
 func TestEvalArgs(t *testing.T) {
 	runTest := func(s string, path []byte, p ...[]byte) []byte {
-		f, numParams, code, err := easyfl.CompileFormula(Library, s)
+		f, numParams, code, err := CompileFormula(Library, s)
 		require.NoError(t, err)
 		if numParams != len(p) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
+		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -211,13 +211,13 @@ func TestEvalArgs(t *testing.T) {
 
 func TestExtendLib(t *testing.T) {
 	runTest := func(s string, path []byte, p ...[]byte) []byte {
-		f, numParams, code, err := easyfl.CompileFormula(Library, s)
+		f, numParams, code, err := CompileFormula(Library, s)
 		require.NoError(t, err)
 		if numParams != len(p) {
 			panic("error in the test setup: number of arguments not equal to the number of provided params")
 		}
 
-		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
+		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, p...)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		return ret
@@ -296,11 +296,11 @@ func num(n any) []byte {
 
 func TestComparison(t *testing.T) {
 	runTest := func(s string, path []byte, a0, a1 []byte) bool {
-		f, numParams, code, err := easyfl.CompileFormula(Library, s)
+		f, numParams, code, err := CompileFormula(Library, s)
 		require.NoError(t, err)
 		require.EqualValues(t, 2, numParams)
 
-		ctx := NewGlobalContext(lazyslice.TreeEmpty(), path)
+		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
 		ret := ctx.EvalWithArgs(f, a0, a1)
 		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
 		if len(ret) == 0 {

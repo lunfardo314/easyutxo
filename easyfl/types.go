@@ -12,7 +12,7 @@ const (
 	MaxParameters = 15
 )
 
-type FunInfo struct {
+type funInfo struct {
 	Sym        string
 	FunCode    uint16
 	IsEmbedded bool
@@ -25,15 +25,9 @@ type FunParsed struct {
 	SourceCode string
 }
 
-type FormulaTree struct {
-	Args     []*FormulaTree
+type Expression struct {
+	Args     []*Expression
 	EvalFunc EvalFunction
 }
 
 type EvalFunction func(glb *RunContext) []byte
-
-type LibraryAccess interface {
-	ExistsFunction(sym string) bool
-	FunctionByName(sym string) (*FunInfo, error)
-	FunctionByCode(funCode uint16) (EvalFunction, int, error)
-}

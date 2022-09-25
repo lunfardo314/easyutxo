@@ -13,9 +13,9 @@ import (
 	"unicode"
 )
 
-type parsedFormula struct {
+type parsedExpression struct {
 	sym    string
-	params []*parsedFormula
+	params []*parsedExpression
 }
 
 // ParseFunctions parses many function definitions
@@ -83,11 +83,11 @@ func stripSpaces(str string) string {
 	}, str)
 }
 
-func parseFormula(s string) (*parsedFormula, error) {
+func parseExpression(s string) (*parsedExpression, error) {
 	name, rest, foundOpen := strings.Cut(s, "(")
-	f := &parsedFormula{
+	f := &parsedExpression{
 		sym:    name,
-		params: make([]*parsedFormula, 0),
+		params: make([]*parsedExpression, 0),
 	}
 	if !foundOpen {
 		if strings.Contains(rest, ")") || strings.Contains(rest, ",") {
@@ -100,7 +100,7 @@ func parseFormula(s string) (*parsedFormula, error) {
 		return nil, err
 	}
 	for _, call := range spl {
-		ff, err := parseFormula(call)
+		ff, err := parseExpression(call)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +177,7 @@ const (
 	Uint16LongCallCodeMask     = ^(uint16(FirstByteDataMask|FirstByteLongCallMask|FirstByteLongCallArityMask) << 8)
 )
 
-func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) (int, error) {
+func (f *parsedExpression) binaryFromParsedExpression(w io.Writer) (int, error) {
 	numArgs := 0
 	if len(f.params) == 0 {
 		// parameter reference
@@ -195,7 +195,7 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) 
 			if _, err = w.Write([]byte{byte(n)}); err != nil {
 				return 0, err
 			}
-			return 0, nil
+			return numArgs, nil
 		}
 		// write inline data
 		n, err := strconv.Atoi(f.sym)
@@ -285,7 +285,7 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) 
 	}
 	// either has arguments or not literal
 	// try if it is a short call
-	fi, err := lib.FunctionByName(f.sym)
+	fi, err := functionByName(f.sym)
 	if err != nil {
 		return 0, err
 	}
@@ -311,7 +311,7 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) 
 	}
 	// generate code for call parameters
 	for _, ff := range f.params {
-		n, err := ff.binaryFromParsedFormula(lib, w)
+		n, err := ff.binaryFromParsedExpression(w)
 		if err != nil {
 			return 0, err
 		}
@@ -322,22 +322,22 @@ func (f *parsedFormula) binaryFromParsedFormula(lib LibraryAccess, w io.Writer) 
 	return numArgs, nil
 }
 
-func FormulaSourceToBinary(lib LibraryAccess, formulaSource string) ([]byte, int, error) {
-	f, err := parseFormula(formulaSource)
+func ExpressionSourceToBinary(formulaSource string) ([]byte, int, error) {
+	f, err := parseExpression(formulaSource)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var buf bytes.Buffer
-	numArgs, err := f.binaryFromParsedFormula(lib, &buf)
+	numArgs, err := f.binaryFromParsedExpression(&buf)
 	if err != nil {
 		return nil, 0, err
 	}
 	return buf.Bytes(), numArgs, nil
 }
 
-func FormulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, error) {
-	ret, remaining, err := formulaTreeFromBinary(lib, code)
+func ExpressionFromBinary(code []byte) (*Expression, error) {
+	ret, remaining, err := expressionFromBinary(code, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +347,7 @@ func FormulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, error)
 	return ret, nil
 }
 
-func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte, error) {
+func expressionFromBinary(code []byte, callLevel int) (*Expression, []byte, error) {
 	if len(code) == 0 {
 		return nil, nil, io.EOF
 	}
@@ -357,11 +357,11 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		if len(code) < size+1 {
 			return nil, nil, io.EOF
 		}
-		return DataFormulas(code[1 : 1+size])[0], code[1+size:], nil
+		return dataFormulas(code[1 : 1+size])[0], code[1+size:], nil
 	}
 	// function call expected
-	ret := &FormulaTree{
-		Args:     make([]*FormulaTree, 0),
+	ret := &Expression{
+		Args:     make([]*Expression, 0),
 		EvalFunc: nil,
 	}
 	var evalFun EvalFunction
@@ -372,11 +372,12 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		// short call
 		if code[0] < EmbeddedReservedUntil {
 			// param reference
+			funCode := code[0]
 			evalFun = func(glb *RunContext) []byte {
-				panic(fmt.Errorf("$%d not implemented", code[0]))
+				return glb.evalParam(funCode, callLevel+1)
 			}
 		} else {
-			evalFun, arity, err = lib.FunctionByCode(uint16(code[0]))
+			evalFun, arity, err = functionByCode(uint16(code[0]))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -390,7 +391,7 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 		arity = int((code[0] & FirstByteLongCallArityMask) >> 2)
 		t := binary.BigEndian.Uint16(code[:2])
 		idx := t & Uint16LongCallCodeMask
-		evalFun, numParams, err = lib.FunctionByCode(idx)
+		evalFun, numParams, err = functionByCode(idx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -401,9 +402,9 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 	}
 
 	// collect call Args
-	var p *FormulaTree
+	var p *Expression
 	for i := 0; i < arity; i++ {
-		p, code, err = formulaTreeFromBinary(lib, code)
+		p, code, err = expressionFromBinary(code, callLevel+1)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -413,24 +414,24 @@ func formulaTreeFromBinary(lib LibraryAccess, code []byte) (*FormulaTree, []byte
 	return ret, code, nil
 }
 
-func CompileFormula(lib LibraryAccess, formulaSource string) (*FormulaTree, int, []byte, error) {
+func CompileFormula(formulaSource string) (*Expression, int, []byte, error) {
 	src := strings.Join(splitLinesStripComments(formulaSource), "")
-	code, numParams, err := FormulaSourceToBinary(lib, stripSpaces(src))
+	code, numParams, err := ExpressionSourceToBinary(stripSpaces(src))
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	ret, err := FormulaTreeFromBinary(lib, code)
+	ret, err := ExpressionFromBinary(code)
 	if err != nil {
 		return nil, 0, nil, err
 	}
 	return ret, numParams, code, nil
 }
 
-func DataFormulas(data ...[]byte) []*FormulaTree {
-	ret := make([]*FormulaTree, len(data))
+func dataFormulas(data ...[]byte) []*Expression {
+	ret := make([]*Expression, len(data))
 	for i, d := range data {
 		d1 := d
-		ret[i] = &FormulaTree{
+		ret[i] = &Expression{
 			EvalFunc: func(_ *RunContext) []byte {
 				return d1
 			},

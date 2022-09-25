@@ -7,13 +7,6 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
-type funDescriptor struct {
-	sym               string
-	funCode           uint16
-	requiredNumParams int
-	evalFun           easyfl.EvalFunction
-}
-
 const maxCallDepth = 30
 
 type GlobalContext struct {
@@ -21,7 +14,7 @@ type GlobalContext struct {
 	invocationPath lazyslice.TreePath
 }
 
-type evalArgs []*easyfl.FormulaTree
+type evalArgs []*easyfl.Expression
 
 type (
 	EvalFunc             func(ctx *easyfl.RunContext) []byte
@@ -35,7 +28,7 @@ func RegisterInvokeConstraintFunc(f InvokeConstraintFunc) {
 }
 
 func MustMakeEvalFunc(formulaSource string) EvalFunc {
-	f, _, _, err := easyfl.CompileFormula(Library, formulaSource)
+	f, _, _, err := easyfl.CompileFormula(easyfl.theLibrary, formulaSource)
 	if err != nil {
 		panic(fmt.Errorf("MustMakeEvalFunc: '%v' -- '%s'", err, formulaSource))
 	}

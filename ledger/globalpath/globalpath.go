@@ -7,7 +7,7 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
-// Global tree has 2 branches at root: Transaction and Consumed
+// DataContext tree has 2 branches at root: Transaction and Consumed
 
 const (
 	TransactionIndex = byte(iota)

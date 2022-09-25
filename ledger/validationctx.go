@@ -145,7 +145,7 @@ func (v *GlobalContext) Eval(formulaSource string, path []byte) []byte {
 func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
 	ctx := library.NewGlobalContext(v.tree, invocationPath)
-	f, err := easyfl.FormulaTreeFromBinary(library.Library, code)
+	f, err := easyfl.ExpressionFromBinary(easyfl.theLibrary, code)
 	if err != nil {
 		panic(err)
 	}
