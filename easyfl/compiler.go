@@ -337,7 +337,7 @@ func ExpressionSourceToBinary(formulaSource string) ([]byte, int, error) {
 }
 
 func ExpressionFromBinary(code []byte) (*Expression, error) {
-	ret, remaining, err := expressionFromBinary(code, 0)
+	ret, remaining, err := expressionFromBinary(code)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +347,7 @@ func ExpressionFromBinary(code []byte) (*Expression, error) {
 	return ret, nil
 }
 
-func expressionFromBinary(code []byte, callLevel int) (*Expression, []byte, error) {
+func expressionFromBinary(code []byte) (*Expression, []byte, error) {
 	if len(code) == 0 {
 		return nil, nil, io.EOF
 	}
@@ -372,9 +372,9 @@ func expressionFromBinary(code []byte, callLevel int) (*Expression, []byte, erro
 		// short call
 		if code[0] < EmbeddedReservedUntil {
 			// param reference
-			funCode := code[0]
+			paramNr := code[0]
 			evalFun = func(glb *RunContext) []byte {
-				return glb.evalParam(funCode, callLevel+1)
+				return glb.evalParam(paramNr)
 			}
 		} else {
 			evalFun, arity, err = functionByCode(uint16(code[0]))
@@ -404,7 +404,7 @@ func expressionFromBinary(code []byte, callLevel int) (*Expression, []byte, erro
 	// collect call Args
 	var p *Expression
 	for i := 0; i < arity; i++ {
-		p, code, err = expressionFromBinary(code, callLevel+1)
+		p, code, err = expressionFromBinary(code)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -433,6 +433,9 @@ func dataFormulas(data ...[]byte) []*Expression {
 		d1 := d
 		ret[i] = &Expression{
 			EvalFunc: func(_ *RunContext) []byte {
+				if traceYN {
+					fmt.Printf("return data: %v", d1)
+				}
 				return d1
 			},
 		}

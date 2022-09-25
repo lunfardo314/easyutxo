@@ -18,7 +18,7 @@ const (
 )
 
 func init() {
-	easyfl.MustExtendWithMany(SigLockConstraint)
+	easyfl.MustExtendMany(SigLockConstraint)
 
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
 

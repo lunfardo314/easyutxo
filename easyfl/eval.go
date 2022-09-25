@@ -1,71 +1,104 @@
 package easyfl
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type evalArgs []*Expression
 
 type RunContext struct {
-	evalStack     []evalArgs
-	evalStackNext int
-	globalCtx     interface{}
+	globalCtx interface{}
+	params    []*Expression
+	depth     int
+	expr      *Expression
+	//evalStack     []*Expression
+	//evalStackNext int
 }
 
 const MaxStackDepth = 50
 
-func NewRunContext(glb interface{}) *RunContext {
+func NewRunContext(glb interface{}, expr *Expression, params []*Expression, depth int) *RunContext {
 	return &RunContext{
-		evalStack: make([]evalArgs, MaxStackDepth),
+		expr:      expr,
 		globalCtx: glb,
+		params:    params,
+		depth:     depth,
+		//evalStack: make([]*Expression, MaxStackDepth),
 	}
 }
 
 func (ctx *RunContext) Arity() byte {
-	return byte(len(ctx.evalStack[ctx.evalStackNext-1]))
+	return byte(len(ctx.expr.Args))
+	//return byte(len(ctx.evalStack[ctx.evalStackNext-1].Args))
 }
 
 func (ctx *RunContext) Arg(n byte) []byte {
-	return ctx.Eval(ctx.evalStack[ctx.evalStackNext-1][n])
+	if traceYN {
+		fmt.Printf("Arg(%d) depth: %d -- IN\n",
+			n, ctx.depth)
+	}
+
+	//ret := evalExpression(ctx.globalCtx, ctx.evalStack[ctx.evalStackNext-1][n], nil)
+	ret := ctx.Eval(ctx.expr.Args[n])
+	if traceYN {
+		fmt.Printf("Arg(%d) depth: %d -- OUT ret: %v\n",
+			n, ctx.depth, ret)
+	}
+	return ret
 }
 
 // evalParam used by $0-$15 functions
-func (ctx *RunContext) evalParam(n byte, levelBack int) []byte {
-	return ctx.Eval(ctx.evalStack[ctx.evalStackNext-levelBack-1][n])
+func (ctx *RunContext) evalParam(n byte) []byte {
+	if traceYN {
+		fmt.Printf("evalParam $%d, depth: %d -- IN\n", n, ctx.depth)
+	}
+	ret := ctx.Eval(ctx.params[n])
+	if traceYN {
+		fmt.Printf("evalParam $%d, depth: %d -- OUT, ret: %v\n",
+			n, ctx.depth, ret)
+	}
+	return ret
 }
 
 func (ctx *RunContext) Eval(f *Expression) []byte {
-	ctx.pushEvalArgs(f.Args)
-	defer ctx.popEvalArgs()
+	//ctx.push(f)
+	//defer ctx.pop()
 
-	return f.EvalFunc(ctx)
+	if traceYN {
+		fmt.Printf("Eval expression. Depth %d\n", ctx.depth)
+	}
+	ctxNew := NewRunContext(ctx.globalCtx, f, ctx.params, ctx.depth+1)
+	return f.EvalFunc(ctxNew)
 }
 
 func (ctx *RunContext) DataContext() interface{} {
 	return ctx.globalCtx
 }
 
-func (ctx *RunContext) pushEvalArgs(args evalArgs) {
-	ctx.evalStack[ctx.evalStackNext] = args
-	ctx.evalStackNext++
-}
-
-func (ctx *RunContext) popEvalArgs() {
-	ctx.evalStackNext--
-	ctx.evalStack[ctx.evalStackNext] = nil
-}
+//func (ctx *RunContext) push(f *Expression) {
+//	if traceYN {
+//		fmt.Printf("push args: %d depth: %d\n", len(f.Args), ctx.depth)
+//	}
+//	ctx.evalStack[ctx.evalStackNext] = f
+//	ctx.evalStackNext++
+//}
+//
+//func (ctx *RunContext) pop() {
+//	if traceYN {
+//		fmt.Printf("pop depth: %d, stack: %d\n", ctx.depth, ctx.evalStackNext)
+//	}
+//	ctx.evalStackNext--
+//	ctx.evalStack[ctx.evalStackNext] = nil
+//}
 
 func evalExpression(glb interface{}, f *Expression, args evalArgs) []byte {
-	ctx := NewRunContext(glb)
-	expr := Expression{
-		Args: args,
-		EvalFunc: func(glb *RunContext) []byte {
-			return glb.Eval(f)
-		},
-	}
-	return ctx.Eval(&expr)
+	ctx := NewRunContext(glb, f, args, 0)
+	return ctx.Eval(f)
 }
 
 func callFunction(glb interface{}, f *Expression, args ...[]byte) []byte {
-	return evalExpression(glb, f, dataFormulas(args...))
+	argsForData := dataFormulas(args...)
+	return evalExpression(glb, f, argsForData)
 }
 
 func EvalExpression(glb interface{}, source string, args ...[]byte) ([]byte, error) {

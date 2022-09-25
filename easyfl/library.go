@@ -30,6 +30,8 @@ var (
 	numExtended      int
 )
 
+const traceYN = true
+
 func init() {
 	// basic
 	EmbedShort("slice", 3, evalSlice)
@@ -78,6 +80,9 @@ func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction) uint16 {
 	if requiredNumPar > 15 {
 		panic("can't be more than 15 parameters")
 	}
+	if traceYN {
+		evalFun = wrapWithTracing(evalFun, sym)
+	}
 	dscr := &funDescriptor{
 		sym:               sym,
 		funCode:           uint16(numEmbeddedShort),
@@ -99,6 +104,9 @@ func EmbedLong(sym string, requiredNumPar int, evalFun EvalFunction) uint16 {
 	if requiredNumPar > 15 {
 		panic("can't be more than 15 parameters")
 	}
+	if traceYN {
+		evalFun = wrapWithTracing(evalFun, sym)
+	}
 	dscr := &funDescriptor{
 		sym:               sym,
 		funCode:           uint16(numEmbeddedLong + FirstEmbeddedLongFun),
@@ -113,32 +121,55 @@ func EmbedLong(sym string, requiredNumPar int, evalFun EvalFunction) uint16 {
 }
 
 func Extend(sym string, source string) uint16 {
+	ret, err := ExtendErr(sym, source)
+	if err != nil {
+		panic(err)
+	}
+	return ret
+}
+
+func ExtendErr(sym string, source string) (uint16, error) {
 	f, numParam, _, err := CompileFormula(source)
 	if err != nil {
-		panic(fmt.Errorf("error while compiling '%s': %v", sym, err))
+		return 0, fmt.Errorf("error while compiling '%s': %v", sym, err)
 	}
 
 	if numExtended >= MaxNumExtended {
 		panic("too many extended functions")
 	}
 	if existsFunction(sym) {
-		panic(errors.New("repeating symbol '" + sym + "'"))
+		return 0, errors.New("repeating symbol '" + sym + "'")
 	}
 	if numParam > 15 {
-		panic(errors.New("can't be more than 15 parameters"))
+		return 0, errors.New("can't be more than 15 parameters")
+	}
+	evalFun := func(ctx *RunContext) []byte {
+		ctxNew := NewRunContext(ctx.globalCtx, f, f.Args, ctx.depth+1)
+		return ctxNew.Eval(f)
+	}
+	if traceYN {
+		evalFun = wrapWithTracing(evalFun, sym)
 	}
 	dscr := &funDescriptor{
 		sym:               sym,
 		funCode:           uint16(numExtended + FirstExtendedFun),
 		requiredNumParams: numParam,
-		evalFun: func(ctx *RunContext) []byte {
-			return ctx.Eval(f)
-		},
+		evalFun:           evalFun,
 	}
 	theLibrary.funByName[sym] = dscr
 	theLibrary.funByFunCode[dscr.funCode] = dscr
 	numExtended++
-	return dscr.funCode
+	return dscr.funCode, nil
+
+}
+
+func wrapWithTracing(f EvalFunction, msg string) EvalFunction {
+	return func(glb *RunContext) []byte {
+		fmt.Printf("EvalFunction '%s' - IN\n", msg)
+		ret := f(glb)
+		defer fmt.Printf("EvalFunction '%s' - OUT: %v\n", msg, ret)
+		return ret
+	}
 }
 
 func mustUniqueName(sym string) {
@@ -147,19 +178,21 @@ func mustUniqueName(sym string) {
 	}
 }
 
-func extendWithMany(source string) error {
+func ExtendMany(source string) error {
 	parsed, err := ParseFunctions(source)
 	if err != nil {
 		return err
 	}
 	for _, pf := range parsed {
-		Extend(pf.Sym, pf.SourceCode)
+		if _, err = ExtendErr(pf.Sym, pf.SourceCode); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func MustExtendWithMany(source string) {
-	if err := extendWithMany(source); err != nil {
+func MustExtendMany(source string) {
+	if err := ExtendMany(source); err != nil {
 		panic(err)
 	}
 }

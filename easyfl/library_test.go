@@ -2,16 +2,15 @@ package easyfl
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/blake2b"
 )
 
-const (
-	formula1 = "func unlockBlock: concat(concat(0x0000, slice(0x01020304050607, 2, 5)))"
-	formula2 = "func unlockBlock: atPath(concat(0x0000, slice(@, 2, 5)))"
-)
+const formula1 = "func unlockBlock: concat(concat(0x0000, slice(0x01020304050607, 2, 5)))"
 
 func TestCompile(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
@@ -210,189 +209,115 @@ func TestEval(t *testing.T) {
 	})
 }
 
-//func TestEvalArgs(t *testing.T) {
-//	runTest := func(s string, path []byte, p ...[]byte) []byte {
-//		f, numParams, code, err := CompileFormula(theLibrary, s)
-//		require.NoError(t, err)
-//		if numParams != len(p) {
-//			panic("error in the test setup: number of arguments not equal to the number of provided params")
-//		}
-//
-//		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
-//		ret := ctx.EvalWithArgs(f, p...)
-//		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
-//		return ret
-//	}
-//	t.Run("blake2b-1", func(t *testing.T) {
-//		res := runTest("blake2b(0x010203)", nil)
-//		h := blake2b.Sum256([]byte{0x01, 0x02, 0x03})
-//		require.EqualValues(t, h[:], res)
-//	})
-//	t.Run("blake2b-2", func(t *testing.T) {
-//		res := runTest("blake2b(concat())", nil)
-//		h := blake2b.Sum256(nil)
-//		require.EqualValues(t, h[:], res)
-//	})
-//	t.Run("$$$-1", func(t *testing.T) {
-//		res := runTest("$0", nil, []byte{0x11})
-//		require.EqualValues(t, []byte{0x11}, res)
-//	})
-//	t.Run("$$$-2", func(t *testing.T) {
-//		res := runTest("concat($0, $1)", nil, []byte{1}, []byte{2})
-//		require.EqualValues(t, []byte{1, 2}, res)
-//	})
-//	t.Run("$$$-3", func(t *testing.T) {
-//		res := runTest("concat($0, $1, $2)", nil, []byte{1}, []byte{2}, []byte{3})
-//		require.EqualValues(t, []byte{1, 2, 3}, res)
-//	})
-//	t.Run("$$$-4", func(t *testing.T) {
-//		res := runTest("concat($0, $2)", nil, []byte{1}, []byte{2}, []byte{3})
-//		require.EqualValues(t, []byte{1, 3}, res)
-//	})
-//	t.Run("$$$-5", func(t *testing.T) {
-//		res := runTest("concat($0, concat($1, $2))", nil, []byte{1}, []byte{2}, []byte{3})
-//		require.EqualValues(t, []byte{1, 2, 3}, res)
-//	})
-//	t.Run("$$$-6", func(t *testing.T) {
-//		res := runTest("concat(concat($0, $1), $2)", nil, []byte{1}, []byte{2}, []byte{3})
-//		require.EqualValues(t, []byte{1, 2, 3}, res)
-//	})
-//	t.Run("$$$-7", func(t *testing.T) {
-//		require.Panics(t, func() {
-//			runTest("concat($0, $15)", nil, []byte{1}, []byte{2}, []byte{3})
-//		})
-//	})
-//}
+func TestExtendLib(t *testing.T) {
+	t.Run("ext-2", func(t *testing.T) {
+		_, err := ExtendErr("nil1", "concat()")
+		require.NoError(t, err)
+	})
+	t.Run("ext-3", func(t *testing.T) {
+		_, err := ExtendErr("cat2", "concat($0, $1)")
+		require.NoError(t, err)
+		ret, err := EvalExpression(nil, "cat2(1,2)")
+		require.EqualValues(t, []byte{1, 2}, ret)
+	})
+	const complex = `
+	concat(
+		concat(
+			sum8($0,$1),
+			concat(
+				$0,
+				$2
+			)
+		),
+		$2
+	)`
+	_, err := ExtendErr("complex", complex)
+	require.NoError(t, err)
 
-//func TestExtendLib(t *testing.T) {
-//	runTest := func(s string, path []byte, p ...[]byte) []byte {
-//		f, numParams, code, err := CompileFormula(theLibrary, s)
-//		require.NoError(t, err)
-//		if numParams != len(p) {
-//			panic("error in the test setup: number of arguments not equal to the number of provided params")
-//		}
-//
-//		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
-//		ret := ctx.EvalWithArgs(f, p...)
-//		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
-//		return ret
-//	}
-//	t.Run("ext-1", func(t *testing.T) {
-//		res := runTest("nil", nil)
-//		require.EqualValues(t, 0, len(res))
-//	})
-//	t.Run("ext-2", func(t *testing.T) {
-//		_, err := ExtendLibrary("nil1", "concat()")
-//		require.NoError(t, err)
-//		res := runTest("nil1", nil)
-//		require.EqualValues(t, 0, len(res))
-//	})
-//	t.Run("ext-3", func(t *testing.T) {
-//		_, err := ExtendLibrary("cat2", "concat($0, $1)")
-//		require.NoError(t, err)
-//		res := runTest("cat2(1,2)", nil)
-//		require.EqualValues(t, []byte{1, 2}, res)
-//	})
-//	const complex = `
-//	concat(
-//		concat(
-//			blake2b($1),
-//			concat(
-//				$0,
-//				$2
-//			)
-//		),
-//		$2
-//	)`
-//	_, err := ExtendLibrary("complex", complex)
-//	require.NoError(t, err)
-//
-//	d := func(i byte) []byte { return []byte{i} }
-//	compl := func(d0, d1, d2 []byte) []byte {
-//		b1 := blake2b.Sum256(d1)
-//		c0 := easyutxo.Concat(d0, d2)
-//		c1 := easyutxo.Concat(b1[:], c0)
-//		return easyutxo.Concat(c1, d2)
-//	}
-//	t.Run("ext-4", func(t *testing.T) {
-//		res := runTest("complex(0,1,2)", nil)
-//		require.EqualValues(t, compl(d(0), d(1), d(2)), res)
-//	})
-//	t.Run("ext-5", func(t *testing.T) {
-//		res := runTest("complex(0,1,complex(2,1,0))", nil)
-//		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
-//		require.EqualValues(t, exp, res)
-//	})
-//}
-//
-//func num(n any) []byte {
-//	switch n := n.(type) {
-//	case byte:
-//		return []byte{n}
-//	case uint16:
-//		var b [2]byte
-//		binary.BigEndian.PutUint16(b[:], n)
-//		return b[:]
-//	case uint32:
-//		var b [4]byte
-//		binary.BigEndian.PutUint32(b[:], n)
-//		return b[:]
-//	case uint64:
-//		var b [8]byte
-//		binary.BigEndian.PutUint64(b[:], n)
-//		return b[:]
-//	case int:
-//		var b [8]byte
-//		binary.BigEndian.PutUint64(b[:], uint64(n))
-//		return b[:]
-//	}
-//	panic("wrong type")
-//}
-//
-//func TestComparison(t *testing.T) {
-//	runTest := func(s string, path []byte, a0, a1 []byte) bool {
-//		f, numParams, code, err := CompileFormula(theLibrary, s)
-//		require.NoError(t, err)
-//		require.EqualValues(t, 2, numParams)
-//
-//		ctx := library.NewGlobalContext(lazyslice.TreeEmpty(), path)
-//		ret := ctx.EvalWithArgs(f, a0, a1)
-//		t.Logf("code len: %d, result: %v -- '%s'", len(code), ret, s)
-//		if len(ret) == 0 {
-//			return false
-//		}
-//		return true
-//	}
-//	t.Run("lessThan", func(t *testing.T) {
-//		res := runTest("lessThan($0,$1)", nil, num(1), num(5))
-//		require.True(t, res)
-//		res = runTest("lessThan($0,$1)", nil, num(10), num(5))
-//		require.False(t, res)
-//		res = runTest("lessThan($0,$1)", nil, num(100), num(100))
-//		require.False(t, res)
-//		res = runTest("lessThan($0,$1)", nil, num(1000), num(100000000))
-//		require.True(t, res)
-//		res = runTest("lessThan($0,$1)", nil, num(100000000), num(100000000))
-//		require.False(t, res)
-//		res = runTest("lessThan($0,$1)", nil, num(uint16(100)), num(uint16(150)))
-//		require.True(t, res)
-//		res = runTest("lessThan($0,$1)", nil, num(uint32(100)), num(uint32(150)))
-//		require.True(t, res)
-//	})
-//	t.Run("lessThan", func(t *testing.T) {
-//		res := runTest("lessOrEqualThan($0,$1)", nil, num(1), num(5))
-//		require.True(t, res)
-//		res = runTest("lessOrEqualThan($0,$1)", nil, num(10), num(5))
-//		require.False(t, res)
-//		res = runTest("lessOrEqualThan($0,$1)", nil, num(100), num(100))
-//		require.False(t, res)
-//		res = runTest("lessOrEqualThan($0,$1)", nil, num(1000), num(100000000))
-//		require.True(t, res)
-//		res = runTest("lessOrEqualThan($0,$1)", nil, num(100000000), num(100000000))
-//		require.False(t, res)
-//		res = runTest("lessOrEqualThan($0,$1)", nil, num(uint16(100)), num(uint16(150)))
-//		require.True(t, res)
-//		res = runTest("lessOrEqualThan($0,$1)", nil, num(uint32(100)), num(uint32(150)))
-//		require.True(t, res)
-//	})
-//}
+	d := func(i byte) []byte { return []byte{i} }
+	compl := func(d0, d1, d2 []byte) []byte {
+		b1 := []byte{d0[0] + d1[0]}
+		c0 := easyutxo.Concat(d0, d2)
+		c1 := easyutxo.Concat(b1[:], c0)
+		return easyutxo.Concat(c1, d2)
+	}
+	t.Run("ext-4", func(t *testing.T) {
+		ret, err := EvalExpression(nil, "complex(0,1,2)")
+		require.NoError(t, err)
+		require.EqualValues(t, compl(d(0), d(1), d(2)), ret)
+	})
+	t.Run("ext-5", func(t *testing.T) {
+		ret, err := EvalExpression(nil, "complex(0,1,complex(2,1,0))")
+		require.NoError(t, err)
+		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
+		require.EqualValues(t, exp, ret)
+	})
+}
+
+func num(n any) []byte {
+	switch n := n.(type) {
+	case byte:
+		return []byte{n}
+	case uint16:
+		var b [2]byte
+		binary.BigEndian.PutUint16(b[:], n)
+		return b[:]
+	case uint32:
+		var b [4]byte
+		binary.BigEndian.PutUint32(b[:], n)
+		return b[:]
+	case uint64:
+		var b [8]byte
+		binary.BigEndian.PutUint64(b[:], n)
+		return b[:]
+	case int:
+		var b [8]byte
+		binary.BigEndian.PutUint64(b[:], uint64(n))
+		return b[:]
+	}
+	panic("wrong type")
+}
+
+func TestComparison(t *testing.T) {
+	runTest := func(s string, a0, a1 []byte) bool {
+		fmt.Printf("---- runTest: '%s'\n", s)
+		ret, err := EvalExpression(nil, s, a0, a1)
+		require.NoError(t, err)
+		if len(ret) == 0 {
+			return false
+		}
+		return true
+	}
+	t.Run("lessThan", func(t *testing.T) {
+		res := runTest("lessThan($0,$1)", num(1), num(5))
+		require.True(t, res)
+		res = runTest("lessThan($0,$1)", num(10), num(5))
+		require.False(t, res)
+		res = runTest("lessThan($0,$1)", num(100), num(100))
+		require.False(t, res)
+		res = runTest("lessThan($0,$1)", num(1000), num(100000000))
+		require.True(t, res)
+		res = runTest("lessThan($0,$1)", num(100000000), num(100000000))
+		require.False(t, res)
+		res = runTest("lessThan($0,$1)", num(uint16(100)), num(uint16(150)))
+		require.True(t, res)
+		res = runTest("lessThan($0,$1)", num(uint32(100)), num(uint32(150)))
+		require.True(t, res)
+	})
+	t.Run("lessThanOrEqual", func(t *testing.T) {
+		res := runTest("lessOrEqualThan($0,$1)", num(1), num(5))
+		require.True(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", num(10), num(5))
+		require.False(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", num(100), num(100))
+		require.False(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", num(1000), num(100000000))
+		require.True(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", num(100000000), num(100000000))
+		require.False(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", num(uint16(100)), num(uint16(150)))
+		require.True(t, res)
+		res = runTest("lessOrEqualThan($0,$1)", num(uint32(100)), num(uint32(150)))
+		require.True(t, res)
+	})
+}
