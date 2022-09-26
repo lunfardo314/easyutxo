@@ -290,7 +290,7 @@ func (f *parsedExpression) binaryFromParsedExpression(w io.Writer) (int, error) 
 		return 0, err
 	}
 	if fi.NumParams >= 0 && fi.NumParams != len(f.params) {
-		return 0, fmt.Errorf("%d params required, got %d: '%s'", fi.NumParams, len(f.params), f.sym)
+		return 0, fmt.Errorf("%d varScope required, got %d: '%s'", fi.NumParams, len(f.params), f.sym)
 	}
 
 	var callBytes []byte
@@ -357,7 +357,10 @@ func expressionFromBinary(code []byte) (*Expression, []byte, error) {
 		if len(code) < size+1 {
 			return nil, nil, io.EOF
 		}
-		return dataFormulas(code[1 : 1+size])[0], code[1+size:], nil
+		ret := &Expression{
+			EvalFunc: dataFunction(code[1 : 1+size]),
+		}
+		return ret, code[1+size:], nil
 	}
 	// function call expected
 	ret := &Expression{
@@ -372,10 +375,7 @@ func expressionFromBinary(code []byte) (*Expression, []byte, error) {
 		// short call
 		if code[0] < EmbeddedReservedUntil {
 			// param reference
-			paramNr := code[0]
-			evalFun = func(glb *RunContext) []byte {
-				return glb.evalParam(paramNr)
-			}
+			evalFun = evalParamFun(code[0])
 		} else {
 			evalFun, arity, err = functionByCode(uint16(code[0]))
 			if err != nil {
@@ -396,7 +396,7 @@ func expressionFromBinary(code []byte) (*Expression, []byte, error) {
 			return nil, nil, err
 		}
 		if numParams > 0 && numParams != arity {
-			return nil, nil, fmt.Errorf("wrong number of call params")
+			return nil, nil, fmt.Errorf("wrong number of call varScope")
 		}
 		code = code[2:]
 	}
@@ -427,18 +427,20 @@ func CompileFormula(formulaSource string) (*Expression, int, []byte, error) {
 	return ret, numParams, code, nil
 }
 
-func dataFormulas(data ...[]byte) []*Expression {
-	ret := make([]*Expression, len(data))
-	for i, d := range data {
-		d1 := d
-		ret[i] = &Expression{
-			EvalFunc: func(_ *RunContext) []byte {
-				if traceYN {
-					fmt.Printf("return data: %v", d1)
-				}
-				return d1
-			},
+func dataFunction(data []byte) EvalFunction {
+	d := data
+	return func(_ *CallParams) []byte {
+		if traceYN {
+			fmt.Printf("return data: %v\n", d)
 		}
+		return data
+	}
+}
+
+func dataCalls(data ...[]byte) []*Call {
+	ret := make([]*Call, len(data))
+	for i, d := range data {
+		ret[i] = NewCall(dataFunction(d), nil)
 	}
 	return ret
 }

@@ -128,6 +128,19 @@ func Extend(sym string, source string) uint16 {
 	return ret
 }
 
+func ev(expr *Expression) EvalFunction {
+	return func(par *CallParams) []byte {
+		call := NewCall(expr.EvalFunc, par)
+		return call.Eval()
+	}
+}
+
+func evalParamFun(paramNr byte) EvalFunction {
+	return func(par *CallParams) []byte {
+		return par.ctx.varScope[paramNr].Eval()
+	}
+}
+
 func ExtendErr(sym string, source string) (uint16, error) {
 	f, numParam, _, err := CompileFormula(source)
 	if err != nil {
@@ -143,10 +156,7 @@ func ExtendErr(sym string, source string) (uint16, error) {
 	if numParam > 15 {
 		return 0, errors.New("can't be more than 15 parameters")
 	}
-	evalFun := func(ctx *RunContext) []byte {
-		ctxNew := NewRunContext(ctx.globalCtx, f, f.Args, ctx.depth+1)
-		return ctxNew.Eval(f)
-	}
+	evalFun := ev(f)
 	if traceYN {
 		evalFun = wrapWithTracing(evalFun, sym)
 	}
@@ -164,10 +174,10 @@ func ExtendErr(sym string, source string) (uint16, error) {
 }
 
 func wrapWithTracing(f EvalFunction, msg string) EvalFunction {
-	return func(glb *RunContext) []byte {
+	return func(par *CallParams) []byte {
 		fmt.Printf("EvalFunction '%s' - IN\n", msg)
-		ret := f(glb)
-		defer fmt.Printf("EvalFunction '%s' - OUT: %v\n", msg, ret)
+		ret := f(par)
+		fmt.Printf("EvalFunction '%s' - OUT: %v\n", msg, ret)
 		return ret
 	}
 }
@@ -232,30 +242,30 @@ func functionByCode(funCode uint16) (EvalFunction, int, error) {
 	return libData.evalFun, libData.requiredNumParams, nil
 }
 
-func evalSlice(glb *RunContext) []byte {
-	data := glb.Arg(0)
-	from := glb.Arg(1)
-	to := glb.Arg(2)
+func evalSlice(par *CallParams) []byte {
+	data := par.Arg(0)
+	from := par.Arg(1)
+	to := par.Arg(2)
 	return data[from[0]:to[0]]
 }
 
-func evalEqual(glb *RunContext) []byte {
-	if bytes.Equal(glb.Arg(0), glb.Arg(1)) {
+func evalEqual(par *CallParams) []byte {
+	if bytes.Equal(par.Arg(0), par.Arg(1)) {
 		return []byte{0xff}
 	}
 	return nil
 }
 
-func evalLen8(glb *RunContext) []byte {
-	sz := len(glb.Arg(0))
+func evalLen8(par *CallParams) []byte {
+	sz := len(par.Arg(0))
 	if sz > math.MaxUint8 {
 		panic("len8: size of the data > 255")
 	}
 	return []byte{byte(sz)}
 }
 
-func evalLen16(glb *RunContext) []byte {
-	data := glb.Arg(0)
+func evalLen16(par *CallParams) []byte {
+	data := par.Arg(0)
 	if len(data) > math.MaxUint16 {
 		panic("len16: size of the data > uint16")
 	}
@@ -264,17 +274,17 @@ func evalLen16(glb *RunContext) []byte {
 	return ret[:]
 }
 
-func evalIf(glb *RunContext) []byte {
-	cond := glb.Arg(0)
+func evalIf(par *CallParams) []byte {
+	cond := par.Arg(0)
 	if len(cond) != 0 {
 		// true
-		return glb.Arg(1)
+		return par.Arg(1)
 	}
-	return glb.Arg(2)
+	return par.Arg(2)
 }
 
-func evalIsZero(glb *RunContext) []byte {
-	for _, b := range glb.Arg(0) {
+func evalIsZero(par *CallParams) []byte {
+	for _, b := range par.Arg(0) {
 		if b != 0 {
 			return nil
 		}
@@ -282,58 +292,58 @@ func evalIsZero(glb *RunContext) []byte {
 	return []byte{0xff}
 }
 
-func evalNot(glb *RunContext) []byte {
-	if len(glb.Arg(0)) == 0 {
+func evalNot(par *CallParams) []byte {
+	if len(par.Arg(0)) == 0 {
 		return []byte{0xff}
 	}
 	return nil
 }
 
-func evalConcat(glb *RunContext) []byte {
+func evalConcat(par *CallParams) []byte {
 	var buf bytes.Buffer
-	for i := byte(0); i < glb.Arity(); i++ {
-		buf.Write(glb.Arg(i))
+	for i := byte(0); i < par.Arity(); i++ {
+		buf.Write(par.Arg(i))
 	}
 	return buf.Bytes()
 }
 
-func evalAnd(glb *RunContext) []byte {
-	for i := byte(0); i < glb.Arity(); i++ {
-		if len(glb.Arg(i)) == 0 {
+func evalAnd(par *CallParams) []byte {
+	for i := byte(0); i < par.Arity(); i++ {
+		if len(par.Arg(i)) == 0 {
 			return nil
 		}
 	}
 	return []byte{0xff}
 }
 
-func evalOr(glb *RunContext) []byte {
-	for i := byte(0); i < glb.Arity(); i++ {
-		if len(glb.Arg(i)) != 0 {
+func evalOr(par *CallParams) []byte {
+	for i := byte(0); i < par.Arity(); i++ {
+		if len(par.Arg(i)) != 0 {
 			return []byte{0xff}
 		}
 	}
 	return nil
 }
 
-func mustArithmArgs(glb *RunContext, bytesSize int) ([]byte, []byte) {
-	a0 := glb.Arg(0)
-	a1 := glb.Arg(1)
+func mustArithmArgs(par *CallParams, bytesSize int) ([]byte, []byte) {
+	a0 := par.Arg(0)
+	a1 := par.Arg(1)
 	if len(a0) != bytesSize || len(a1) != bytesSize {
 		panic(fmt.Errorf("%d-bytes size parameters expected", bytesSize))
 	}
 	return a0, a1
 }
 
-func evalSum8_16(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 1)
+func evalSum8_16(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 1)
 	sum := uint16(a0[0]) + uint16(a1[0])
 	ret := make([]byte, 2)
 	binary.BigEndian.PutUint16(ret, sum)
 	return ret
 }
 
-func evalMustSum8(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 1)
+func evalMustSum8(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 1)
 	sum := int(a0[0]) + int(a1[0])
 	if sum > 255 {
 		panic("_mustSum8: arithmetic overflow")
@@ -341,16 +351,16 @@ func evalMustSum8(glb *RunContext) []byte {
 	return []byte{byte(sum)}
 }
 
-func evalSum16_32(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 2)
+func evalSum16_32(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 2)
 	sum := uint32(binary.BigEndian.Uint16(a0)) + uint32(binary.BigEndian.Uint16(a1))
 	ret := make([]byte, 4)
 	binary.BigEndian.PutUint32(ret, sum)
 	return ret
 }
 
-func evalMustSum16(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 2)
+func evalMustSum16(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 2)
 	sum := uint32(binary.BigEndian.Uint16(a0)) + uint32(binary.BigEndian.Uint16(a1))
 	if sum > math.MaxUint16 {
 		panic("_mustSum16: arithmetic overflow")
@@ -360,16 +370,16 @@ func evalMustSum16(glb *RunContext) []byte {
 	return ret
 }
 
-func evalSum32_64(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 4)
+func evalSum32_64(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 4)
 	sum := uint64(binary.BigEndian.Uint32(a0)) + uint64(binary.BigEndian.Uint32(a1))
 	ret := make([]byte, 8)
 	binary.BigEndian.PutUint64(ret, sum)
 	return ret
 }
 
-func evalMustSum32(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 4)
+func evalMustSum32(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 4)
 	sum := uint64(binary.BigEndian.Uint32(a0)) + uint64(binary.BigEndian.Uint32(a1))
 	if sum > math.MaxUint32 {
 		panic("_mustSum32: arithmetic overflow")
@@ -379,8 +389,8 @@ func evalMustSum32(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSum64(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 8)
+func evalMustSum64(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 8)
 	s0 := binary.BigEndian.Uint64(a0)
 	s1 := binary.BigEndian.Uint64(a1)
 	if s0 > math.MaxUint64-s1 {
@@ -391,8 +401,8 @@ func evalMustSum64(glb *RunContext) []byte {
 	return ret
 }
 
-func evalMustSub8(glb *RunContext) []byte {
-	a0, a1 := mustArithmArgs(glb, 1)
+func evalMustSub8(par *CallParams) []byte {
+	a0, a1 := mustArithmArgs(par, 1)
 	if a0[0] < a1[0] {
 		panic("_mustSub8: underflow in subtraction")
 	}
@@ -400,9 +410,9 @@ func evalMustSub8(glb *RunContext) []byte {
 }
 
 // lexicographical comparison of two slices of equal length
-func evalLessThan(glb *RunContext) []byte {
-	a0 := glb.Arg(0)
-	a1 := glb.Arg(1)
+func evalLessThan(par *CallParams) []byte {
+	a0 := par.Arg(0)
+	a1 := par.Arg(1)
 	if len(a0) != len(a1) {
 		panic("evalLessThan: operands must be equal length")
 	}

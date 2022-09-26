@@ -30,4 +30,4 @@ type Expression struct {
 	EvalFunc EvalFunction
 }
 
-type EvalFunction func(glb *RunContext) []byte
+type EvalFunction func(glb *CallParams) []byte

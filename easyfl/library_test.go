@@ -171,8 +171,8 @@ func TestEval(t *testing.T) {
 		})
 	})
 	var blake2bInvokedNum int
-	EmbedLong("blake2b", 1, func(glb *RunContext) []byte {
-		h := blake2b.Sum256(glb.Arg(0))
+	EmbedLong("blake2b", 1, func(par *CallParams) []byte {
+		h := blake2b.Sum256(par.Arg(0))
 		blake2bInvokedNum++
 		return h[:]
 	})
@@ -221,25 +221,20 @@ func TestExtendLib(t *testing.T) {
 		require.EqualValues(t, []byte{1, 2}, ret)
 	})
 	const complex = `
-	concat(
 		concat(
-			sum8($0,$1),
-			concat(
-				$0,
-				$2
-			)
-		),
-		$2
-	)`
+			concat($0,$1),
+			concat($0,$2)
+		)
+	`
 	_, err := ExtendErr("complex", complex)
 	require.NoError(t, err)
 
 	d := func(i byte) []byte { return []byte{i} }
 	compl := func(d0, d1, d2 []byte) []byte {
-		b1 := []byte{d0[0] + d1[0]}
-		c0 := easyutxo.Concat(d0, d2)
-		c1 := easyutxo.Concat(b1[:], c0)
-		return easyutxo.Concat(c1, d2)
+		c0 := easyutxo.Concat(d0, d1)
+		c1 := easyutxo.Concat(d0, d2)
+		c3 := easyutxo.Concat(c0, c1)
+		return c3
 	}
 	t.Run("ext-4", func(t *testing.T) {
 		ret, err := EvalExpression(nil, "complex(0,1,2)")

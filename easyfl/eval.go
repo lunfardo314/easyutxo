@@ -4,100 +4,93 @@ import (
 	"fmt"
 )
 
-type evalArgs []*Expression
-
-type RunContext struct {
-	globalCtx interface{}
-	params    []*Expression
-	depth     int
-	expr      *Expression
-	//evalStack     []*Expression
-	//evalStackNext int
+type EvalContext struct {
+	glb      interface{}
+	varScope []*Call
+	prev     *EvalContext
 }
 
-const MaxStackDepth = 50
+type CallParams struct {
+	ctx  *EvalContext
+	args []*Expression
+}
 
-func NewRunContext(glb interface{}, expr *Expression, params []*Expression, depth int) *RunContext {
-	return &RunContext{
-		expr:      expr,
-		globalCtx: glb,
-		params:    params,
-		depth:     depth,
-		//evalStack: make([]*Expression, MaxStackDepth),
+type Call struct {
+	f      EvalFunction
+	params *CallParams
+}
+
+func NewEvalContext(varScope []*Call, glb interface{}, prev *EvalContext) *EvalContext {
+	return &EvalContext{
+		varScope: varScope,
+		glb:      glb,
+		prev:     prev,
 	}
 }
 
-func (ctx *RunContext) Arity() byte {
-	return byte(len(ctx.expr.Args))
-	//return byte(len(ctx.evalStack[ctx.evalStackNext-1].Args))
+func NewCallParams(ctx *EvalContext, args []*Expression) *CallParams {
+	return &CallParams{
+		ctx:  ctx,
+		args: args,
+	}
 }
 
-func (ctx *RunContext) Arg(n byte) []byte {
+func NewCall(f EvalFunction, params *CallParams) *Call {
+	return &Call{
+		f:      f,
+		params: params,
+	}
+}
+
+func (c *Call) Eval() []byte {
+	return c.f(c.params)
+}
+
+func (ctx *CallParams) Arity() byte {
+	return byte(len(ctx.args))
+}
+
+func (ctx *CallParams) Arg(n byte) []byte {
 	if traceYN {
-		fmt.Printf("Arg(%d) depth: %d -- IN\n",
-			n, ctx.depth)
+		fmt.Printf("Arg(%d) -- IN\n", n)
 	}
 
-	//ret := evalExpression(ctx.globalCtx, ctx.evalStack[ctx.evalStackNext-1][n], nil)
-	ret := ctx.Eval(ctx.expr.Args[n])
+	call := NewCall(ctx.args[n].EvalFunc, NewCallParams(ctx.ctx, ctx.args[n].Args))
+	ret := call.Eval()
+
 	if traceYN {
-		fmt.Printf("Arg(%d) depth: %d -- OUT ret: %v\n",
-			n, ctx.depth, ret)
+		fmt.Printf("Arg(%d) -- OUT ret: %v\n", n, ret)
 	}
 	return ret
 }
 
 // evalParam used by $0-$15 functions
-func (ctx *RunContext) evalParam(n byte) []byte {
+func (ctx *CallParams) evalParam(n byte) []byte {
 	if traceYN {
-		fmt.Printf("evalParam $%d, depth: %d -- IN\n", n, ctx.depth)
+		fmt.Printf("evalParam $%d -- IN\n", n)
 	}
-	ret := ctx.Eval(ctx.params[n])
+
+	ret := ctx.ctx.varScope[n].Eval()
+
 	if traceYN {
-		fmt.Printf("evalParam $%d, depth: %d -- OUT, ret: %v\n",
-			n, ctx.depth, ret)
+		fmt.Printf("evalParam $%d -- OUT, ret: %v\n", n, ret)
 	}
 	return ret
 }
 
-func (ctx *RunContext) Eval(f *Expression) []byte {
-	//ctx.push(f)
-	//defer ctx.pop()
-
-	if traceYN {
-		fmt.Printf("Eval expression. Depth %d\n", ctx.depth)
-	}
-	ctxNew := NewRunContext(ctx.globalCtx, f, ctx.params, ctx.depth+1)
-	return f.EvalFunc(ctxNew)
+func (ctx *EvalContext) DataContext() interface{} {
+	return ctx.glb
 }
 
-func (ctx *RunContext) DataContext() interface{} {
-	return ctx.globalCtx
-}
-
-//func (ctx *RunContext) push(f *Expression) {
-//	if traceYN {
-//		fmt.Printf("push args: %d depth: %d\n", len(f.Args), ctx.depth)
-//	}
-//	ctx.evalStack[ctx.evalStackNext] = f
-//	ctx.evalStackNext++
-//}
-//
-//func (ctx *RunContext) pop() {
-//	if traceYN {
-//		fmt.Printf("pop depth: %d, stack: %d\n", ctx.depth, ctx.evalStackNext)
-//	}
-//	ctx.evalStackNext--
-//	ctx.evalStack[ctx.evalStackNext] = nil
-//}
-
-func evalExpression(glb interface{}, f *Expression, args evalArgs) []byte {
-	ctx := NewRunContext(glb, f, args, 0)
-	return ctx.Eval(f)
+func evalExpression(glb interface{}, f *Expression, varScope []*Call) []byte {
+	ctx := NewEvalContext(varScope, glb, nil)
+	par := NewCallParams(ctx, f.Args)
+	call := NewCall(f.EvalFunc, par)
+	return call.Eval()
 }
 
 func callFunction(glb interface{}, f *Expression, args ...[]byte) []byte {
-	argsForData := dataFormulas(args...)
+	argsForData := dataCalls(args...)
 	return evalExpression(glb, f, argsForData)
 }
 

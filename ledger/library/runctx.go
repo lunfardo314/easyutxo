@@ -13,7 +13,7 @@ func NewGlobalContext(dataTree *lazyslice.Tree, path lazyslice.TreePath) *Global
 }
 
 func (glb *GlobalContext) Eval(f *easyfl.Expression) []byte {
-	return easyfl.NewRunContext(glb).Eval(f)
+	return easyfl.NewEvalContext(glb).Eval(f)
 }
 
 // EvalWithArgs pushes values for argument references

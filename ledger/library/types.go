@@ -17,7 +17,7 @@ type GlobalContext struct {
 type evalArgs []*easyfl.Expression
 
 type (
-	EvalFunc             func(ctx *easyfl.RunContext) []byte
+	EvalFunc             func(ctx *easyfl.EvalContext) []byte
 	InvokeConstraintFunc func(*lazyslice.Tree, lazyslice.TreePath) []byte
 )
 
@@ -32,7 +32,7 @@ func MustMakeEvalFunc(formulaSource string) EvalFunc {
 	if err != nil {
 		panic(fmt.Errorf("MustMakeEvalFunc: '%v' -- '%s'", err, formulaSource))
 	}
-	return func(ctx *easyfl.RunContext) []byte {
+	return func(ctx *easyfl.EvalContext) []byte {
 		return ctx.Eval(f)
 	}
 }
