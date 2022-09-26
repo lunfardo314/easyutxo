@@ -54,7 +54,6 @@ func (ctx *CallParams) Arg(n byte) []byte {
 	if traceYN {
 		fmt.Printf("Arg(%d) -- IN\n", n)
 	}
-
 	call := NewCall(ctx.args[n].EvalFunc, NewCallParams(ctx.ctx, ctx.args[n].Args))
 	ret := call.Eval()
 

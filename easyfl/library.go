@@ -30,7 +30,7 @@ var (
 	numExtended      int
 )
 
-const traceYN = true
+const traceYN = false
 
 func init() {
 	// basic
@@ -128,9 +128,16 @@ func Extend(sym string, source string) uint16 {
 	return ret
 }
 
-func ev(expr *Expression) EvalFunction {
+func makeEvalFunForExpressions(expr *Expression) EvalFunction {
 	return func(par *CallParams) []byte {
-		call := NewCall(expr.EvalFunc, par)
+		varScope := make([]*Call, len(par.args))
+		for i := range varScope {
+			p := NewCallParams(par.ctx, par.args[i].Args)
+			varScope[i] = NewCall(par.args[i].EvalFunc, p)
+		}
+		nextCtx := NewEvalContext(varScope, par.ctx.glb, par.ctx.prev)
+		nextParams := NewCallParams(nextCtx, expr.Args)
+		call := NewCall(expr.EvalFunc, nextParams)
 		return call.Eval()
 	}
 }
@@ -156,7 +163,7 @@ func ExtendErr(sym string, source string) (uint16, error) {
 	if numParam > 15 {
 		return 0, errors.New("can't be more than 15 parameters")
 	}
-	evalFun := ev(f)
+	evalFun := makeEvalFunForExpressions(f)
 	if traceYN {
 		evalFun = wrapWithTracing(evalFun, sym)
 	}
