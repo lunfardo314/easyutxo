@@ -46,59 +46,59 @@ func TestCompile(t *testing.T) {
 
 func TestEval(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "125")
+		ret, err := EvalFromSource(nil, "125")
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{125}, ret)
 	})
 	t.Run("2", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "sum8(125, 6)")
+		ret, err := EvalFromSource(nil, "sum8(125, 6)")
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{131}, ret)
 	})
 	t.Run("3", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "$0", []byte{222})
+		ret, err := EvalFromSource(nil, "$0", []byte{222})
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{222}, ret)
 	})
 	t.Run("4", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "concat($0,$1)", []byte{222}, []byte{111})
+		ret, err := EvalFromSource(nil, "concat($0,$1)", []byte{222}, []byte{111})
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{222, 111}, ret)
 	})
 	t.Run("5", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "concat($0,concat($1,$0))", []byte{222}, []byte{111})
+		ret, err := EvalFromSource(nil, "concat($0,concat($1,$0))", []byte{222}, []byte{111})
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{222, 111, 222}, ret)
 	})
 	t.Run("6", func(t *testing.T) {
-		ret, err := EvalExpression(nil,
+		ret, err := EvalFromSource(nil,
 			"concat(concat(slice($2,1,2), slice($2,0,1)), slice(concat(concat($0,$1),concat($1,$0)),1,3))",
 			[]byte{222}, []byte{111}, []byte{123, 234})
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{234, 123, 111, 111}, ret)
 	})
 	t.Run("7", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "len8($1)", nil, []byte("123456789"))
+		ret, err := EvalFromSource(nil, "len8($1)", nil, []byte("123456789"))
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{9}, ret)
 	})
 	t.Run("8", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "concat(1,2,3,4,5)")
+		ret, err := EvalFromSource(nil, "concat(1,2,3,4,5)")
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, ret)
 	})
 	t.Run("9", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "slice(concat(concat(1,2),concat(3,4,5)),2,4)")
+		ret, err := EvalFromSource(nil, "slice(concat(concat(1,2),concat(3,4,5)),2,4)")
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{3, 4}, ret)
 	})
 	t.Run("10", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "if(equal(len8($0),3), 0x01, 0x05)", []byte("abc"))
+		ret, err := EvalFromSource(nil, "if(equal(len8($0),3), 0x01, 0x05)", []byte("abc"))
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{1}, ret)
 	})
 	t.Run("11", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "if(equal(len8($0),3), 0x01, 0x05)", []byte("abcdef"))
+		ret, err := EvalFromSource(nil, "if(equal(len8($0),3), 0x01, 0x05)", []byte("abcdef"))
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{5}, ret)
 	})
@@ -110,56 +110,56 @@ func TestEval(t *testing.T) {
 				0x0506     // comment2
 			)`
 	t.Run("12", func(t *testing.T) {
-		ret, err := EvalExpression(nil, longer, []byte("abcdef"))
+		ret, err := EvalFromSource(nil, longer, []byte("abcdef"))
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{1}, ret)
 	})
 	t.Run("14", func(t *testing.T) {
-		ret, err := EvalExpression(nil, longer, []byte("abcde"))
+		ret, err := EvalFromSource(nil, longer, []byte("abcde"))
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{5, 6}, ret)
 	})
 	t.Run("15", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "nil")
+		ret, err := EvalFromSource(nil, "nil")
 		require.NoError(t, err)
 		require.True(t, len(ret) == 0)
 	})
 	t.Run("16", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "concat")
+		ret, err := EvalFromSource(nil, "concat")
 		require.NoError(t, err)
 		require.True(t, len(ret) == 0)
 	})
 	t.Run("17", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "u16/256")
+		ret, err := EvalFromSource(nil, "u16/256")
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{1, 0}, ret)
 	})
 	t.Run("18", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "u32/70000")
+		ret, err := EvalFromSource(nil, "u32/70000")
 		require.NoError(t, err)
 		var b [4]byte
 		binary.BigEndian.PutUint32(b[:], 70000)
 		require.EqualValues(t, b[:], ret)
 	})
 	t.Run("19", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "u64/10000000000")
+		ret, err := EvalFromSource(nil, "u64/10000000000")
 		require.NoError(t, err)
 		var b [8]byte
 		binary.BigEndian.PutUint64(b[:], 10000000000)
 		require.EqualValues(t, b[:], ret)
 	})
 	t.Run("20", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "isZero(0x000000)")
+		ret, err := EvalFromSource(nil, "isZero(0x000000)")
 		require.NoError(t, err)
 		require.True(t, len(ret) != 0)
 	})
 	t.Run("21", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "isZero(0x003000)")
+		ret, err := EvalFromSource(nil, "isZero(0x003000)")
 		require.NoError(t, err)
 		require.True(t, len(ret) == 0)
 	})
 	t.Run("21", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "sum8_16($0, $1)", []byte{160}, []byte{160})
+		ret, err := EvalFromSource(nil, "sum8_16($0, $1)", []byte{160}, []byte{160})
 		require.NoError(t, err)
 		var b [2]byte
 		binary.BigEndian.PutUint16(b[:], 320)
@@ -167,7 +167,7 @@ func TestEval(t *testing.T) {
 	})
 	t.Run("22", func(t *testing.T) {
 		require.Panics(t, func() {
-			_, _ = EvalExpression(nil, "sum8($0, $1)", []byte{160}, []byte{160})
+			_, _ = EvalFromSource(nil, "sum8($0, $1)", []byte{160}, []byte{160})
 		})
 	})
 	var blake2bInvokedNum int
@@ -178,13 +178,13 @@ func TestEval(t *testing.T) {
 	})
 	t.Run("23", func(t *testing.T) {
 		blake2bInvokedNum = 0
-		ret, err := EvalExpression(nil, "blake2b($0)", []byte{1, 2, 3})
+		ret, err := EvalFromSource(nil, "blake2b($0)", []byte{1, 2, 3})
 		require.NoError(t, err)
 		h := blake2b.Sum256([]byte{0x01, 0x02, 0x03})
 		require.EqualValues(t, h[:], ret)
 		require.EqualValues(t, blake2bInvokedNum, 1)
 
-		ret, err = EvalExpression(nil, "blake2b($0)", nil)
+		ret, err = EvalFromSource(nil, "blake2b($0)", nil)
 		require.NoError(t, err)
 		h = blake2b.Sum256(nil)
 		require.EqualValues(t, h[:], ret)
@@ -195,13 +195,13 @@ func TestEval(t *testing.T) {
 		h2 := blake2b.Sum256([]byte{2})
 		h3 := blake2b.Sum256([]byte{3})
 
-		ret, err := EvalExpression(nil, "if($0,blake2b($1),blake2b($2))",
+		ret, err := EvalFromSource(nil, "if($0,blake2b($1),blake2b($2))",
 			[]byte{1}, []byte{2}, []byte{3})
 		require.NoError(t, err)
 		require.EqualValues(t, h2[:], ret)
 		require.EqualValues(t, blake2bInvokedNum, 1)
 
-		ret, err = EvalExpression(nil, "if($0,blake2b($1),blake2b($2))",
+		ret, err = EvalFromSource(nil, "if($0,blake2b($1),blake2b($2))",
 			nil, []byte{2}, []byte{3})
 		require.NoError(t, err)
 		require.EqualValues(t, h3[:], ret)
@@ -217,7 +217,7 @@ func TestExtendLib(t *testing.T) {
 	t.Run("ext-3", func(t *testing.T) {
 		_, err := ExtendErr("cat2", "concat($0, $1)")
 		require.NoError(t, err)
-		ret, err := EvalExpression(nil, "cat2(1,2)")
+		ret, err := EvalFromSource(nil, "cat2(1,2)")
 		require.EqualValues(t, []byte{1, 2}, ret)
 	})
 	const complex = `
@@ -237,12 +237,12 @@ func TestExtendLib(t *testing.T) {
 		return c3
 	}
 	t.Run("ext-4", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "complex(0,1,2)")
+		ret, err := EvalFromSource(nil, "complex(0,1,2)")
 		require.NoError(t, err)
 		require.EqualValues(t, compl(d(0), d(1), d(2)), ret)
 	})
 	t.Run("ext-5", func(t *testing.T) {
-		ret, err := EvalExpression(nil, "complex(0,1,complex(2,1,0))")
+		ret, err := EvalFromSource(nil, "complex(0,1,complex(2,1,0))")
 		require.NoError(t, err)
 		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
 		require.EqualValues(t, exp, ret)
@@ -276,7 +276,7 @@ func num(n any) []byte {
 func TestComparison(t *testing.T) {
 	runTest := func(s string, a0, a1 []byte) bool {
 		fmt.Printf("---- runTest: '%s'\n", s)
-		ret, err := EvalExpression(nil, s, a0, a1)
+		ret, err := EvalFromSource(nil, s, a0, a1)
 		require.NoError(t, err)
 		if len(ret) == 0 {
 			return false

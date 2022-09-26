@@ -18,6 +18,8 @@ const (
 )
 
 func init() {
+	extendLibrary()
+
 	easyfl.MustExtendMany(SigLockConstraint)
 
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
@@ -34,7 +36,7 @@ func registerConstraint(invocationCode byte, source string) error {
 	if constraints[invocationCode] != nil {
 		return fmt.Errorf("repeating invocation code %d: '%s'", invocationCode, source)
 	}
-	_, numParams, code, err := easyfl.CompileFormula(easyfl.theLibrary, source)
+	_, numParams, code, err := easyfl.CompileFormula(source)
 	if err != nil {
 		return err
 	}

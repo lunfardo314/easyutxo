@@ -6,12 +6,10 @@ import (
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger/globalpath"
-	"github.com/lunfardo314/easyutxo/ledger/library"
 )
 
 type GlobalContext struct {
-	tree        *lazyslice.Tree
-	rootContext *library.RunContext
+	tree *lazyslice.Tree
 }
 
 const (
@@ -20,11 +18,7 @@ const (
 	InvocationTypeFirstGlobal
 )
 
-func init() {
-	library.RegisterInvokeConstraintFunc(invokeConstraintFunc)
-}
-
-func invokeConstraintFunc(tree *lazyslice.Tree, path lazyslice.TreePath) []byte {
+func invokeConstraint(tree *lazyslice.Tree, path lazyslice.TreePath) []byte {
 	return GlobalContextFromTree(tree).Invoke(path)
 }
 
@@ -98,56 +92,66 @@ func GlobalContextFromTransaction(txBytes []byte, ledgerState LedgerState) (*Glo
 	if err != nil {
 		return nil, err
 	}
-	ret.rootContext = library.NewGlobalContext(ret.tree, nil)
 
 	return ret, nil
 }
 
 func GlobalContextFromTree(dataTree *lazyslice.Tree) *GlobalContext {
 	return &GlobalContext{
-		tree:        dataTree,
-		rootContext: library.NewGlobalContext(dataTree, nil),
+		tree: dataTree,
 	}
 }
 
-var (
-	TransactionBytes        = library.MustMakeEvalFunc("txBytes")
-	TransactionID           = library.MustMakeEvalFunc("txid")
-	TransactionEssenceBytes = library.MustMakeEvalFunc("txEssenceBytes")
-)
+func (v *GlobalContext) rootContext() *DataContext {
+	return NewDataContext(v.tree, nil)
+}
 
 func (v *GlobalContext) TransactionBytes() []byte {
-	return TransactionBytes(v.rootContext)
+	ret, err := easyfl.EvalFromSource(v.rootContext(), "txBytes")
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 func (v *GlobalContext) TransactionEssenceBytes() []byte {
-	return TransactionEssenceBytes(v.rootContext)
+	ret, err := easyfl.EvalFromSource(v.rootContext(), "txEssenceBytes")
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 func (v *GlobalContext) TransactionID() []byte {
-	return TransactionID(v.rootContext)
+	ret, err := easyfl.EvalFromSource(v.rootContext(), "txid")
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 func (v *GlobalContext) Validate() error {
 	return nil
 }
 
-func (v *GlobalContext) RunContext(path []byte) *library.RunContext {
-	return library.NewGlobalContext(v.tree, path)
+func (v *GlobalContext) Eval(source string, path []byte) ([]byte, error) {
+	return easyfl.EvalFromSource(NewDataContext(v.tree, path), source)
 }
 
-func (v *GlobalContext) Eval(formulaSource string, path []byte) []byte {
-	fun := library.MustMakeEvalFunc(formulaSource)
-
-	return fun(v.RunContext(path))
+func (v *GlobalContext) MustEval(source string, path []byte) []byte {
+	ret, err := v.Eval(source, path)
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
-	ctx := library.NewGlobalContext(v.tree, invocationPath)
-	f, err := easyfl.ExpressionFromBinary(easyfl.theLibrary, code)
+	f, err := easyfl.ExpressionFromBinary(code)
 	if err != nil {
 		panic(err)
 	}
-	return ctx.Eval(f)
+	ctx := NewDataContext(v.tree, invocationPath)
+	return easyfl.EvalExpression(ctx, f)
 }

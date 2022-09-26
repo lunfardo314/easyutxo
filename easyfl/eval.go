@@ -46,6 +46,10 @@ func (c *Call) Eval() []byte {
 	return c.f(c.params)
 }
 
+func (ctx *CallParams) DataContext() interface{} {
+	return ctx.ctx.glb
+}
+
 func (ctx *CallParams) Arity() byte {
 	return byte(len(ctx.args))
 }
@@ -88,12 +92,12 @@ func evalExpression(glb interface{}, f *Expression, varScope []*Call) []byte {
 	return call.Eval()
 }
 
-func callFunction(glb interface{}, f *Expression, args ...[]byte) []byte {
+func EvalExpression(glb interface{}, f *Expression, args ...[]byte) []byte {
 	argsForData := dataCalls(args...)
 	return evalExpression(glb, f, argsForData)
 }
 
-func EvalExpression(glb interface{}, source string, args ...[]byte) ([]byte, error) {
+func EvalFromSource(glb interface{}, source string, args ...[]byte) ([]byte, error) {
 	f, requiredNumArgs, _, err := CompileFormula(source)
 	if err != nil {
 		return nil, err
@@ -101,5 +105,5 @@ func EvalExpression(glb interface{}, source string, args ...[]byte) ([]byte, err
 	if requiredNumArgs != len(args) {
 		return nil, fmt.Errorf("required number of parameters is %d, got %d", requiredNumArgs, len(args))
 	}
-	return callFunction(glb, f, args...), nil
+	return EvalExpression(glb, f, args...), nil
 }
