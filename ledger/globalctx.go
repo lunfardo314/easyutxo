@@ -1,8 +1,10 @@
 package ledger
 
 import (
+	ed255192 "crypto/ed25519"
 	"fmt"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger/globalpath"
@@ -36,9 +38,9 @@ func (v *GlobalContext) Output(outputGroup byte, idx byte) *Output {
 	}
 }
 
-func (v *GlobalContext) ConsumedOutput(idx uint16) *Output {
+func (v *GlobalContext) ConsumedOutput(idx byte) *Output {
 	return &Output{
-		tree: lazyslice.TreeFromBytes(v.tree.GetBytesAtIdxLong(idx, globalpath.ConsumedOutputs)),
+		tree: lazyslice.TreeFromBytes(v.tree.GetDataAtIdx(idx, globalpath.ConsumedOutputs)),
 	}
 }
 
@@ -74,19 +76,19 @@ func GlobalContextFromTransaction(txBytes []byte, ledgerState LedgerState) (*Glo
 	tx := FromBytes(txBytes)
 	ret := &GlobalContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(2, nil)
-	ret.tree.PutSubtreeAtIdx(tx.Tree(), globalpath.TransactionIndex, nil)                                     // #0 transaction
-	ret.tree.PushEmptySubtrees(2, globalpath.Consumed)                                                        // #1 consumed context (inputs, library)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.ConsumedOutputsIndexLong, globalpath.Consumed) // 1 @ 0 consumed outputs
-	ret.tree.PutSubtreeAtIdx(constraintTree, globalpath.ConsumedLibraryIndex, globalpath.Consumed)            // 1 @ 1 script library tree
+	ret.tree.PutSubtreeAtIdx(tx.Tree(), globalpath.TransactionIndex, nil)                                 // #0 transaction
+	ret.tree.PushEmptySubtrees(2, globalpath.Consumed)                                                    // #1 consumed context (inputs, library)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.ConsumedOutputsIndex, globalpath.Consumed) // 1 @ 0 consumed outputs
+	ret.tree.PutSubtreeAtIdx(constraintTree, globalpath.ConsumedLibraryIndex, globalpath.Consumed)        // 1 @ 1 script library tree
 
 	var err error
-	tx.ForEachInputID(func(idx uint16, oid OutputID) bool {
+	tx.ForEachInputID(func(idx byte, oid OutputID) bool {
 		od, ok := ledgerState.GetUTXO(&oid)
 		if !ok {
 			err = fmt.Errorf("input not found: %s", oid.String())
 			return false
 		}
-		ret.tree.PushLongAtPath(od, globalpath.ConsumedOutputs)
+		ret.tree.PushData(od, globalpath.ConsumedOutputs)
 		return true
 	})
 	if err != nil {
@@ -100,6 +102,13 @@ func GlobalContextFromTree(dataTree *lazyslice.Tree) *GlobalContext {
 	return &GlobalContext{
 		tree: dataTree,
 	}
+}
+
+func NewGlobalContext() *GlobalContext {
+	tx := NewTransaction()
+	ret, err := GlobalContextFromTransaction(tx.Bytes(), nil)
+	easyutxo.AssertNoError(err)
+	return ret
 }
 
 func (v *GlobalContext) rootContext() *DataContext {
@@ -154,4 +163,43 @@ func (v *GlobalContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	}
 	ctx := NewDataContext(v.tree, invocationPath)
 	return easyfl.EvalExpression(ctx, f)
+}
+
+func (v *GlobalContext) ConsumeOutput(out *Output, oid OutputID) byte {
+	outIdx := v.tree.PushData(out.Bytes(), globalpath.ConsumedOutputs)
+	idIdx := v.tree.PushData(oid[:], globalpath.TxInputIDs)
+	easyutxo.Assert(outIdx == idIdx, "ConsumeOutput: outIdx == idIdx")
+	return byte(outIdx)
+}
+
+func (v *GlobalContext) ProduceOutput(out *Output, outputGroup byte) byte {
+	path := easyutxo.Concat(globalpath.TxOutputGroups)
+	if v.tree.NumElements(globalpath.TxOutputGroups) > int(outputGroup) {
+		// group exists
+		path = append(path, outputGroup)
+	} else {
+		v.tree.PushEmptySubtrees(1, globalpath.TxOutputGroups)
+		path = append(path, 0)
+	}
+	outIdx := v.tree.PushData(out.Bytes(), path)
+	return byte(outIdx)
+}
+
+func (v *GlobalContext) UnlockED25519Inputs(pairs []*keyPair) {
+	_ = prepareKeyPairs(pairs)
+	// TODO
+}
+
+type keyPair struct {
+	pubKey  ed255192.PublicKey
+	privKey ed255192.PrivateKey
+}
+
+func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
+	ret := make(map[string]*keyPair)
+	for _, kp := range keyPairs {
+		addr := AddressFromED25519PubKey(kp.pubKey)
+		ret[string(addr)] = kp
+	}
+	return ret
 }

@@ -17,14 +17,14 @@ const (
 // ValidationInputs tree has 2 branches at root: OutputsLong and Library
 
 const (
-	ConsumedOutputsIndexLong = byte(iota)
+	ConsumedOutputsIndex = byte(iota)
 	ConsumedLibraryIndex
 )
 
 // Transaction tree 1st level branch indices
 
 const (
-	TxUnlockParamsLongIndex = byte(iota)
+	TxUnlockParamsIndex = byte(iota)
 	TxInputIDsLongIndex
 	TxOutputGroupsIndex
 	TxTimestampIndex
@@ -36,15 +36,15 @@ const (
 var (
 	Transaction = lazyslice.Path(TransactionIndex)
 
-	TxUnlockParamsLong        = lazyslice.Path(TransactionIndex, TxUnlockParamsLongIndex)
-	TxInputIDsLong            = lazyslice.Path(TransactionIndex, TxInputIDsLongIndex)
+	TxUnlockParams            = lazyslice.Path(TransactionIndex, TxUnlockParamsIndex)
+	TxInputIDs                = lazyslice.Path(TransactionIndex, TxInputIDsLongIndex)
 	TxOutputGroups            = lazyslice.Path(TransactionIndex, TxOutputGroupsIndex)
 	TxTimestamp               = lazyslice.Path(TransactionIndex, TxTimestampIndex)
 	TxConsumedInputCommitment = lazyslice.Path(TransactionIndex, TxInputCommitmentIndex)
 	TxLocalLibrary            = lazyslice.Path(TransactionIndex, TxLocalLibraryIndex)
 
 	Consumed        = lazyslice.Path(ConsumedIndex)
-	ConsumedOutputs = lazyslice.Path(ConsumedIndex, ConsumedOutputsIndexLong)
+	ConsumedOutputs = lazyslice.Path(ConsumedIndex, ConsumedOutputsIndex)
 	ConsumedLibrary = lazyslice.Path(ConsumedIndex, ConsumedLibraryIndex)
 )
 

@@ -405,25 +405,3 @@ func TestSliceTreeSemantics(t *testing.T) {
 		t.Logf("len with 100+100+(1000-500) bytes data: %d", len(s))
 	})
 }
-
-func TestTwoLayer(t *testing.T) {
-	t.Run("1", func(t *testing.T) {
-		st := TreeEmpty()
-		for _, d := range data {
-			st.PushLongAtPath(d, nil)
-		}
-		for _, d := range data {
-			st.PushLongAtPath(d, nil)
-		}
-		require.EqualValues(t, 2*howMany, st.NumElementsLong(nil))
-		idx := uint16(0)
-		for _, d := range data {
-			require.EqualValues(t, d, st.GetBytesAtIdxLong(idx, nil))
-			idx++
-		}
-		for _, d := range data {
-			require.EqualValues(t, d, st.GetBytesAtIdxLong(idx, nil))
-			idx++
-		}
-	})
-}

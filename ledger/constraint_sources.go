@@ -42,3 +42,12 @@ func sigLocED25519: if(
 	)
 )
 `
+const TokensConstraint = `
+// Tokens valid if it has exactly 8 non-0 bytes. It is validated both on consumed output and produced output
+func tokensValid: and(
+	equal(len8($0),8),
+	not(isZero($0))
+)
+
+func tokensConstraint : tokensValid(selfConstraintData)
+`

@@ -17,11 +17,13 @@ func NewDataContext(tree *lazyslice.Tree, path lazyslice.TreePath) *DataContext 
 	}
 }
 
+var requireAllCode byte
+
 func extendLibrary() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath)
 	easyfl.EmbedShort("atPath", 1, evalAtPath)
-	easyfl.EmbedShort("requireAll", 1, evalRequireAll)
+	requireAllCode = easyfl.EmbedShort("requireAll", 1, evalRequireAll)
 	easyfl.EmbedShort("requireAny", 1, evalRequireAny)
 	// special transaction related
 
@@ -37,7 +39,7 @@ func extendLibrary() {
 
 	easyfl.Extend("selfConstraint", "atPath(@)")
 	easyfl.Extend("selfConstraintData", "if(equal(slice(selfConstraint,0,1), 0),nil,tail(selfConstraint,1))")
-	easyfl.Extend("selfOutputIndex", "slice(@,2,4)")
+	easyfl.Extend("selfOutputIndex", "tail(@,2)")
 	easyfl.Extend("selfUnlockBlock", "atPath(concat(0, 0, slice(@, 2, 5)))")
 	easyfl.Extend("selfReferencedConstraint", "atPath(concat(slice(@,0,2), selfUnlockBlock))")
 	easyfl.Extend("selfConsumedContext", "equal(slice(@,0,2), 0x0100)")

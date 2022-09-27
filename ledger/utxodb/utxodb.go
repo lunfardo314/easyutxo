@@ -24,7 +24,7 @@ func (u *UtxoDB) AddTransaction(txBytes []byte) error {
 	}
 	// remove spent outputs
 	tx := ctx.Transaction()
-	tx.ForEachInputID(func(_ uint16, o ledger.OutputID) bool {
+	tx.ForEachInputID(func(_ byte, o ledger.OutputID) bool {
 		delete(u.utxo, string(o[:]))
 		return true
 	})

@@ -28,7 +28,7 @@ type Transaction struct {
 func NewTransaction() *Transaction {
 	ret := &Transaction{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(globalpath.TxTreeIndexMax), nil)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxUnlockParamsLongIndex, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxUnlockParamsIndex, nil)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxInputIDsLongIndex, nil)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxOutputGroupsIndex, nil)
 	ret.tree.PutDataAtIdx(globalpath.TxTimestampIndex, nil, nil)
@@ -65,7 +65,7 @@ func (tx *Transaction) NumOutputs() int {
 }
 
 func (tx *Transaction) NumInputs() int {
-	return tx.tree.NumElementsLong(Path(globalpath.TxInputIDsLongIndex))
+	return tx.tree.NumElements(Path(globalpath.TxInputIDsLongIndex))
 }
 
 func (tx *Transaction) CodeFromLocalLibrary(idx byte) []byte {
@@ -91,15 +91,15 @@ func (tx *Transaction) ForEachOutput(fun func(group, idx byte, o *Output) bool) 
 	}, globalpath.TxOutputGroups)
 }
 
-func (tx *Transaction) ForEachInputID(fun func(idx uint16, o OutputID) bool) {
+func (tx *Transaction) ForEachInputID(fun func(idx byte, o OutputID) bool) {
 	var oid OutputID
 	var err error
 	for i := 0; i < tx.NumInputs(); i++ {
-		d := tx.tree.GetBytesAtIdxLong(uint16(i), globalpath.TxInputIDsLong)
+		d := tx.tree.GetDataAtIdx(byte(i), globalpath.TxInputIDs)
 		if oid, err = OutputIDFromBytes(d); err != nil {
 			panic(err)
 		}
-		if !fun(uint16(i), oid) {
+		if !fun(byte(i), oid) {
 			break
 		}
 	}

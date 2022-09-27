@@ -15,14 +15,17 @@ const (
 	ConstraintReserved1 = byte(iota)
 	ConstraintReserved2
 	ConstraintSigLockED25519
+	ConstraintTokens
 )
 
 func init() {
 	extendLibrary()
 
 	easyfl.MustExtendMany(SigLockConstraint)
+	easyfl.MustExtendMany(TokensConstraint)
 
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
+	mustRegisterConstraint(ConstraintTokens, "tokensConstraint")
 
 	easyfl.PrintLibraryStats()
 

@@ -80,7 +80,7 @@ func PrintLibraryStats() {
 		numEmbeddedShort, MaxNumEmbeddedShort, numEmbeddedLong, MaxNumEmbeddedLong, numExtended, MaxNumExtended)
 }
 
-func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction) uint16 {
+func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction) byte {
 	if numEmbeddedShort >= MaxNumEmbeddedShort {
 		panic("too many embedded short functions")
 	}
@@ -101,7 +101,7 @@ func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction) uint16 {
 	theLibrary.funByFunCode[dscr.funCode] = dscr
 	numEmbeddedShort++
 
-	return dscr.funCode
+	return byte(dscr.funCode)
 }
 
 func EmbedLong(sym string, requiredNumPar int, evalFun EvalFunction) uint16 {

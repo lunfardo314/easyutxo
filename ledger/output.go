@@ -1,11 +1,11 @@
 package ledger
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -17,8 +17,8 @@ type OutputData []byte
 
 const (
 	OutputBlockMasterConstraint = byte(iota)
-	OutputBlockAddress
 	OutputBlockTokens
+	OutputBlockAddress
 	OutputNumRequiredBlocks
 )
 
@@ -60,8 +60,9 @@ func NewOutput() *Output {
 	for i := 0; i < int(OutputNumRequiredBlocks); i++ {
 		tr.PushData(nil, nil)
 	}
+	// put minimum master constraint
 	ret := &Output{tree: tr}
-	ret.PutDefaultConstraints()
+	ret.putMinimumMasterConstraint()
 	return ret
 }
 
@@ -82,10 +83,8 @@ func (o *Output) Bytes() []byte {
 }
 
 func (o *Output) PutAddressConstraint(addr Address, constraint byte) {
-	var buf bytes.Buffer
-	buf.WriteByte(constraint)
-	buf.Write(addr)
-	o.tree.PutDataAtIdx(OutputBlockAddress, buf.Bytes(), nil)
+	o.tree.PutDataAtIdx(OutputBlockAddress, easyutxo.Concat([]byte{constraint}, addr), nil)
+	o.appendConstraintIndexToTheMasterList(OutputBlockAddress)
 }
 
 func (o *Output) AddressConstraint() (Address, byte) {
@@ -93,27 +92,31 @@ func (o *Output) AddressConstraint() (Address, byte) {
 	return ret[1:], ret[0]
 }
 
-func (o *Output) PutTokens(amount uint64) {
+func (o *Output) PutTokensConstraint(amount uint64) {
 	var b [8]byte
 	binary.BigEndian.PutUint64(b[:], amount)
-	o.tree.PutDataAtIdx(OutputBlockTokens, b[:], nil)
+	o.tree.PutDataAtIdx(OutputBlockTokens, easyutxo.Concat([]byte{ConstraintTokens}, b[:]), nil)
+	o.appendConstraintIndexToTheMasterList(OutputBlockTokens)
 }
 
 func (o *Output) Tokens() uint64 {
 	ret := o.tree.GetDataAtIdx(OutputBlockTokens, nil)
-	if len(ret) != 8 {
-		panic("tokens must be 8 bytes")
-	}
-	return binary.BigEndian.Uint64(ret)
+	return binary.BigEndian.Uint64(ret[1:])
 }
 
-func (o *Output) PutDefaultConstraints() {
-	o.putMasterConstraint(OutputBlockAddress)
+// into the position OutputBlockMasterConstraint puts inline invocation to the `requireAll` with empty list
+// later we can append the list with indices of the constraints to be invoked
+func (o *Output) putMinimumMasterConstraint() {
+	o.tree.PutDataAtIdx(OutputBlockMasterConstraint, []byte{InvocationTypeInline, requireAllCode}, nil)
 }
 
-func (o *Output) putMasterConstraint(idxs ...byte) {
-	var buf bytes.Buffer
-	buf.WriteByte(InvocationTypeInline)
-	buf.Write(idxs)
-	o.tree.PutDataAtIdx(OutputBlockMasterConstraint, buf.Bytes(), nil)
+func (o *Output) appendConstraintIndexToTheMasterList(constrIdx byte) {
+	constrBin := o.tree.GetDataAtIdx(OutputBlockMasterConstraint, nil)
+	constrBin = append(constrBin, constrIdx)
+	o.tree.PutDataAtIdx(OutputBlockMasterConstraint, constrBin, nil)
+}
+
+func (o *Output) MasterConstraintList() []byte {
+	constrBin := o.tree.GetDataAtIdx(OutputBlockMasterConstraint, nil)
+	return constrBin[2:]
 }
