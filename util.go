@@ -47,3 +47,7 @@ func RequireErrorWith(t *testing.T, err error, s string) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), s)
 }
+
+func RequirePanicOrErrorWith(t *testing.T, f func() error, s string) {
+	RequireErrorWith(t, CatchPanicOrError(f), s)
+}

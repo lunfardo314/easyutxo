@@ -117,3 +117,11 @@ func EvalFromSource(glb interface{}, source string, args ...[]byte) ([]byte, err
 	}
 	return ret, nil
 }
+
+func MustEvalFromSource(glb interface{}, source string, args ...[]byte) []byte {
+	ret, err := EvalFromSource(glb, source, args...)
+	if err != nil {
+		panic(err)
+	}
+	return ret
+}

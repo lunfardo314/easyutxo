@@ -1,11 +1,12 @@
 package ledger
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 )
 
 const OutputIDLength = IDLength + 2
@@ -15,8 +16,10 @@ type OutputID [OutputIDLength]byte
 type OutputData []byte
 
 const (
-	OutputIndexValidationScripts = byte(iota)
-	OutputIndexAddress
+	OutputBlockValidationScripts = byte(iota)
+	OutputBlockAddress
+	OutputBlockTokens
+	OutputNumRequiredBlocks
 )
 
 // Output represents output (UTXO) in the ledger
@@ -52,8 +55,20 @@ func (oid *OutputID) String() string {
 	return fmt.Sprintf("[%d|%d]%s", group, idx, txid.String())
 }
 
-func OutputFromBytes(data []byte) *Output {
-	return &Output{tree: lazyslice.TreeFromBytes(data)}
+func NewOutput() *Output {
+	tr := lazyslice.TreeEmpty()
+	for i := 0; i < int(OutputNumRequiredBlocks); i++ {
+		tr.PushData(nil, nil)
+	}
+	return &Output{tree: tr}
+}
+
+func OutputFromBytes(data []byte) (*Output, error) {
+	ret := &Output{tree: lazyslice.TreeFromBytes(data)}
+	if ret.tree.NumElements(nil) < int(OutputNumRequiredBlocks) {
+		return nil, fmt.Errorf("output is expected to have at least %d blocks", OutputNumRequiredBlocks)
+	}
+	return ret, nil
 }
 
 func OutputFromTree(tree *lazyslice.Tree) *Output {
@@ -64,26 +79,28 @@ func (o *Output) Bytes() []byte {
 	return o.tree.Bytes()
 }
 
-func (o *Output) Address() []byte {
-	return o.tree.GetDataAtIdx(OutputIndexAddress, nil)
+func (o *Output) PutAddressConstraint(addr Address, constraint byte) {
+	var buf bytes.Buffer
+	buf.WriteByte(constraint)
+	buf.Write(addr)
+	o.tree.PutDataAtIdx(OutputBlockAddress, buf.Bytes(), nil)
 }
-func (v *GlobalContext) ValidateConsumedOutput(outputGroup, idx byte) {
-	o := v.Output(outputGroup, idx)
-	invocationList := o.tree.GetDataAtIdx(0, nil)
-	for _, invokeAtIdx := range invocationList {
-		v.Invoke(globalpath.TransactionOutputBlock(outputGroup, idx, invokeAtIdx))
+
+func (o *Output) AddressConstraint() (Address, byte) {
+	ret := o.tree.GetDataAtIdx(OutputBlockAddress, nil)
+	return ret[1:], ret[0]
+}
+
+func (o *Output) PutTokens(amount uint64) {
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], amount)
+	o.tree.PutDataAtIdx(OutputBlockTokens, b[:], nil)
+}
+
+func (o *Output) Tokens() uint64 {
+	ret := o.tree.GetDataAtIdx(OutputBlockTokens, nil)
+	if len(ret) != 8 {
+		panic("tokens must be 8 bytes")
 	}
-}
-
-func (v *GlobalContext) ValidateTransactionOutput(idx uint16) {
-	o := v.ConsumedOutput(idx)
-	invocationList := o.tree.GetDataAtIdx(0, nil)
-	for _, invokeAtIdx := range invocationList {
-		v.Invoke(globalpath.ConsumedOutputBlock(idx, invokeAtIdx))
-	}
-}
-
-// ValidateOutputs traverses all outputs in the ledger and validates each
-func (v *GlobalContext) ValidateOutputs() {
-
+	return binary.BigEndian.Uint64(ret)
 }

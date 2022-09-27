@@ -1,8 +1,6 @@
 package utxodb
 
 import (
-	"bytes"
-
 	"github.com/lunfardo314/easyutxo/ledger"
 )
 
@@ -46,11 +44,12 @@ func (u *UtxoDB) GetUTXO(id *ledger.OutputID) (ledger.OutputData, bool) {
 }
 
 func (u *UtxoDB) GetUTXOsForAddress(addr []byte) []ledger.OutputData {
-	ret := make([]ledger.OutputData, 0)
-	for _, d := range u.utxo {
-		if bytes.Equal(addr, d.Address()) {
-			ret = append(ret, d.Bytes())
-		}
-	}
-	return ret
+	panic("not implemented")
+	//ret := make([]ledger.OutputData, 0)
+	//for _, d := range u.utxo {
+	//	if bytes.Equal(addr, d.Address()) {
+	//		ret = append(ret, d.Bytes())
+	//	}
+	//}
+	//return ret
 }
