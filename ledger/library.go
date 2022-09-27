@@ -1,11 +1,8 @@
 package ledger
 
 import (
-	"bytes"
-
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"golang.org/x/crypto/blake2b"
 )
 
 type DataContext struct {
@@ -24,7 +21,6 @@ func extendLibrary() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath)
 	easyfl.EmbedShort("atPath", 1, evalAtPath)
-	easyfl.EmbedLong("blake2b", -1, evalBlake2b)
 	// special transaction related
 
 	easyfl.Extend("txBytes", "atPath(0x00)")
@@ -52,15 +48,6 @@ func evalPath(ctx *easyfl.CallParams) []byte {
 
 func evalAtPath(ctx *easyfl.CallParams) []byte {
 	return ctx.DataContext().(*DataContext).dataTree.BytesAtPath(ctx.Arg(0))
-}
-
-func evalBlake2b(ctx *easyfl.CallParams) []byte {
-	var buf bytes.Buffer
-	for i := byte(0); i < ctx.Arity(); i++ {
-		buf.Write(ctx.Arg(i))
-	}
-	ret := blake2b.Sum256(buf.Bytes())
-	return ret[:]
 }
 
 func evalRequireAll(ctx *easyfl.CallParams) []byte {

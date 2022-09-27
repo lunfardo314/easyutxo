@@ -3,6 +3,9 @@ package easyutxo
 import (
 	"bytes"
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func CatchPanicOrError(f func() error) error {
@@ -38,4 +41,9 @@ func EmptySlices(s ...[]byte) bool {
 		}
 	}
 	return true
+}
+
+func RequireErrorWith(t *testing.T, err error, s string) {
+	require.Error(t, err)
+	require.Contains(t, err.Error(), s)
 }

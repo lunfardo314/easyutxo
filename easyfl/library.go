@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -66,6 +67,7 @@ func init() {
 	Extend("nil", "or()")
 	Extend("tail", "slice($0, $1, sub8(len8($0),1))")
 	EmbedLong("validSignatureED25519", 3, evalValidSigED25519)
+	EmbedLong("blake2b", -1, evalBlake2b)
 
 }
 
@@ -446,4 +448,13 @@ func evalValidSigED25519(ctx *CallParams) []byte {
 		return []byte{0xff}
 	}
 	return nil
+}
+
+func evalBlake2b(ctx *CallParams) []byte {
+	var buf bytes.Buffer
+	for i := byte(0); i < ctx.Arity(); i++ {
+		buf.Write(ctx.Arg(i))
+	}
+	ret := blake2b.Sum256(buf.Bytes())
+	return ret[:]
 }

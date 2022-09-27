@@ -169,25 +169,24 @@ func TestEval(t *testing.T) {
 		require.EqualValues(t, b[:], ret)
 	})
 	t.Run("22", func(t *testing.T) {
-		require.Panics(t, func() {
-			_, _ = EvalFromSource(nil, "sum8($0, $1)", []byte{160}, []byte{160})
-		})
+		_, err := EvalFromSource(nil, "sum8($0, $1)", []byte{160}, []byte{160})
+		easyutxo.RequireErrorWith(t, err, "arithmetic overflow")
 	})
 	var blake2bInvokedNum int
-	EmbedLong("blake2b", 1, func(par *CallParams) []byte {
+	EmbedLong("blake2b-test", 1, func(par *CallParams) []byte {
 		h := blake2b.Sum256(par.Arg(0))
 		blake2bInvokedNum++
 		return h[:]
 	})
 	t.Run("23", func(t *testing.T) {
 		blake2bInvokedNum = 0
-		ret, err := EvalFromSource(nil, "blake2b($0)", []byte{1, 2, 3})
+		ret, err := EvalFromSource(nil, "blake2b-test($0)", []byte{1, 2, 3})
 		require.NoError(t, err)
 		h := blake2b.Sum256([]byte{0x01, 0x02, 0x03})
 		require.EqualValues(t, h[:], ret)
 		require.EqualValues(t, blake2bInvokedNum, 1)
 
-		ret, err = EvalFromSource(nil, "blake2b($0)", nil)
+		ret, err = EvalFromSource(nil, "blake2b-test($0)", nil)
 		require.NoError(t, err)
 		h = blake2b.Sum256(nil)
 		require.EqualValues(t, h[:], ret)
@@ -198,13 +197,13 @@ func TestEval(t *testing.T) {
 		h2 := blake2b.Sum256([]byte{2})
 		h3 := blake2b.Sum256([]byte{3})
 
-		ret, err := EvalFromSource(nil, "if($0,blake2b($1),blake2b($2))",
+		ret, err := EvalFromSource(nil, "if($0,blake2b-test($1),blake2b-test($2))",
 			[]byte{1}, []byte{2}, []byte{3})
 		require.NoError(t, err)
 		require.EqualValues(t, h2[:], ret)
 		require.EqualValues(t, blake2bInvokedNum, 1)
 
-		ret, err = EvalFromSource(nil, "if($0,blake2b($1),blake2b($2))",
+		ret, err = EvalFromSource(nil, "if($0,blake2b-test($1),blake2b-test($2))",
 			nil, []byte{2}, []byte{3})
 		require.NoError(t, err)
 		require.EqualValues(t, h3[:], ret)
@@ -361,6 +360,6 @@ func TestSigED25519(t *testing.T) {
 	})
 	t.Run("validSignatureED25519-wrong-pubkey", func(t *testing.T) {
 		_, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", nil, nil, nil)
-		require.Error(t, err)
+		easyutxo.RequireErrorWith(t, err, "bad public key length")
 	})
 }
