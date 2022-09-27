@@ -21,6 +21,8 @@ func extendLibrary() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath)
 	easyfl.EmbedShort("atPath", 1, evalAtPath)
+	easyfl.EmbedShort("requireAll", 1, evalRequireAll)
+	easyfl.EmbedShort("requireAny", 1, evalRequireAny)
 	// special transaction related
 
 	easyfl.Extend("txBytes", "atPath(0x00)")
@@ -40,6 +42,7 @@ func extendLibrary() {
 	easyfl.Extend("selfReferencedConstraint", "atPath(concat(slice(@,0,2), selfUnlockBlock))")
 	easyfl.Extend("selfConsumedContext", "equal(slice(@,0,2), 0x0100)")
 	easyfl.Extend("selfOutputContext", "not(selfConsumedContext)")
+
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
@@ -81,7 +84,7 @@ func evalRequireAny(ctx *easyfl.CallParams) []byte {
 	for _, idx := range blockIndices {
 		if idx <= myIdx {
 			// only forward
-			panic("evalRequireAll: can only invoke constraints forward")
+			panic("evalRequireAny: can only invoke constraints forward")
 		}
 		path[len(path)-1] = idx
 		if len(invokeConstraint(gc.dataTree, path)) != 0 {

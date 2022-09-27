@@ -16,7 +16,7 @@ type OutputID [OutputIDLength]byte
 type OutputData []byte
 
 const (
-	OutputBlockValidationScripts = byte(iota)
+	OutputBlockMasterConstraint = byte(iota)
 	OutputBlockAddress
 	OutputBlockTokens
 	OutputNumRequiredBlocks
@@ -60,7 +60,9 @@ func NewOutput() *Output {
 	for i := 0; i < int(OutputNumRequiredBlocks); i++ {
 		tr.PushData(nil, nil)
 	}
-	return &Output{tree: tr}
+	ret := &Output{tree: tr}
+	ret.PutDefaultConstraints()
+	return ret
 }
 
 func OutputFromBytes(data []byte) (*Output, error) {
@@ -103,4 +105,15 @@ func (o *Output) Tokens() uint64 {
 		panic("tokens must be 8 bytes")
 	}
 	return binary.BigEndian.Uint64(ret)
+}
+
+func (o *Output) PutDefaultConstraints() {
+	o.putMasterConstraint(OutputBlockAddress)
+}
+
+func (o *Output) putMasterConstraint(idxs ...byte) {
+	var buf bytes.Buffer
+	buf.WriteByte(InvocationTypeInline)
+	buf.Write(idxs)
+	o.tree.PutDataAtIdx(OutputBlockMasterConstraint, buf.Bytes(), nil)
 }
