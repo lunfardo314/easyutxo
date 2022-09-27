@@ -5,7 +5,8 @@ import (
 	"fmt"
 )
 
-func CatchPanic(f func()) (err error) {
+func CatchPanicOrError(f func() error) error {
+	var err error
 	func() {
 		defer func() {
 			r := recover()
@@ -17,7 +18,7 @@ func CatchPanic(f func()) (err error) {
 				err = fmt.Errorf("%v", r)
 			}
 		}()
-		f()
+		err = f()
 	}()
 	return err
 }

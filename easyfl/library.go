@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"golang.org/x/crypto/ed25519"
 )
 
 type funDescriptor struct {
@@ -63,7 +65,11 @@ func init() {
 	// other
 	Extend("nil", "or()")
 	Extend("tail", "slice($0, $1, sub8(len8($0),1))")
+	EmbedLong("validSignatureED25519", 3, evalValidSigED25519)
 
+}
+
+func PrintLibraryStats() {
 	fmt.Printf(`EasyFL function library:
     number of short embedded: %d out of max %d
     number of long embedded: %d out of max %d
@@ -427,6 +433,17 @@ func evalLessThan(par *CallParams) []byte {
 		if a0[i] < a1[i] {
 			return []byte{0xff} // true
 		}
+	}
+	return nil
+}
+
+func evalValidSigED25519(ctx *CallParams) []byte {
+	msg := ctx.Arg(0)
+	signature := ctx.Arg(1)
+	pubKey := ctx.Arg(2)
+
+	if ed25519.Verify(pubKey, msg, signature) {
+		return []byte{0xff}
 	}
 	return nil
 }

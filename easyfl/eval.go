@@ -2,6 +2,8 @@ package easyfl
 
 import (
 	"fmt"
+
+	"github.com/lunfardo314/easyutxo"
 )
 
 type EvalContext struct {
@@ -98,12 +100,20 @@ func EvalExpression(glb interface{}, f *Expression, args ...[]byte) []byte {
 }
 
 func EvalFromSource(glb interface{}, source string, args ...[]byte) ([]byte, error) {
-	f, requiredNumArgs, _, err := CompileFormula(source)
+	var ret []byte
+	err := easyutxo.CatchPanicOrError(func() error {
+		f, requiredNumArgs, _, err := CompileFormula(source)
+		if err != nil {
+			return err
+		}
+		if requiredNumArgs != len(args) {
+			return fmt.Errorf("required number of parameters is %d, got %d", requiredNumArgs, len(args))
+		}
+		ret = EvalExpression(glb, f, args...)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if requiredNumArgs != len(args) {
-		return nil, fmt.Errorf("required number of parameters is %d, got %d", requiredNumArgs, len(args))
-	}
-	return EvalExpression(glb, f, args...), nil
+	return ret, nil
 }

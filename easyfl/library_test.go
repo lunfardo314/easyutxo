@@ -1,9 +1,12 @@
 package easyfl
 
 import (
+	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/lunfardo314/easyutxo"
 	"github.com/stretchr/testify/require"
@@ -314,5 +317,50 @@ func TestComparison(t *testing.T) {
 		require.True(t, res)
 		res = runTest("lessOrEqualThan($0,$1)", num(uint32(100)), num(uint32(150)))
 		require.True(t, res)
+	})
+}
+
+func TestSigED25519(t *testing.T) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	pubKey, privKey, err := ed25519.GenerateKey(rnd)
+	require.NoError(t, err)
+
+	const msg = "message to be signed"
+
+	t.Run("validSignatureED25519-ok", func(t *testing.T) {
+		signature := ed25519.Sign(privKey, []byte(msg))
+		res, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", []byte(msg), signature, pubKey)
+		require.NoError(t, err)
+
+		require.True(t, len(res) > 0)
+	})
+	t.Run("validSignatureED25519-wrong-msg", func(t *testing.T) {
+		signature := ed25519.Sign(privKey, []byte(msg))
+		res, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", []byte(msg+"klmn"), signature, pubKey)
+		require.NoError(t, err)
+
+		require.True(t, len(res) == 0)
+	})
+	t.Run("validSignatureED25519-wrong-sig", func(t *testing.T) {
+		signature := ed25519.Sign(privKey, []byte(msg))
+		signature[5]++
+		res, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", []byte(msg), signature, pubKey)
+		require.NoError(t, err)
+
+		require.True(t, len(res) == 0)
+	})
+	t.Run("validSignatureED25519-wrong-pubkey", func(t *testing.T) {
+		signature := ed25519.Sign(privKey, []byte(msg))
+		pk := easyutxo.Concat(pubKey)
+		pk[3]++
+		res, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", []byte(msg), signature, pk)
+		require.NoError(t, err)
+
+		require.True(t, len(res) == 0)
+	})
+	t.Run("validSignatureED25519-wrong-pubkey", func(t *testing.T) {
+		_, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", nil, nil, nil)
+		require.Error(t, err)
 	})
 }

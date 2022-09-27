@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"bytes"
-	"crypto/ed25519"
 
 	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
@@ -27,7 +26,6 @@ func extendLibrary() {
 	easyfl.EmbedShort("atPath", 1, evalAtPath)
 	easyfl.EmbedLong("blake2b", -1, evalBlake2b)
 	// special transaction related
-	easyfl.EmbedLong("validSignatureED25519", 3, evalValidSigED25519)
 
 	easyfl.Extend("txBytes", "atPath(0x00)")
 	easyfl.Extend("txInputIDsBytes", "atPath(0x0001)")
@@ -63,17 +61,6 @@ func evalBlake2b(ctx *easyfl.CallParams) []byte {
 	}
 	ret := blake2b.Sum256(buf.Bytes())
 	return ret[:]
-}
-
-func evalValidSigED25519(ctx *easyfl.CallParams) []byte {
-	essence := ctx.Arg(0)
-	signature := ctx.Arg(1)
-	pubKey := ctx.Arg(2)
-
-	if ed25519.Verify(pubKey, essence, signature) {
-		return []byte{0xff}
-	}
-	return nil
 }
 
 func evalRequireAll(ctx *easyfl.CallParams) []byte {

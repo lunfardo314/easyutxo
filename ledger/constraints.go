@@ -24,6 +24,8 @@ func init() {
 
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
 
+	easyfl.PrintLibraryStats()
+
 	for _, code := range constraints {
 		constraintTree.PushData(code, nil)
 	}
