@@ -18,7 +18,7 @@ const (
 
 const (
 	ConsumedOutputsIndex = byte(iota)
-	ConsumedLibraryIndex
+	ConsumedConstraintLibraryIndex
 )
 
 // Transaction tree 1st level branch indices
@@ -45,7 +45,7 @@ var (
 
 	Consumed        = lazyslice.Path(ConsumedIndex)
 	ConsumedOutputs = lazyslice.Path(ConsumedIndex, ConsumedOutputsIndex)
-	ConsumedLibrary = lazyslice.Path(ConsumedIndex, ConsumedLibraryIndex)
+	ConsumedLibrary = lazyslice.Path(ConsumedIndex, ConsumedConstraintLibraryIndex)
 )
 
 func TransactionOutput(outputGroup, idx byte) lazyslice.TreePath {

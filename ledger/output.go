@@ -34,6 +34,10 @@ func NewOutputID(id ID, outputGroup byte, indexInGroup byte) (ret OutputID) {
 	return
 }
 
+func DummyOutputID() OutputID {
+	return NewOutputID(ID{}, 0, 0)
+}
+
 func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	if len(data) != OutputIDLength {
 		err = errors.New("OutputIDFromBytes: wrong data length")

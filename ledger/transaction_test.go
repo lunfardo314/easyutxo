@@ -24,7 +24,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())
 
-		v, err := ledger.GlobalContextFromTransaction(tx.Bytes(), utxodb)
+		v, err := ledger.TransactionContextFromTransaction(tx.Bytes(), utxodb)
 		require.NoError(t, err)
 		txid := tx.ID()
 		require.EqualValues(t, txid, v.TransactionID())

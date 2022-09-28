@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lunfardo314/easyutxo"
+	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,23 +77,41 @@ func TestConstructTx(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("1", func(t *testing.T) {
-		glb := NewGlobalContext()
+		glb := NewTransactionContext()
 		idx := glb.ConsumeOutput(NewOutput(), NewOutputID(ID{}, 0, 0))
 		require.EqualValues(t, 0, idx)
 	})
 	t.Run("1", func(t *testing.T) {
-		glb := NewGlobalContext()
+		ctx := NewTransactionContext()
+		t.Logf("transaction context bytes 1: %d", len(ctx.Tree().Bytes()))
+
 		out := NewOutput()
 		addr := AddressFromED25519PubKey(pubKey)
 		out.PutAddressConstraint(addr, ConstraintSigLockED25519)
 		out.PutTokensConstraint(1337)
-		dummyOid := NewOutputID(ID{}, 0, 0)
-		idx := glb.ConsumeOutput(out, dummyOid)
+		dummyOid := DummyOutputID()
+		idx := ctx.ConsumeOutput(out, dummyOid)
+		require.EqualValues(t, 0, idx)
+		t.Logf("transaction context bytes 2: %d", len(ctx.Tree().Bytes()))
+
+		idx = ctx.ProduceOutput(out, 0)
+		t.Logf("transaction context bytes 3: %d", len(ctx.Tree().Bytes()))
 		require.EqualValues(t, 0, idx)
 
-		idx = glb.ProduceOutput(out, 0)
-		require.EqualValues(t, 0, idx)
+		txbytes := ctx.Transaction().Bytes()
+		t.Logf("tx %d bytes", len(txbytes))
 
-		t.Logf("tx %d bytes", len(glb.Transaction().Bytes()))
+		count := 0
+		ctx.ForEachProducedOutput(func(out *Output, path lazyslice.TreePath) bool {
+			a, c := out.AddressConstraint()
+			require.EqualValues(t, a, addr)
+			require.EqualValues(t, c, ConstraintSigLockED25519)
+			require.EqualValues(t, 1337, out.Tokens())
+			count++
+			return true
+		})
+		require.EqualValues(t, 1, count)
+		//err = ctx.Validate()
+		//require.NoError(t, err)
 	})
 }
