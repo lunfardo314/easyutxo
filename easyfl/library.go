@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/ed25519"
 )
@@ -16,6 +17,7 @@ type funDescriptor struct {
 	funCode           uint16
 	requiredNumParams int
 	evalFun           EvalFunction
+	contextDependent  bool
 }
 
 type libraryData struct {
@@ -37,17 +39,24 @@ const traceYN = false
 
 func init() {
 	// basic
+	// 'slice' inclusive the end. Expects 1-byte slices at $1 and $2
 	EmbedShort("slice", 3, evalSlice)
+	// 'tail' takes from $1 to the end
+	EmbedShort("tail", 2, evalTail)
 	EmbedShort("equal", 2, evalEqual)
+	// 'len8' returns length up until 255 (256 and more panics)
 	EmbedShort("len8", 1, evalLen8)
 	EmbedShort("len16", 1, evalLen16)
 	EmbedShort("not", 1, evalNot)
 	EmbedShort("if", 3, evalIf)
 	EmbedShort("isZero", 1, evalIsZero)
 	// stateless varargs
+	// 'concat' concatenates variable number of arguments. concat() is empty byte array
 	EmbedLong("concat", -1, evalConcat)
 	EmbedLong("and", -1, evalAnd)
 	EmbedLong("or", -1, evalOr)
+	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
+	EmbedLong("@Array8", 1, evalAtArray8)
 
 	// safe arithmetics
 	EmbedShort("sum8", 2, evalMustSum8)
@@ -65,7 +74,8 @@ func init() {
 	Extend("greaterOrEqualThan", "not(lessThan($0,$1))")
 	// other
 	Extend("nil", "or()")
-	Extend("tail", "slice($0, $1, sub8(len8($0),1))")
+	Extend("byte", "slice($0, $1, $1)")
+
 	EmbedLong("validSignatureED25519", 3, evalValidSigED25519)
 	EmbedLong("blake2b", -1, evalBlake2b)
 
@@ -80,7 +90,9 @@ func PrintLibraryStats() {
 		numEmbeddedShort, MaxNumEmbeddedShort, numEmbeddedLong, MaxNumEmbeddedLong, numExtended, MaxNumExtended)
 }
 
-func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction) byte {
+// EmbedShort embeds short-callable function inti the library
+// contextDependent is not used currently, it is intended for caching of values TODO
+func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction, contextDependent ...bool) byte {
 	if numEmbeddedShort >= MaxNumEmbeddedShort {
 		panic("too many embedded short functions")
 	}
@@ -91,11 +103,16 @@ func EmbedShort(sym string, requiredNumPar int, evalFun EvalFunction) byte {
 	if traceYN {
 		evalFun = wrapWithTracing(evalFun, sym)
 	}
+	var ctxDept bool
+	if len(contextDependent) > 0 {
+		ctxDept = contextDependent[0]
+	}
 	dscr := &funDescriptor{
 		sym:               sym,
 		funCode:           uint16(numEmbeddedShort),
 		requiredNumParams: requiredNumPar,
 		evalFun:           evalFun,
+		contextDependent:  ctxDept,
 	}
 	theLibrary.funByName[sym] = dscr
 	theLibrary.funByFunCode[dscr.funCode] = dscr
@@ -257,11 +274,18 @@ func functionByCode(funCode uint16) (EvalFunction, int, error) {
 	return libData.evalFun, libData.requiredNumParams, nil
 }
 
+// slices first argument 'from' 'to' inclusive 'to'
 func evalSlice(par *CallParams) []byte {
 	data := par.Arg(0)
 	from := par.Arg(1)
 	to := par.Arg(2)
-	return data[from[0]:to[0]]
+	return data[from[0] : int(to[0])+1]
+}
+
+func evalTail(par *CallParams) []byte {
+	data := par.Arg(0)
+	from := par.Arg(1)
+	return data[from[0]:]
 }
 
 func evalEqual(par *CallParams) []byte {
@@ -457,4 +481,13 @@ func evalBlake2b(ctx *CallParams) []byte {
 	}
 	ret := blake2b.Sum256(buf.Bytes())
 	return ret[:]
+}
+
+func evalAtArray8(ctx *CallParams) []byte {
+	arr := lazyslice.ArrayFromBytes(ctx.Arg(0))
+	idx := ctx.Arg(1)
+	if len(idx) != 1 {
+		panic("evalAtArray8: 1-byte value expected")
+	}
+	return arr.At(int(idx[0]))
 }

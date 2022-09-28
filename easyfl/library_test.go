@@ -75,7 +75,7 @@ func TestEval(t *testing.T) {
 	})
 	t.Run("6", func(t *testing.T) {
 		ret, err := EvalFromSource(nil,
-			"concat(concat(slice($2,1,2), slice($2,0,1)), slice(concat(concat($0,$1),concat($1,$0)),1,3))",
+			"concat(concat(slice($2,1,1), byte($2,0)), slice(concat(concat($0,$1),concat($1,$0)),1,2))",
 			[]byte{222}, []byte{111}, []byte{123, 234})
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{234, 123, 111, 111}, ret)
@@ -91,7 +91,7 @@ func TestEval(t *testing.T) {
 		require.EqualValues(t, []byte{1, 2, 3, 4, 5}, ret)
 	})
 	t.Run("9", func(t *testing.T) {
-		ret, err := EvalFromSource(nil, "slice(concat(concat(1,2),concat(3,4,5)),2,4)")
+		ret, err := EvalFromSource(nil, "slice(concat(concat(1,2),concat(3,4,5)),2,3)")
 		require.NoError(t, err)
 		require.EqualValues(t, []byte{3, 4}, ret)
 	})

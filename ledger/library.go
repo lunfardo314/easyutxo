@@ -21,28 +21,28 @@ var requireAllCode byte
 
 func extendLibrary() {
 	// context access
-	easyfl.EmbedShort("@", 0, evalPath)
-	easyfl.EmbedShort("atPath", 1, evalAtPath)
-	requireAllCode = easyfl.EmbedShort("requireAll", 1, evalRequireAll)
-	easyfl.EmbedShort("requireAny", 1, evalRequireAny)
+	easyfl.EmbedShort("@", 0, evalPath, true)
+	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
+	requireAllCode = easyfl.EmbedShort("requireAll", 1, evalRequireAll, true)
+	easyfl.EmbedShort("requireAny", 1, evalRequireAny, true)
 	// special transaction related
 
-	easyfl.Extend("txBytes", "atPath(0x00)")
-	easyfl.Extend("txInputIDsBytes", "atPath(0x0001)")
-	easyfl.Extend("txOutputBytes", "atPath(0x0002)")
-	easyfl.Extend("txTimestampBytes", "atPath(0x0003)")
-	easyfl.Extend("txInputCommitmentBytes", "atPath(0x0004)")
-	easyfl.Extend("txLocalLibBytes", "atPath(0x0005)")
+	easyfl.Extend("txBytes", "@Path(0x00)")
+	easyfl.Extend("txInputIDsBytes", "@Path(0x0001)")
+	easyfl.Extend("txOutputBytes", "@Path(0x0002)")
+	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
+	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
+	easyfl.Extend("txLocalLibBytes", "@Path(0x0005)")
 	easyfl.Extend("txid", "blake2b(txBytes)")
 	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
 	easyfl.Extend("addrED25519FromPubKey", "blake2b($0)")
 
-	easyfl.Extend("selfConstraint", "atPath(@)")
-	easyfl.Extend("selfConstraintData", "if(equal(slice(selfConstraint,0,1), 0),nil,tail(selfConstraint,1))")
+	easyfl.Extend("selfConstraint", "@Path(@)")
+	easyfl.Extend("selfConstraintData", "if(equal(byte(selfConstraint,0), 0),nil,tail(selfConstraint,1))")
 	easyfl.Extend("selfOutputIndex", "tail(@,2)")
-	easyfl.Extend("selfUnlockBlock", "atPath(concat(0, 0, slice(@, 2, 5)))")
-	easyfl.Extend("selfReferencedConstraint", "atPath(concat(slice(@,0,2), selfUnlockBlock))")
-	easyfl.Extend("selfConsumedContext", "equal(slice(@,0,2), 0x0100)")
+	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
+	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")
+	easyfl.Extend("selfConsumedContext", "equal(slice(@,0,1), 0x0100)")
 	easyfl.Extend("selfOutputContext", "not(selfConsumedContext)")
 
 }
