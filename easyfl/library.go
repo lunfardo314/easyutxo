@@ -73,7 +73,7 @@ func init() {
 	Extend("greaterThan", "not(lessOrEqualThan($0,$1))")
 	Extend("greaterOrEqualThan", "not(lessThan($0,$1))")
 	// other
-	Extend("nil", "or()")
+	Extend("nil", "or")
 	Extend("byte", "slice($0, $1, $1)")
 
 	EmbedLong("validSignatureED25519", 3, evalValidSigED25519)

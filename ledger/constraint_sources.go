@@ -2,43 +2,48 @@ package ledger
 
 const SigLockConstraint = `
 
-// if unlock block is 3 bytes (b0, b1, b2), where (b0, b1) long index of output and b2 block index
-// and it references constraint in the consumed output with the same constraint (address), it is unlocked
-// (b0, b1) must point to the place strongly preceding the current one. It prevents cycle and guarantees
-// at least one (normally) of sig-locked outputs is unlocked with signature
+// the function 'selfUnlockedWithReference'' is accessing the transaction context knowing it invocation
+// place (output index). Other functions 'selfUnlockBlock', 'selfOutputIndex', 'selfConstraint', 
+// 'selfReferencedConstraint' etc are all invocation context specific
+// It all and up to embedded functions '@' which gives invocation location and '@Path' which gives data bytes
+// for any location inn the transaction specified by any valid path
 
+// 'selfUnlockedWithReference'' specifies validation of the input unlock with the reference
 func selfUnlockedWithReference: and(
-	equal(len8(selfUnlockBlock), 3),
-	lessThan(slice(selfUnlockBlock,0,2), selfOutputIndex),
-	equal(selfConstraint, selfReferencedConstraint)
+	equal(len8(selfUnlockBlock), 2),                     // unlock block must be 2 bytes long
+	lessThan(byte(selfUnlockBlock,0), selfOutputIndex),  // unlock block must point to another input with strictly 
+														 // smaller index	
+	equal(selfConstraint, selfReferencedConstraint)      // the referenced constraint bytes must be equal to the
+														 // self constrain bytes
 )
 
-// otherwise, the signature must be valid and hash of the public key must be equal to the provided address
-
+// 'selfUnlockedWithSigED25519' specifies unlock constraint with the unlock block signature
+// the signature must be valid and hash of the public key must be equal to the provided address
 func selfUnlockedWithSigED25519: and(
+	equal(len8(selfUnlockBlock), 96),                    // unlock block must be 96 bytes long
 	validSignatureED25519(
-		txEssenceBytes, 
-		slice(selfUnlockBlock, 0, 64), 
-		slice(selfUnlockBlock, 64, 96)
+		txEssenceBytes,                        // function 'txEssenceBytes' returns transaction essence btes 
+		slice(selfUnlockBlock, 0, 64),         // first 64 bytes is signature
+		slice(selfUnlockBlock, 64, 96)         // the rest is public key
 	),
 	equal(
-		selfConstraintData, 
-		addrED25519FromPubKey(
+		selfConstraintData,                    // address in the constraint data must be equal to the has of the  
+		addrED25519FromPubKey(                 // public key
 			slice(selfUnlockBlock, 64, 96)
 		)
 	)
 )
 
-// if it is 'consumed' invocation context, only size of the address is checked
+// if it is 'consumed' invocation context (constraint invoked in the input), only size of the address is checked
 // Otherwise the first will check first condition if it is unlocked by reference, otherwise checks unlocking signature
 // Second condition not evaluated if the first is true 
 
 func sigLocED25519: if(
-	selfConsumedContext,
-    equal( len8(selfConstraintData), 32),
-	or(
-		selfUnlockedWithReference,
-		selfUnlockedWithSigED25519
+	selfIsConsumedContext,
+    equal( len8(selfConstraintData), 32 ),
+	or(                                    
+		selfUnlockedWithReference,    // if it is unlocked with reference, the signature is not checked
+		selfUnlockedWithSigED25519    // otherwise signature is checked
 	)
 )
 `

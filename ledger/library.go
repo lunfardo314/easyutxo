@@ -42,8 +42,8 @@ func extendLibrary() {
 	easyfl.Extend("selfOutputIndex", "tail(@,2)")
 	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
 	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")
-	easyfl.Extend("selfConsumedContext", "equal(slice(@,0,1), 0x0100)")
-	easyfl.Extend("selfOutputContext", "not(selfConsumedContext)")
+	easyfl.Extend("selfIsConsumedContext", "equal(slice(@,0,1), 0x0100)")
+	easyfl.Extend("selfOutputContext", "not(selfIsConsumedContext)")
 
 }
 

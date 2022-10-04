@@ -7,6 +7,9 @@ import (
 )
 
 func main() {
+	sl := []byte{1, 2, 3, 4}
+	fmt.Printf("sl = %v, sl[3:] = %v, sl[4:] = %v", sl, sl[3:], sl[4:])
+
 	fmt.Printf("MaxUint32 = %020d\n", math.MaxUint32)
 
 	nuint16 := uint16(0x0201)
