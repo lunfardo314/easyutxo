@@ -102,7 +102,7 @@ func EvalExpression(glb interface{}, f *Expression, args ...[]byte) []byte {
 func EvalFromSource(glb interface{}, source string, args ...[]byte) ([]byte, error) {
 	var ret []byte
 	err := easyutxo.CatchPanicOrError(func() error {
-		f, requiredNumArgs, _, err := CompileFormula(source)
+		f, requiredNumArgs, _, err := CompileExpression(source)
 		if err != nil {
 			return err
 		}
@@ -124,4 +124,21 @@ func MustEvalFromSource(glb interface{}, source string, args ...[]byte) []byte {
 		panic(err)
 	}
 	return ret
+}
+
+func MustEvalFromBinary(glb interface{}, code []byte, args ...[]byte) []byte {
+	expr, err := ExpressionFromBinary(code)
+	if err != nil {
+		panic(err)
+	}
+	return EvalExpression(glb, expr, args...)
+}
+
+func EvalFromBinary(glb interface{}, code []byte, args ...[]byte) ([]byte, error) {
+	var ret []byte
+	err := easyutxo.CatchPanicOrError(func() error {
+		ret = MustEvalFromBinary(glb, code, args...)
+		return nil
+	})
+	return ret, err
 }

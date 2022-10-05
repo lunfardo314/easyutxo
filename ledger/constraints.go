@@ -41,7 +41,7 @@ func registerConstraint(invocationCode byte, source string) error {
 	if constraints[invocationCode] != nil {
 		return fmt.Errorf("repeating invocation code %d: '%s'", invocationCode, source)
 	}
-	_, numParams, code, err := easyfl.CompileFormula(source)
+	_, numParams, code, err := easyfl.CompileExpression(source)
 	if err != nil {
 		return err
 	}

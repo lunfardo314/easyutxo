@@ -249,6 +249,25 @@ func TestExtendLib(t *testing.T) {
 		exp := compl(d(0), d(1), compl(d(2), d(1), d(0)))
 		require.EqualValues(t, exp, ret)
 	})
+	t.Run("eval from binary", func(t *testing.T) {
+		source := "concat($2, $1, $0)"
+		_, arity, code, err := CompileExpression(source)
+		require.NoError(t, err)
+		require.EqualValues(t, 3, arity)
+		t.Logf("compiled binary code of '%s' is %d-bytes long", source, len(code))
+		ret, err := EvalFromBinary(nil, code, []byte{1}, []byte{2}, []byte{3})
+		require.NoError(t, err)
+		require.EqualValues(t, []byte{3, 2, 1}, ret)
+	})
+	t.Run("always panics", func(t *testing.T) {
+		_, err := EvalFromSource(nil, "byte(0,1)")
+		require.Error(t, err)
+	})
+	t.Run("never panics", func(t *testing.T) {
+		_, err := EvalFromSource(nil, "if(concat,byte(0,1),0x01)")
+		require.NoError(t, err)
+	})
+
 }
 
 func num(n any) []byte {

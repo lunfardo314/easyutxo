@@ -174,7 +174,7 @@ func evalParamFun(paramNr byte) EvalFunction {
 }
 
 func ExtendErr(sym string, source string) (uint16, error) {
-	f, numParam, _, err := CompileFormula(source)
+	f, numParam, _, err := CompileExpression(source)
 	if err != nil {
 		return 0, fmt.Errorf("error while compiling '%s': %v", sym, err)
 	}
@@ -279,7 +279,14 @@ func evalSlice(par *CallParams) []byte {
 	data := par.Arg(0)
 	from := par.Arg(1)
 	to := par.Arg(2)
-	return data[from[0] : int(to[0])+1]
+	if from[0] > to[0] {
+		panic("wrong slice bounds")
+	}
+	upper := int(to[0]) + 1
+	if upper > len(data) {
+		panic("slice out of bounds")
+	}
+	return data[from[0]:upper]
 }
 
 func evalTail(par *CallParams) []byte {

@@ -414,8 +414,8 @@ func expressionFromBinary(code []byte) (*Expression, []byte, error) {
 	return ret, code, nil
 }
 
-func CompileFormula(formulaSource string) (*Expression, int, []byte, error) {
-	src := strings.Join(splitLinesStripComments(formulaSource), "")
+func CompileExpression(source string) (*Expression, int, []byte, error) {
+	src := strings.Join(splitLinesStripComments(source), "")
 	code, numParams, err := ExpressionSourceToBinary(stripSpaces(src))
 	if err != nil {
 		return nil, 0, nil, err
