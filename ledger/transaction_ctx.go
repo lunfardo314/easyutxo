@@ -10,6 +10,7 @@ import (
 	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 )
 
+// TransactionContext is a data structure, which contains transaction, consumed outputs and constraint library
 type TransactionContext struct {
 	tree *lazyslice.Tree
 }

@@ -54,6 +54,10 @@ func (oid *OutputID) Parts() (txid ID, group, index byte) {
 	return
 }
 
+func (oid *OutputID) Bytes() []byte {
+	return oid[:]
+}
+
 func (oid *OutputID) String() string {
 	txid, group, idx := oid.Parts()
 	return fmt.Sprintf("[%d|%d]%s", group, idx, txid.String())

@@ -1,3 +1,4 @@
+// Package globalpath contains constants for the transaction context LazyTree data structure
 package globalpath
 
 import (

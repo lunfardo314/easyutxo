@@ -1,17 +1,28 @@
 package utxodb
 
 import (
+	"bytes"
+
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyutxo/ledger"
 )
 
 type UtxoDB struct {
-	utxo map[string]*ledger.Output
+	store common.KVStore
 }
 
-func New() *UtxoDB {
+func New(store common.KVStore) *UtxoDB {
 	return &UtxoDB{
-		utxo: make(map[string]*ledger.Output),
+		store: store,
 	}
+}
+
+func NewInMemory() *UtxoDB {
+	return New(common.NewInMemoryKVStore())
+}
+
+func (u *UtxoDB) utxoPartition() common.KVStore {
+	return u.store
 }
 
 func (u *UtxoDB) AddTransaction(txBytes []byte) error {
@@ -22,34 +33,44 @@ func (u *UtxoDB) AddTransaction(txBytes []byte) error {
 	if err = ctx.Validate(); err != nil {
 		return err
 	}
-	// remove spent outputs
-	tx := ctx.Transaction()
+	u.updateLedger(ctx.Transaction())
+	return nil
+}
+
+func (u *UtxoDB) GetUTXO(id *ledger.OutputID) (ledger.OutputData, bool) {
+	ret := u.utxoPartition().Get(id.Bytes())
+	if len(ret) == 0 {
+		return nil, false
+	}
+	return ret, true
+}
+
+func (u *UtxoDB) GetUTXOsForAddress(addr []byte) []ledger.OutputData {
+	ret := make([]ledger.OutputData, 0)
+	u.utxoPartition().Iterate(func(k, v []byte) bool {
+		o, err := ledger.OutputFromBytes(v)
+		common.AssertNoError(err)
+		a, constraint := o.AddressConstraint()
+		common.Assert(constraint == ledger.ConstraintSigLockED25519, "only ConstraintSigLockED25519 supported")
+		if bytes.Equal(addr, a) {
+			ret = append(ret, v)
+		}
+		return true
+	})
+	return ret
+}
+
+// updateLedger in the future must be atomic
+func (u *UtxoDB) updateLedger(tx *ledger.Transaction) {
 	tx.ForEachInputID(func(_ byte, o ledger.OutputID) bool {
-		delete(u.utxo, string(o[:]))
+		u.utxoPartition().Set(o[:], nil)
 		return true
 	})
 	// add new outputs
 	txid := tx.ID()
 	tx.ForEachOutput(func(group, idx byte, o *ledger.Output) bool {
 		id := ledger.NewOutputID(txid, group, idx)
-		u.utxo[string(id[:])] = o
+		u.utxoPartition().Set(id[:], o.Bytes())
 		return true
 	})
-	return nil
-}
-
-func (u *UtxoDB) GetUTXO(id *ledger.OutputID) (ledger.OutputData, bool) {
-	ret, ok := u.utxo[string(id[:])]
-	return ret.Bytes(), ok
-}
-
-func (u *UtxoDB) GetUTXOsForAddress(addr []byte) []ledger.OutputData {
-	panic("not implemented")
-	//ret := make([]ledger.OutputData, 0)
-	//for _, d := range u.utxo {
-	//	if bytes.Equal(addr, d.Address()) {
-	//		ret = append(ret, d.Bytes())
-	//	}
-	//}
-	//return ret
 }
