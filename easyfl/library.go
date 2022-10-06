@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/ed25519"
 )
@@ -55,8 +54,6 @@ func init() {
 	EmbedLong("concat", -1, evalConcat)
 	EmbedLong("and", -1, evalAnd)
 	EmbedLong("or", -1, evalOr)
-	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
-	EmbedLong("@Array8", 1, evalAtArray8)
 
 	// safe arithmetics
 	EmbedShort("sum8", 2, evalMustSum8)
@@ -488,13 +485,4 @@ func evalBlake2b(ctx *CallParams) []byte {
 	}
 	ret := blake2b.Sum256(buf.Bytes())
 	return ret[:]
-}
-
-func evalAtArray8(ctx *CallParams) []byte {
-	arr := lazyslice.ArrayFromBytes(ctx.Arg(0))
-	idx := ctx.Arg(1)
-	if len(idx) != 1 {
-		panic("evalAtArray8: 1-byte value expected")
-	}
-	return arr.At(int(idx[0]))
 }

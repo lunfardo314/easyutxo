@@ -25,6 +25,10 @@ func extendLibrary() {
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
 	requireAllCode = easyfl.EmbedShort("requireAll", 1, evalRequireAll, true)
 	easyfl.EmbedShort("requireAny", 1, evalRequireAny, true)
+	// lazyarray
+	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
+	easyfl.EmbedLong("@Array8", 1, evalAtArray8)
+
 	// special transaction related
 
 	easyfl.Extend("txBytes", "@Path(0x00)")
@@ -94,4 +98,13 @@ func evalRequireAny(ctx *easyfl.CallParams) []byte {
 		}
 	}
 	return nil
+}
+
+func evalAtArray8(ctx *easyfl.CallParams) []byte {
+	arr := lazyslice.ArrayFromBytes(ctx.Arg(0))
+	idx := ctx.Arg(1)
+	if len(idx) != 1 {
+		panic("evalAtArray8: 1-byte value expected")
+	}
+	return arr.At(int(idx[0]))
 }
