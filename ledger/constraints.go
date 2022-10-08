@@ -16,6 +16,7 @@ const (
 	ConstraintReserved2
 	ConstraintSigLockED25519
 	ConstraintTokens
+	ConstraintTimestamp
 )
 
 func init() {
@@ -23,9 +24,11 @@ func init() {
 
 	easyfl.MustExtendMany(SigLockConstraint)
 	easyfl.MustExtendMany(TokensConstraint)
+	easyfl.MustExtendMany(TimestampConstraint)
 
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
 	mustRegisterConstraint(ConstraintTokens, "tokensConstraint")
+	mustRegisterConstraint(ConstraintTimestamp, "timestampConstraint")
 
 	easyfl.PrintLibraryStats()
 

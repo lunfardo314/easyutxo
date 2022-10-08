@@ -32,16 +32,16 @@ func TestBasics(t *testing.T) {
 		v2 := tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputIDsBranch))
 		require.EqualValues(t, inputIDs, v2)
 
-		outputs := v.MustEval("txOutputBytes", nil)
+		outputs := v.MustEval("txOutputsBytes", nil)
 		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxOutputBranch))
 		require.EqualValues(t, outputs, v2)
 
 		ts := v.MustEval("txTimestampBytes", nil)
-		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxTimestampIndex))
+		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxTimestamp))
 		require.True(t, easyutxo.EmptySlices(ts, v2))
 
 		inpComm := v.MustEval("txInputCommitmentBytes", nil)
-		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputCommitmentIndex))
+		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputCommitment))
 		require.True(t, easyutxo.EmptySlices(inpComm, v2))
 
 		lib := v.MustEval("txLocalLibBytes", nil)
@@ -51,5 +51,6 @@ func TestBasics(t *testing.T) {
 		essence := v.MustEval("txEssenceBytes", nil)
 		v2 = easyutxo.Concat(inputIDs, outputs, ts, inpComm, lib)
 		require.True(t, bytes.Equal(essence, v2))
+
 	})
 }

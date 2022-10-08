@@ -290,7 +290,7 @@ func (f *parsedExpression) binaryFromParsedExpression(w io.Writer) (int, error) 
 		return 0, err
 	}
 	if fi.NumParams >= 0 && fi.NumParams != len(f.params) {
-		return 0, fmt.Errorf("%d varScope required, got %d: '%s'", fi.NumParams, len(f.params), f.sym)
+		return 0, fmt.Errorf("%d arguments required, got %d: '%s'", fi.NumParams, len(f.params), f.sym)
 	}
 
 	var callBytes []byte

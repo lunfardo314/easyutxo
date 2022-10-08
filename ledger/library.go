@@ -33,12 +33,12 @@ func extendLibrary() {
 
 	easyfl.Extend("txBytes", "@Path(0x00)")
 	easyfl.Extend("txInputIDsBytes", "@Path(0x0001)")
-	easyfl.Extend("txOutputBytes", "@Path(0x0002)")
+	easyfl.Extend("txOutputsBytes", "@Path(0x0002)")
 	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
 	easyfl.Extend("txLocalLibBytes", "@Path(0x0005)")
 	easyfl.Extend("txid", "blake2b(txBytes)")
-	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
+	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
 	easyfl.Extend("addrED25519FromPubKey", "blake2b($0)")
 
 	easyfl.Extend("selfConstraint", "@Path(@)")
@@ -46,8 +46,9 @@ func extendLibrary() {
 	easyfl.Extend("selfOutputIndex", "tail(@,2)")
 	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
 	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")
-	easyfl.Extend("selfIsConsumedContext", "equal(slice(@,0,1), 0x0100)")
-	easyfl.Extend("selfOutputContext", "not(selfIsConsumedContext)")
+	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
+	easyfl.Extend("isProducedBranch", "equal(slice($0,0,1), 0x0002)")
+	easyfl.Extend("isTimestampPath", "equal($0, 0x0003)")
 
 }
 

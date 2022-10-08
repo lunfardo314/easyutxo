@@ -39,7 +39,7 @@ func selfUnlockedWithSigED25519: and(
 // Second condition not evaluated if the first is true 
 
 func sigLocED25519: if(
-	selfIsConsumedContext,
+	isConsumedBranch(@),
     equal( len8(selfConstraintData), 32 ),
 	or(                                    
 		selfUnlockedWithReference,    // if it is unlocked with reference, the signature is not checked
@@ -55,4 +55,23 @@ func tokensValid: and(
 )
 
 func tokensConstraint : tokensValid(selfConstraintData)
+`
+
+const TimestampConstraint = `
+// Timestamp is 4 bytes of Unix timestamp in seconds. 
+// Timestamp must be present in each output and in the TxTimestamp as transaction timestamp
+// Timestamp constraint:
+// - for transaction timestamp only 4 byte length is checked
+// - for produced output the timestamp must be equal to the transaction timestamp
+// - for consumed input the timestamp must be strictly less than the transaction timestamp
+
+func timestampValid: and(
+	equal(len8($0),4),  // must always be 4 bytes
+	or(
+		and( isProducedBranch(@), equal($0, txTimestampBytes) ),  // in produced output must be equal to transaction ts
+	    and( isConsumedBranch(@), lessThan($0, txTimestampBytes) ) // tx timestamp must be strongly greater than input
+	) 
+)
+
+func timestampConstraint: timestampValid(selfConstraintData)
 `

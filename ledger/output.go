@@ -22,7 +22,7 @@ const (
 	OutputNumRequiredBlocks
 )
 
-// Output represents output (UTXO) in the ledger
+// Output wraps output lazy tree
 type Output struct {
 	tree *lazyslice.Tree
 }

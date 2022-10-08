@@ -2,6 +2,7 @@ package ledger
 
 import (
 	ed255192 "crypto/ed25519"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/lunfardo314/easyutxo"
@@ -33,8 +34,8 @@ const (
 	TxUnlockParamsBranch = byte(iota)
 	TxInputIDsBranch
 	TxOutputBranch
-	TxTimestampIndex
-	TxInputCommitmentIndex
+	TxTimestamp
+	TxInputCommitment
 	TxLocalLibraryBranch
 	TxTreeIndexMax
 )
@@ -189,6 +190,12 @@ func (v *TransactionContext) ConsumeOutput(out *Output, oid OutputID) byte {
 
 func (v *TransactionContext) ProduceOutput(out *Output) byte {
 	return byte(v.tree.PushData(out.Bytes(), Path(TransactionBranch, TxOutputBranch)))
+}
+
+func (v *TransactionContext) AddTransactionTimestamp(ts uint32) {
+	var d [4]byte
+	binary.BigEndian.PutUint32(d[:], ts)
+	v.tree.PutDataAtIdx(TxTimestamp, d[:], Path(TransactionBranch))
 }
 
 func (v *TransactionContext) UnlockED25519Inputs(pairs []*keyPair) {

@@ -28,8 +28,8 @@ func NewTransaction() *Transaction {
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxUnlockParamsBranch, nil)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxInputIDsBranch, nil)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxOutputBranch, nil)
-	ret.tree.PutDataAtIdx(TxTimestampIndex, nil, nil)
-	ret.tree.PutDataAtIdx(TxInputCommitmentIndex, nil, nil)
+	ret.tree.PutDataAtIdx(TxTimestamp, nil, nil)
+	ret.tree.PutDataAtIdx(TxInputCommitment, nil, nil)
 	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxLocalLibraryBranch, nil)
 	return ret
 }
