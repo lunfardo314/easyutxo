@@ -23,32 +23,36 @@ func extendLibrary() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
+	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
+	easyfl.Extend("isProducedBranch", "equal(slice($0,0,1), 0x0002)")
+
 	requireAllCode = easyfl.EmbedShort("requireAll", 1, evalRequireAll, true)
 	easyfl.EmbedShort("requireAny", 1, evalRequireAny, true)
-	// lazyarray
+
+	// LazyArray
 	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
-	easyfl.EmbedLong("@Array8", 1, evalAtArray8)
+	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
 
 	// special transaction related
 
 	easyfl.Extend("txBytes", "@Path(0x00)")
+	easyfl.Extend("txID", "blake2b(txBytes)")
 	easyfl.Extend("txInputIDsBytes", "@Path(0x0001)")
 	easyfl.Extend("txOutputsBytes", "@Path(0x0002)")
 	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
 	easyfl.Extend("txLocalLibBytes", "@Path(0x0005)")
-	easyfl.Extend("txid", "blake2b(txBytes)")
 	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
 	easyfl.Extend("addrED25519FromPubKey", "blake2b($0)")
+
+	easyfl.Extend("selfOutputBytes", "@Path(slice(@,0,2))")
+	easyfl.Extend("selfBlockBytes", "@Array8(selfOutputBytes, $0)")
 
 	easyfl.Extend("selfConstraint", "@Path(@)")
 	easyfl.Extend("selfConstraintData", "if(equal(byte(selfConstraint,0), 0),nil,tail(selfConstraint,1))")
 	easyfl.Extend("selfOutputIndex", "tail(@,2)")
 	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
 	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")
-	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
-	easyfl.Extend("isProducedBranch", "equal(slice($0,0,1), 0x0002)")
-	easyfl.Extend("isTimestampPath", "equal($0, 0x0003)")
 
 }
 

@@ -70,3 +70,12 @@ func Assert(cond bool, format string, args ...interface{}) {
 func AssertNoError(err error) {
 	Assert(err == nil, "error: %v", err)
 }
+
+func All0(d []byte) bool {
+	for _, e := range d {
+		if e != 0 {
+			return false
+		}
+	}
+	return true
+}

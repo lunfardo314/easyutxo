@@ -47,13 +47,13 @@ func TestOutput(t *testing.T) {
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		tokensBack := outBack.Tokens()
+		tokensBack := outBack.Amount()
 		require.EqualValues(t, 1337, tokensBack)
 	})
 	t.Run("bad tokens", func(t *testing.T) {
 		out := NewOutput()
 		easyutxo.RequirePanicOrErrorWith(t, func() error {
-			out.Tokens()
+			out.Amount()
 			return nil
 		}, "bounds out of range")
 	})
@@ -62,7 +62,7 @@ func TestOutput(t *testing.T) {
 		addr := AddressFromED25519PubKey(pubKey)
 		out.PutAddressConstraint(addr, ConstraintSigLockED25519)
 		out.PutTokensConstraint(1337)
-		require.EqualValues(t, 1337, out.Tokens())
+		require.EqualValues(t, 1337, out.Amount())
 		addrBack, _ := out.AddressConstraint()
 		require.EqualValues(t, addr, addrBack)
 		t.Logf("utxo len %d bytes", len(out.Bytes()))
@@ -106,7 +106,7 @@ func TestConstructTx(t *testing.T) {
 			a, c := out.AddressConstraint()
 			require.EqualValues(t, a, addr)
 			require.EqualValues(t, c, ConstraintSigLockED25519)
-			require.EqualValues(t, 1337, out.Tokens())
+			require.EqualValues(t, 1337, out.Amount())
 			count++
 			return true
 		})

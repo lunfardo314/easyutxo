@@ -152,7 +152,7 @@ func (v *TransactionContext) TransactionEssenceBytes() []byte {
 }
 
 func (v *TransactionContext) TransactionID() []byte {
-	ret, err := easyfl.EvalFromSource(v.rootContext(), "txid")
+	ret, err := easyfl.EvalFromSource(v.rootContext(), "txID")
 	if err != nil {
 		panic(err)
 	}
@@ -169,6 +169,16 @@ func (v *TransactionContext) MustEval(source string, path []byte) []byte {
 		panic(err)
 	}
 	return ret
+}
+
+func (v *TransactionContext) CheckConstraint(source string, path []byte) error {
+	return easyutxo.CatchPanicOrError(func() error {
+		res := v.MustEval(source, path)
+		if len(res) == 0 {
+			return fmt.Errorf("constraint '%s' failed", source)
+		}
+		return nil
+	})
 }
 
 func (v *TransactionContext) Invoke(invocationPath lazyslice.TreePath) []byte {
@@ -219,6 +229,14 @@ func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 
 func (v *TransactionContext) ForEachProducedOutput(fun func(out *Output, path lazyslice.TreePath) bool) {
 	outputPath := Path(TransactionBranch, TxOutputBranch, byte(0))
+	v.tree.ForEachSubtree(func(idx byte, subtree *lazyslice.Tree) bool {
+		outputPath[2] = idx
+		return fun(OutputFromTree(subtree), outputPath)
+	}, Path(TransactionBranch, TxOutputBranch))
+}
+
+func (v *TransactionContext) ForEachConsumedOutput(fun func(out *Output, path lazyslice.TreePath) bool) {
+	outputPath := Path(ConsumedContextBranch, ConsumedContextOutputsBranch, byte(0))
 	v.tree.ForEachSubtree(func(idx byte, subtree *lazyslice.Tree) bool {
 		outputPath[2] = idx
 		return fun(OutputFromTree(subtree), outputPath)

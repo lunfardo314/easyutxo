@@ -19,6 +19,7 @@ const (
 	OutputBlockMasterConstraint = byte(iota)
 	OutputBlockTokens
 	OutputBlockAddress
+	OutputBlockTimestamp
 	OutputNumRequiredBlocks
 )
 
@@ -89,6 +90,10 @@ func (o *Output) Bytes() []byte {
 	return o.tree.Bytes()
 }
 
+func (o *Output) BlockBytes(idx byte) []byte {
+	return o.tree.GetDataAtIdx(idx, nil)
+}
+
 func (o *Output) PutAddressConstraint(addr Address, constraint byte) {
 	o.tree.PutDataAtIdx(OutputBlockAddress, easyutxo.Concat([]byte{constraint}, []byte(addr)), nil)
 	o.appendConstraintIndexToTheMasterList(OutputBlockAddress)
@@ -102,11 +107,11 @@ func (o *Output) AddressConstraint() (Address, byte) {
 func (o *Output) PutTokensConstraint(amount uint64) {
 	var b [8]byte
 	binary.BigEndian.PutUint64(b[:], amount)
-	o.tree.PutDataAtIdx(OutputBlockTokens, easyutxo.Concat([]byte{ConstraintTokens}, b[:]), nil)
+	o.tree.PutDataAtIdx(OutputBlockTokens, easyutxo.Concat(ConstraintTokens, b[:]), nil)
 	o.appendConstraintIndexToTheMasterList(OutputBlockTokens)
 }
 
-func (o *Output) Tokens() uint64 {
+func (o *Output) Amount() uint64 {
 	ret := o.tree.GetDataAtIdx(OutputBlockTokens, nil)
 	return binary.BigEndian.Uint64(ret[1:])
 }
