@@ -6,7 +6,6 @@ import (
 
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 	"github.com/lunfardo314/easyutxo/ledger/utxodb"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +18,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, tx.NumOutputs())
 	})
 	t.Run("2", func(t *testing.T) {
-		utxodb := utxodb.New()
+		utxodb := utxodb.NewInMemory()
 		tx := ledger.NewTransaction()
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())
@@ -30,23 +29,23 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, txid, v.TransactionID())
 
 		inputIDs := v.MustEval("txInputIDsBytes", nil)
-		v2 := tx.Tree().BytesAtPath(ledger.Path(globalpath.TxInputIDsLongIndex))
+		v2 := tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputIDsBranch))
 		require.EqualValues(t, inputIDs, v2)
 
 		outputs := v.MustEval("txOutputBytes", nil)
-		v2 = tx.Tree().BytesAtPath(ledger.Path(globalpath.TxOutputGroupsIndex))
+		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxOutputBranch))
 		require.EqualValues(t, outputs, v2)
 
 		ts := v.MustEval("txTimestampBytes", nil)
-		v2 = tx.Tree().BytesAtPath(ledger.Path(globalpath.TxTimestampIndex))
+		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxTimestampIndex))
 		require.True(t, easyutxo.EmptySlices(ts, v2))
 
 		inpComm := v.MustEval("txInputCommitmentBytes", nil)
-		v2 = tx.Tree().BytesAtPath(ledger.Path(globalpath.TxInputCommitmentIndex))
+		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputCommitmentIndex))
 		require.True(t, easyutxo.EmptySlices(inpComm, v2))
 
 		lib := v.MustEval("txLocalLibBytes", nil)
-		v2 = tx.Tree().BytesAtPath(ledger.Path(globalpath.TxLocalLibraryIndex))
+		v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxLocalLibraryBranch))
 		require.True(t, bytes.Equal(lib, v2))
 
 		essence := v.MustEval("txEssenceBytes", nil)

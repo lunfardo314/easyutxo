@@ -9,7 +9,7 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
-const OutputIDLength = IDLength + 2
+const OutputIDLength = TransactionIDLength + 1
 
 type OutputID [OutputIDLength]byte
 
@@ -27,15 +27,14 @@ type Output struct {
 	tree *lazyslice.Tree
 }
 
-func NewOutputID(id ID, outputGroup byte, indexInGroup byte) (ret OutputID) {
-	copy(ret[:IDLength], id[:])
-	ret[IDLength] = outputGroup
-	ret[IDLength+1] = indexInGroup
+func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
+	copy(ret[:TransactionIDLength], id[:])
+	ret[TransactionIDLength] = idx
 	return
 }
 
 func DummyOutputID() OutputID {
-	return NewOutputID(ID{}, 0, 0)
+	return NewOutputID(TransactionID{}, 0)
 }
 
 func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
@@ -47,11 +46,12 @@ func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	return
 }
 
-func (oid *OutputID) Parts() (txid ID, group, index byte) {
-	copy(txid[:], oid[:IDLength])
-	group = oid[IDLength]
-	index = oid[IDLength+1]
-	return
+func (oid *OutputID) TransactionID() TransactionID {
+	return oid[:TransactionIDLength]
+}
+
+func (oid *OutputID) Index() byte {
+	return oid[TransactionIDLength]
 }
 
 func (oid *OutputID) Bytes() []byte {
@@ -59,8 +59,7 @@ func (oid *OutputID) Bytes() []byte {
 }
 
 func (oid *OutputID) String() string {
-	txid, group, idx := oid.Parts()
-	return fmt.Sprintf("[%d|%d]%s", group, idx, txid.String())
+	return fmt.Sprintf("[%d]%s", oid.Index(), oid.TransactionID())
 }
 
 func NewOutput() *Output {
@@ -91,7 +90,7 @@ func (o *Output) Bytes() []byte {
 }
 
 func (o *Output) PutAddressConstraint(addr Address, constraint byte) {
-	o.tree.PutDataAtIdx(OutputBlockAddress, easyutxo.Concat([]byte{constraint}, addr), nil)
+	o.tree.PutDataAtIdx(OutputBlockAddress, easyutxo.Concat([]byte{constraint}, []byte(addr)), nil)
 	o.appendConstraintIndexToTheMasterList(OutputBlockAddress)
 }
 

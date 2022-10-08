@@ -26,10 +26,19 @@ func CatchPanicOrError(f func() error) error {
 	return err
 }
 
-func Concat(data ...[]byte) []byte {
+func Concat(data ...interface{}) []byte {
 	var buf bytes.Buffer
 	for _, d := range data {
-		buf.Write(d)
+		switch d := d.(type) {
+		case byte:
+			buf.WriteByte(d)
+		case []byte:
+			buf.Write(d)
+		case interface{ Bytes() []byte }:
+			buf.Write(d.Bytes())
+		default:
+			panic("must be byte or []byte")
+		}
 	}
 	return buf.Bytes()
 }

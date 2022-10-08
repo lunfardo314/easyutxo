@@ -68,8 +68,8 @@ func (u *UtxoDB) updateLedger(tx *ledger.Transaction) {
 	})
 	// add new outputs
 	txid := tx.ID()
-	tx.ForEachOutput(func(group, idx byte, o *ledger.Output) bool {
-		id := ledger.NewOutputID(txid, group, idx)
+	tx.ForEachOutput(func(o *ledger.Output, idx byte) bool {
+		id := ledger.NewOutputID(txid, idx)
 		u.utxoPartition().Set(id[:], o.Bytes())
 		return true
 	})

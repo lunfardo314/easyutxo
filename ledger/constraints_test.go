@@ -78,7 +78,7 @@ func TestConstructTx(t *testing.T) {
 
 	t.Run("1", func(t *testing.T) {
 		glb := NewTransactionContext()
-		idx := glb.ConsumeOutput(NewOutput(), NewOutputID(ID{}, 0, 0))
+		idx := glb.ConsumeOutput(NewOutput(), DummyOutputID())
 		require.EqualValues(t, 0, idx)
 	})
 	t.Run("1", func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestConstructTx(t *testing.T) {
 		require.EqualValues(t, 0, idx)
 		t.Logf("transaction context bytes 2: %d", len(ctx.Tree().Bytes()))
 
-		idx = ctx.ProduceOutput(out, 0)
+		idx = ctx.ProduceOutput(out)
 		t.Logf("transaction context bytes 3: %d", len(ctx.Tree().Bytes()))
 		require.EqualValues(t, 0, idx)
 

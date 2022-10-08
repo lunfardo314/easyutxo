@@ -266,7 +266,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 
 		st.PushEmptySubtrees(1, nil)
 		require.NotPanics(t, func() {
-			st.PushData(data[0], Path(0))
+			st.PushData(data[0], Path(byte(0)))
 		})
 
 		require.Panics(t, func() {
@@ -275,52 +275,52 @@ func TestSliceTreeSemantics(t *testing.T) {
 
 		st.PushEmptySubtrees(1, nil)
 		require.NotPanics(t, func() {
-			st.PushData(data[0], Path(1))
+			st.PushData(data[0], []byte{1})
 		})
 	})
 	t.Run("level 3", func(t *testing.T) {
 		st := TreeEmpty()
 		st.PushEmptySubtrees(2, nil)
-		st.PushEmptySubtrees(1, Path(0))
-		st.PushEmptySubtrees(1, Path(0))
-		st.PushEmptySubtrees(3, Path(1))
+		st.PushEmptySubtrees(1, []byte{0})
+		st.PushEmptySubtrees(1, []byte{0})
+		st.PushEmptySubtrees(3, []byte{1})
 		require.EqualValues(t, 2, st.NumElements(nil))
-		require.EqualValues(t, 2, st.NumElements(Path(0)))
-		require.EqualValues(t, 3, st.NumElements(Path(1)))
-		require.EqualValues(t, 0, st.NumElements(Path(0, 0)))
-		require.EqualValues(t, 0, st.NumElements(Path(0, 1)))
-		require.EqualValues(t, 0, st.NumElements(Path(1, 0)))
-		require.EqualValues(t, 0, st.NumElements(Path(1, 1)))
-		require.EqualValues(t, 0, st.NumElements(Path(1, 2)))
+		require.EqualValues(t, 2, st.NumElements([]byte{0}))
+		require.EqualValues(t, 3, st.NumElements([]byte{1}))
+		require.EqualValues(t, 0, st.NumElements([]byte{0, 0}))
+		require.EqualValues(t, 0, st.NumElements([]byte{0, 1}))
+		require.EqualValues(t, 0, st.NumElements([]byte{1, 0}))
+		require.EqualValues(t, 0, st.NumElements([]byte{1, 1}))
+		require.EqualValues(t, 0, st.NumElements([]byte{1, 2}))
 		require.Panics(t, func() {
-			st.NumElements(Path(0, 2))
+			st.NumElements([]byte{0, 2})
 		})
 		require.Panics(t, func() {
-			st.NumElements(Path(1, 3))
+			st.NumElements([]byte{1, 3})
 		})
 
-		st.PushData(data[3], Path(1, 2))
-		require.EqualValues(t, 1, st.NumElements(Path(1, 2)))
-		dataBack := st.BytesAtPath(Path(1, 2, 0))
+		st.PushData(data[3], []byte{1, 2})
+		require.EqualValues(t, 1, st.NumElements([]byte{1, 2}))
+		dataBack := st.BytesAtPath([]byte{1, 2, 0})
 		require.EqualValues(t, data[3], dataBack)
 		require.Panics(t, func() {
-			st.BytesAtPath(Path(1, 2, 1))
+			st.BytesAtPath([]byte{1, 2, 1})
 		})
 
 		bs := []byte("1234567890")
-		st.PutDataAtIdx(0, bs, Path(1, 2))
-		require.EqualValues(t, 1, st.NumElements(Path(1, 2)))
-		dataBack = st.BytesAtPath(Path(1, 2, 0))
+		st.PutDataAtIdx(0, bs, []byte{1, 2})
+		require.EqualValues(t, 1, st.NumElements([]byte{1, 2}))
+		dataBack = st.BytesAtPath([]byte{1, 2, 0})
 		require.EqualValues(t, bs, dataBack)
 		require.Panics(t, func() {
-			st.BytesAtPath(Path(1, 2, 1))
+			st.BytesAtPath([]byte{1, 2, 1})
 		})
 		require.Panics(t, func() {
-			tmp := st.BytesAtPath(Path(1, 2, 0, 0))
+			tmp := st.BytesAtPath([]byte{1, 2, 0, 0})
 			require.EqualValues(t, 0, len(tmp))
 		})
 		require.Panics(t, func() {
-			st.BytesAtPath(Path(1, 2, 0, 18))
+			st.BytesAtPath([]byte{1, 2, 0, 18})
 		})
 	})
 	t.Run("serialize", func(t *testing.T) {
@@ -342,25 +342,25 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 2 nodes: %d", len(s))
 
-		st.PushEmptySubtrees(1, Path(0))
+		st.PushEmptySubtrees(1, []byte{0})
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 3 nodes: %d", len(s))
 
-		st.PushEmptySubtrees(1, Path(0))
+		st.PushEmptySubtrees(1, []byte{0})
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 4 nodes: %d", len(s))
 
-		st.PushEmptySubtrees(1, Path(1))
+		st.PushEmptySubtrees(1, []byte{1})
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
 		t.Logf("len 5 nodes: %d", len(s))
 
-		st.PushEmptySubtrees(1, Path(1))
+		st.PushEmptySubtrees(1, []byte{1})
 		s = st.Bytes()
 		st1 = ArrayFromBytes(s)
 		require.EqualValues(t, s, st1.Bytes())
@@ -369,7 +369,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		var d [100]byte
 		_, _ = rand.Read(d[:])
 
-		st.PushData(d[:], Path(1, 1))
+		st.PushData(d[:], []byte{1, 1})
 		s = st.Bytes()
 		s1 := make([]byte, len(s))
 		copy(s1, s)
@@ -377,7 +377,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100 bytes data: %d", len(s))
 
-		st.PushData(d[:], Path(1, 1))
+		st.PushData(d[:], []byte{1, 1})
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
@@ -388,7 +388,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		var dd [1000]byte
 		_, _ = rand.Read(dd[:])
 
-		st.PushData(dd[:], Path(1, 1))
+		st.PushData(dd[:], []byte{1, 1})
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)
@@ -396,7 +396,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		require.EqualValues(t, s1, st1.Bytes())
 		t.Logf("len with 100+100+1000 bytes data: %d", len(s))
 
-		st.PutDataAtIdx(byte(st.NumElements(Path(1, 1))-1), dd[:500], Path(1, 1))
+		st.PutDataAtIdx(byte(st.NumElements([]byte{1, 1})-1), dd[:500], []byte{1, 1})
 		s = st.Bytes()
 		s1 = make([]byte, len(s))
 		copy(s1, s)

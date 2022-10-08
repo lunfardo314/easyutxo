@@ -4,21 +4,18 @@ import (
 	"encoding/hex"
 
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"github.com/lunfardo314/easyutxo/ledger/globalpath"
 	"golang.org/x/crypto/blake2b"
 )
 
 const (
-	IDLength = 32
+	TransactionIDLength = 32
 )
 
-type ID []byte
+type TransactionID []byte
 
-func (txid ID) String() string {
+func (txid TransactionID) String() string {
 	return hex.EncodeToString(txid)
 }
-
-var Path = lazyslice.Path
 
 type Transaction struct {
 	tree *lazyslice.Tree
@@ -27,18 +24,18 @@ type Transaction struct {
 // NewTransaction empty transaction tree skeleton
 func NewTransaction() *Transaction {
 	ret := &Transaction{tree: lazyslice.TreeEmpty()}
-	ret.tree.PushEmptySubtrees(int(globalpath.TxTreeIndexMax), nil)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxUnlockParamsIndex, nil)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxInputIDsLongIndex, nil)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxOutputGroupsIndex, nil)
-	ret.tree.PutDataAtIdx(globalpath.TxTimestampIndex, nil, nil)
-	ret.tree.PutDataAtIdx(globalpath.TxInputCommitmentIndex, nil, nil)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), globalpath.TxLocalLibraryIndex, nil)
+	ret.tree.PushEmptySubtrees(int(TxTreeIndexMax), nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxUnlockParamsBranch, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxInputIDsBranch, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxOutputBranch, nil)
+	ret.tree.PutDataAtIdx(TxTimestampIndex, nil, nil)
+	ret.tree.PutDataAtIdx(TxInputCommitmentIndex, nil, nil)
+	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), TxLocalLibraryBranch, nil)
 	return ret
 }
 
-// FromBytes ledger from bytes
-func FromBytes(data []byte) *Transaction {
+// TransactionFromBytes ledger from bytes
+func TransactionFromBytes(data []byte) *Transaction {
 	return &Transaction{tree: lazyslice.TreeFromBytes(data)}
 }
 
@@ -50,7 +47,7 @@ func (tx *Transaction) Bytes() []byte {
 	return tx.tree.Bytes()
 }
 
-func (tx *Transaction) ID() ID {
+func (tx *Transaction) ID() TransactionID {
 	ret := blake2b.Sum256(tx.Bytes())
 	return ret[:]
 }
@@ -60,60 +57,31 @@ func (tx *Transaction) NumOutputs() int {
 	tx.tree.ForEachSubtree(func(idx byte, subtree *lazyslice.Tree) bool {
 		ret += subtree.NumElements(nil)
 		return true
-	}, Path(globalpath.TxOutputGroupsIndex))
+	}, Path(TxOutputBranch))
 	return ret
 }
 
 func (tx *Transaction) NumInputs() int {
-	return tx.tree.NumElements(Path(globalpath.TxInputIDsLongIndex))
+	return tx.tree.NumElements(Path(TxInputIDsBranch))
 }
 
 func (tx *Transaction) CodeFromLocalLibrary(idx byte) []byte {
-	return tx.tree.GetDataAtIdx(idx, globalpath.TxLocalLibrary)
+	return tx.tree.BytesAtPath(Path(TransactionBranch, TxLocalLibraryBranch, idx))
 }
 
-func (tx *Transaction) ForEachOutputGroup(fun func(group byte) bool) {
-	for i := 0; i < tx.tree.NumElements(globalpath.TxOutputGroups); i++ {
-		if !fun(byte(i)) {
-			break
-		}
-	}
-}
-
-func (tx *Transaction) ForEachOutput(fun func(group, idx byte, o *Output) bool) {
-	tx.tree.ForEachSubtree(func(group byte, stGroup *lazyslice.Tree) bool {
-		var exit bool
-		stGroup.ForEachSubtree(func(idx byte, stOutput *lazyslice.Tree) bool {
-			exit = fun(group, idx, OutputFromTree(stOutput))
-			return exit
-		}, nil)
-		return exit
-	}, globalpath.TxOutputGroups)
+func (tx *Transaction) ForEachOutput(fun func(o *Output, idx byte) bool) {
+	tx.tree.ForEachSubtree(func(idx byte, subtree *lazyslice.Tree) bool {
+		return fun(OutputFromTree(subtree), idx)
+	}, Path(TransactionBranch, TxOutputBranch))
 }
 
 func (tx *Transaction) ForEachInputID(fun func(idx byte, o OutputID) bool) {
 	var oid OutputID
 	var err error
-	for i := 0; i < tx.NumInputs(); i++ {
-		d := tx.tree.GetDataAtIdx(byte(i), globalpath.TxInputIDs)
-		if oid, err = OutputIDFromBytes(d); err != nil {
+	tx.tree.ForEach(func(i byte, data []byte) bool {
+		if oid, err = OutputIDFromBytes(data); err != nil {
 			panic(err)
 		}
-		if !fun(byte(i), oid) {
-			break
-		}
-	}
-}
-
-func (tx *Transaction) Output(group, idx byte) *Output {
-	return &Output{
-		tree: lazyslice.TreeFromBytes(tx.tree.BytesAtPath(lazyslice.PathMakeAppend(globalpath.TxOutputGroups, group, idx))),
-	}
-}
-
-func (tx *Transaction) Validate() error {
-	panic("implement me")
-	//return easyutxo.CatchPanic(func() {
-	//	tx.RunValidationScripts()
-	//})
+		return !fun(i, oid)
+	}, Path(TransactionBranch, TxInputIDsBranch))
 }

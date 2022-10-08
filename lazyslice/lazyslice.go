@@ -315,8 +315,8 @@ func TreeEmpty() *Tree {
 	return TreeFromBytes(emptyArrayPrefix.Bytes())
 }
 
-func Path(p ...byte) TreePath {
-	return p
+func Path(p ...interface{}) TreePath {
+	return easyutxo.Concat(p...)
 }
 
 // PathMakeAppend allocates a new underlying array and appends bytes to it
@@ -377,8 +377,8 @@ func (st *Tree) PutDataAtIdx(idx byte, data []byte, path TreePath) {
 	st.sa.invalidateBytes()
 }
 
-func (st *Tree) SetEmptyArrayAtIdx(idx byte, path ...byte) {
-	st.PutDataAtIdx(idx, emptyArrayPrefix.Bytes(), Path(path...))
+func (st *Tree) SetEmptyArrayAtIdx(idx byte, path TreePath) {
+	st.PutDataAtIdx(idx, emptyArrayPrefix.Bytes(), path)
 }
 
 func (st *Tree) Subtree(path TreePath) *Tree {
@@ -411,7 +411,7 @@ func (st *Tree) GetDataAtIdx(idx byte, path TreePath) []byte {
 }
 
 func (st *Tree) PushSubtreeFromBytes(data []byte, path TreePath) int {
-	return st.PushData(data, Path(path...))
+	return st.PushData(data, path)
 }
 
 // PushEmptySubtrees pushes creates a new Array at the end of the globalpath, if it exists
@@ -447,6 +447,13 @@ func (st *Tree) IsEmpty(path TreePath) bool {
 
 func (st *Tree) IsFullAtPath(path TreePath) bool {
 	return st.NumElements(path) >= 256
+}
+
+func (st *Tree) ForEach(fun func(i byte, data []byte) bool, path TreePath) {
+	sub := st.Subtree(path)
+	for i := 0; i < sub.sa.NumElements(); i++ {
+		fun(byte(i), sub.sa.At(i))
+	}
 }
 
 func (st *Tree) ForEachIndex(fun func(i byte) bool, path TreePath) {

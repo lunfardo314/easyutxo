@@ -370,7 +370,7 @@ func TestSigED25519(t *testing.T) {
 	})
 	t.Run("validSignatureED25519-wrong-pubkey", func(t *testing.T) {
 		signature := ed25519.Sign(privKey, []byte(msg))
-		pk := easyutxo.Concat(pubKey)
+		pk := easyutxo.Concat([]byte(pubKey))
 		pk[3]++
 		res, err := EvalFromSource(nil, "validSignatureED25519($0,$1,$2)", []byte(msg), signature, pk)
 		require.NoError(t, err)
