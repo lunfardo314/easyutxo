@@ -9,6 +9,16 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
+// Output is a LazyArray with constraint invocations
+// There must be at least 2 constraints:
+// - at index 0 it is 'main constraint'
+// - at index 1 it is 'address constraint'
+// The main constraint has:
+// ---  constraint code 0 (byte 0). It checks basic constraints for amount and timestamp
+// ---  data is: 4 bytes of timestamp and 8 bytes of amount.
+// The address constraint is any constraint invocation. The block is treated as 'address'
+// and it is used as index value for the search of 'all UTXOs belonging to the address'
+
 const OutputIDLength = TransactionIDLength + 1
 
 type OutputID [OutputIDLength]byte
@@ -16,16 +26,14 @@ type OutputID [OutputIDLength]byte
 type OutputData []byte
 
 const (
-	OutputBlockMasterConstraint = byte(iota)
-	OutputBlockTokens
+	OutputBlockMain = byte(iota)
 	OutputBlockAddress
-	OutputBlockTimestamp
 	OutputNumRequiredBlocks
 )
 
-// Output wraps output lazy tree
+// Output wraps output lazy blocks
 type Output struct {
-	tree *lazyslice.Tree
+	blocks *lazyslice.Array
 }
 
 func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
@@ -64,71 +72,60 @@ func (oid *OutputID) String() string {
 }
 
 func NewOutput() *Output {
-	tr := lazyslice.TreeEmpty()
-	for i := 0; i < int(OutputNumRequiredBlocks); i++ {
-		tr.PushData(nil, nil)
+	ret := &Output{
+		blocks: lazyslice.EmptyArray(256),
 	}
-	// put minimum master constraint
-	ret := &Output{tree: tr}
-	ret.putMinimumMasterConstraint()
+	ret.blocks.PushEmptyElements(2)
 	return ret
 }
 
-func OutputFromBytes(data []byte) (*Output, error) {
-	ret := &Output{tree: lazyslice.TreeFromBytes(data)}
-	if ret.tree.NumElements(nil) < int(OutputNumRequiredBlocks) {
-		return nil, fmt.Errorf("output is expected to have at least %d blocks", OutputNumRequiredBlocks)
+func OutputFromBytes(data []byte) *Output {
+	return &Output{
+		blocks: lazyslice.ArrayFromBytes(data, 256),
 	}
-	return ret, nil
-}
-
-func OutputFromTree(tree *lazyslice.Tree) *Output {
-	return &Output{tree}
 }
 
 func (o *Output) Bytes() []byte {
-	return o.tree.Bytes()
+	return o.blocks.Bytes()
 }
 
 func (o *Output) BlockBytes(idx byte) []byte {
-	return o.tree.GetDataAtIdx(idx, nil)
+	return o.blocks.At(int(idx))
 }
 
-func (o *Output) PutAddressConstraint(addr Address, constraint byte) {
-	o.tree.PutDataAtIdx(OutputBlockAddress, easyutxo.Concat([]byte{constraint}, []byte(addr)), nil)
-	o.appendConstraintIndexToTheMasterList(OutputBlockAddress)
+func (o *Output) PutAddress(addr AddressData, constraint byte) {
+	o.blocks.PutAtIdx(OutputBlockAddress, easyutxo.Concat(constraint, []byte(addr)))
 }
 
-func (o *Output) AddressConstraint() (Address, byte) {
-	ret := o.tree.GetDataAtIdx(OutputBlockAddress, nil)
-	return ret[1:], ret[0]
+func (o *Output) Address() []byte {
+	return o.blocks.At(int(OutputBlockAddress))
 }
 
-func (o *Output) PutTokensConstraint(amount uint64) {
-	var b [8]byte
-	binary.BigEndian.PutUint64(b[:], amount)
-	o.tree.PutDataAtIdx(OutputBlockTokens, easyutxo.Concat(ConstraintTokens, b[:]), nil)
-	o.appendConstraintIndexToTheMasterList(OutputBlockTokens)
+func (o *Output) PutMainConstraint(timestamp uint32, amount uint64) {
+	var a [8]byte
+	var ts [4]byte
+	binary.BigEndian.PutUint64(a[:], amount)
+	binary.BigEndian.PutUint32(ts[:], timestamp)
+
+	o.blocks.PutAtIdx(OutputBlockMain, easyutxo.Concat(ConstraintMain, ts[:], a[:]))
+}
+
+func (o *Output) Timestamp() uint32 {
+	mainBlock := o.blocks.At(int(OutputBlockMain))
+	return binary.BigEndian.Uint32(mainBlock[1:5])
 }
 
 func (o *Output) Amount() uint64 {
-	ret := o.tree.GetDataAtIdx(OutputBlockTokens, nil)
-	return binary.BigEndian.Uint64(ret[1:])
+	mainBlock := o.blocks.At(int(OutputBlockMain))
+	return binary.BigEndian.Uint64(mainBlock[5:])
 }
 
-// into the position OutputBlockMasterConstraint puts inline invocation to the `requireAll` with empty list
-// later we can append the list with indices of the constraints to be invoked
-func (o *Output) putMinimumMasterConstraint() {
-	o.tree.PutDataAtIdx(OutputBlockMasterConstraint, []byte{InvocationTypeInline, requireAllCode}, nil)
+func (o *Output) NumBlocks() int {
+	return o.blocks.NumElements()
 }
 
-func (o *Output) appendConstraintIndexToTheMasterList(constrIdx byte) {
-	constrBin := o.tree.GetDataAtIdx(OutputBlockMasterConstraint, nil)
-	constrBin = append(constrBin, constrIdx)
-	o.tree.PutDataAtIdx(OutputBlockMasterConstraint, constrBin, nil)
-}
-
-func (o *Output) MasterConstraintList() []byte {
-	constrBin := o.tree.GetDataAtIdx(OutputBlockMasterConstraint, nil)
-	return constrBin[2:]
+func (o *Output) ForEachBlock(fun func(idx byte, blockData []byte) bool) {
+	o.blocks.ForEach(func(i int, data []byte) bool {
+		return fun(byte(i), data)
+	})
 }

@@ -21,7 +21,7 @@ type Transaction struct {
 	tree *lazyslice.Tree
 }
 
-// NewTransaction empty transaction tree skeleton
+// NewTransaction empty transaction blocks skeleton
 func NewTransaction() *Transaction {
 	ret := &Transaction{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(int(TxTreeIndexMax), nil)
@@ -70,9 +70,9 @@ func (tx *Transaction) CodeFromLocalLibrary(idx byte) []byte {
 }
 
 func (tx *Transaction) ForEachOutput(fun func(o *Output, idx byte) bool) {
-	tx.tree.ForEachSubtree(func(idx byte, subtree *lazyslice.Tree) bool {
-		return fun(OutputFromTree(subtree), idx)
-	}, Path(TransactionBranch, TxOutputBranch))
+	tx.tree.ForEach(func(idx byte, outputData []byte) bool {
+		return fun(OutputFromBytes(outputData), idx)
+	}, Path(TxOutputBranch))
 }
 
 func (tx *Transaction) ForEachInputID(fun func(idx byte, o OutputID) bool) {

@@ -7,12 +7,12 @@ import (
 	"github.com/lunfardo314/easyutxo/easyfl"
 )
 
-type Address []byte
+type AddressData []byte
 
-func AddressFromED25519PubKey(pubKey ed25519.PublicKey) Address {
+func AddressDataFromED25519PubKey(pubKey ed25519.PublicKey) AddressData {
 	return easyfl.MustEvalFromSource(nil, "addrED25519FromPubKey($0)", pubKey)
 }
 
-func (a Address) String() string {
+func (a AddressData) String() string {
 	return hex.EncodeToString(a)
 }

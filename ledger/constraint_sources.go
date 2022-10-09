@@ -47,27 +47,22 @@ func sigLocED25519: if(
 	)
 )
 `
-const TokensConstraint = `
-// Amount valid if it has exactly 8 non-0 bytes. It is validated both on consumed output and produced output
+const MainConstraint = `
+
 func tokensValid: and(
 	equal(len8($0),8),
 	not(isZero($0))
 )
-
-func tokensConstraint : tokensValid(selfConstraintData)
-`
-
-const TimestampConstraint = `
-// Timestamp is 4 bytes of Unix timestamp in seconds. 
-// Timestamp must be present in each output and in the TxTimestamp as transaction timestamp
-// Timestamp constraint:
-// - for produced output the timestamp must be equal to the transaction timestamp
-// - for consumed input the timestamp must be strictly less than the transaction timestamp
 
 func outputTimestampValid: or(
 	and( isProducedBranch(@), equal($0, txTimestampBytes) ),  // in produced output must be equal to transaction ts
 	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) ) // tx timestamp must be strongly greater than input
 )
 
-func timestampConstraint: outputTimestampValid(selfConstraintData)
+func amountAndTimestampValid : and(
+	outputTimestampValid(slice($0,0,3)),
+	tokensValid(tail($0,3))
+)
+
+func mainConstraint : amountAndTimestampValid(selfConstraintData)
 `

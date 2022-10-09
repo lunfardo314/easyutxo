@@ -326,6 +326,10 @@ func PathMakeAppend(p TreePath, b ...byte) TreePath {
 	return append(ret, b...)
 }
 
+func (p TreePath) Bytes() []byte {
+	return p
+}
+
 func (p TreePath) String() string {
 	return fmt.Sprintf("%v", []byte(p))
 }

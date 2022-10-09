@@ -21,29 +21,27 @@ func TestOutput(t *testing.T) {
 
 	t.Run("basic", func(t *testing.T) {
 		out := NewOutput()
-		outBack, err := OutputFromBytes(out.Bytes())
+		outBack := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
 		out := NewOutput()
-		addr := AddressFromED25519PubKey(pubKey)
-		out.PutAddressConstraint(addr, ConstraintSigLockED25519)
-		outBack, err := OutputFromBytes(out.Bytes())
-		require.NoError(t, err)
+		addr := AddressDataFromED25519PubKey(pubKey)
+		out.PutAddress(addr, ConstraintSigLockED25519)
+		outBack := OutputFromBytes(out.Bytes())
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		addrBack, constr := outBack.AddressConstraint()
-		require.EqualValues(t, ConstraintSigLockED25519, constr)
-		require.EqualValues(t, addr, addrBack)
+		addrBack := outBack.Address()
+		require.EqualValues(t, ConstraintSigLockED25519, addrBack[0])
+		require.EqualValues(t, addr, addrBack[1:])
 	})
 	t.Run("tokens", func(t *testing.T) {
 		out := NewOutput()
-		out.PutTokensConstraint(1337)
-		outBack, err := OutputFromBytes(out.Bytes())
-		require.NoError(t, err)
+		out.PutMainConstraint(uint32(time.Now().Unix()), 1337)
+		outBack := OutputFromBytes(out.Bytes())
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
@@ -59,14 +57,13 @@ func TestOutput(t *testing.T) {
 	})
 	t.Run("minimum output", func(t *testing.T) {
 		out := NewOutput()
-		addr := AddressFromED25519PubKey(pubKey)
-		out.PutAddressConstraint(addr, ConstraintSigLockED25519)
-		out.PutTokensConstraint(1337)
+		addr := AddressDataFromED25519PubKey(pubKey)
+		out.PutAddress(addr, ConstraintSigLockED25519)
+		out.PutMainConstraint(uint32(time.Now().Unix()), 1337)
 		require.EqualValues(t, 1337, out.Amount())
-		addrBack, _ := out.AddressConstraint()
-		require.EqualValues(t, addr, addrBack)
+		addrBack := out.Address()
+		require.EqualValues(t, addr, addrBack[1:])
 		t.Logf("utxo len %d bytes", len(out.Bytes()))
-		require.EqualValues(t, 2, len(out.MasterConstraintList()))
 	})
 }
 
@@ -86,9 +83,9 @@ func TestConstructTx(t *testing.T) {
 		t.Logf("transaction context bytes 1: %d", len(ctx.Tree().Bytes()))
 
 		out := NewOutput()
-		addr := AddressFromED25519PubKey(pubKey)
-		out.PutAddressConstraint(addr, ConstraintSigLockED25519)
-		out.PutTokensConstraint(1337)
+		addr := AddressDataFromED25519PubKey(pubKey)
+		out.PutAddress(addr, ConstraintSigLockED25519)
+		out.PutMainConstraint(uint32(time.Now().Unix()), 1337)
 		dummyOid := DummyOutputID()
 		idx := ctx.ConsumeOutput(out, dummyOid)
 		require.EqualValues(t, 0, idx)
@@ -102,10 +99,10 @@ func TestConstructTx(t *testing.T) {
 		t.Logf("tx %d bytes", len(txbytes))
 
 		count := 0
-		ctx.ForEachProducedOutput(func(out *Output, path lazyslice.TreePath) bool {
-			a, c := out.AddressConstraint()
-			require.EqualValues(t, a, addr)
-			require.EqualValues(t, c, ConstraintSigLockED25519)
+		ctx.ForEachOutput(Path(ConsumedContextBranch, ConsumedContextOutputsBranch), func(out *Output, path lazyslice.TreePath) bool {
+			a := out.Address()
+			require.EqualValues(t, a[1:], addr)
+			require.EqualValues(t, a[0], ConstraintSigLockED25519)
 			require.EqualValues(t, 1337, out.Amount())
 			count++
 			return true

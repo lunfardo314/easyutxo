@@ -12,23 +12,20 @@ var constraints [256][]byte
 var constraintTree = lazyslice.TreeEmpty()
 
 const (
-	ConstraintReserved1 = byte(iota)
-	ConstraintReserved2
+	ConstraintReserved0 = byte(iota)
+	ConstraintReserved1
+	ConstraintMain
 	ConstraintSigLockED25519
-	ConstraintTokens
-	ConstraintTimestamp
 )
 
 func init() {
 	extendLibrary()
 
 	easyfl.MustExtendMany(SigLockConstraint)
-	easyfl.MustExtendMany(TokensConstraint)
-	easyfl.MustExtendMany(TimestampConstraint)
+	easyfl.MustExtendMany(MainConstraint)
 
+	mustRegisterConstraint(ConstraintMain, "mainConstraint")
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
-	mustRegisterConstraint(ConstraintTokens, "tokensConstraint")
-	mustRegisterConstraint(ConstraintTimestamp, "timestampConstraint")
 
 	easyfl.PrintLibraryStats()
 

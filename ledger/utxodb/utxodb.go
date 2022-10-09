@@ -48,11 +48,7 @@ func (u *UtxoDB) GetUTXO(id *ledger.OutputID) (ledger.OutputData, bool) {
 func (u *UtxoDB) GetUTXOsForAddress(addr []byte) []ledger.OutputData {
 	ret := make([]ledger.OutputData, 0)
 	u.utxoPartition().Iterate(func(k, v []byte) bool {
-		o, err := ledger.OutputFromBytes(v)
-		common.AssertNoError(err)
-		a, constraint := o.AddressConstraint()
-		common.Assert(constraint == ledger.ConstraintSigLockED25519, "only ConstraintSigLockED25519 supported")
-		if bytes.Equal(addr, a) {
+		if bytes.Equal(addr, ledger.OutputFromBytes(v).Address()) {
 			ret = append(ret, v)
 		}
 		return true
