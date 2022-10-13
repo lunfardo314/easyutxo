@@ -5,6 +5,8 @@ github.com/iotaledger/trie.go v0.0.0-20221006140514-b4a694d6e15b h1:NRHg1LRkNee/
 github.com/iotaledger/trie.go v0.0.0-20221006140514-b4a694d6e15b/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
 github.com/lunfardo314/easyfl v0.0.0-20221013154458-ba6f16d4a687 h1:LRp8CXAvSyp96DEbl76oI4VEEDJb6wcpKg0zduWChKM=
 github.com/lunfardo314/easyfl v0.0.0-20221013154458-ba6f16d4a687/go.mod h1:56VlapkwrqE1tfDoEzLV4kcKKgU3lwApA7Xx9m/vET8=
+github.com/lunfardo314/easyfl v0.0.0-20221013161135-b914c5d23df9 h1:cNY/rfkn9iVy3oTxml/jgcn1rGoaphlH4muLJy8QLxU=
+github.com/lunfardo314/easyfl v0.0.0-20221013161135-b914c5d23df9/go.mod h1:56VlapkwrqE1tfDoEzLV4kcKKgU3lwApA7Xx9m/vET8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

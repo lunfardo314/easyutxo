@@ -10,7 +10,7 @@ import (
 type AddressData []byte
 
 func AddressDataFromED25519PubKey(pubKey ed25519.PublicKey) AddressData {
-	return easyfl.MustEvalFromSource(nil, "addrED25519FromPubKey($0)", pubKey)
+	return easyfl.MustEvalFromSource(nil, "addrDataED25519FromPubKey($0)", pubKey)
 }
 
 func (a AddressData) String() string {
