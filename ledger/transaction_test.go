@@ -17,7 +17,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, tx.NumOutputs())
 	})
 	t.Run("2", func(t *testing.T) {
-		utxodb := ledger.NewUTXODBInMemory()
+		utxodb := ledger.NewUTXODBInMemory(nil, 0)
 		tx := ledger.NewTransaction()
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())

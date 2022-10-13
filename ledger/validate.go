@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo"
-	"github.com/lunfardo314/easyutxo/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )

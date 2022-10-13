@@ -28,7 +28,7 @@ func selfUnlockedWithSigED25519: and(
 	),
 	equal(
 		selfConstraintData,                    // address in the constraint data must be equal to the has of the  
-		addrED25519FromPubKey(                 // public key
+		addrDataED25519FromPubKey(                 // public key
 			slice(selfUnlockBlock, 64, 96)
 		)
 	)

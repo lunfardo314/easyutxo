@@ -1,7 +1,7 @@
 package ledger
 
 import (
-	"github.com/lunfardo314/easyutxo/easyfl"
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 

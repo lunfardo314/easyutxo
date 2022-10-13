@@ -4,7 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 
-	"github.com/lunfardo314/easyutxo/easyfl"
+	"github.com/lunfardo314/easyfl"
 )
 
 type AddressData []byte
