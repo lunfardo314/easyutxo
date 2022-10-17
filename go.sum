@@ -1,10 +1,14 @@
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/iotaledger/trie.go v0.0.0-20221006140514-b4a694d6e15b h1:NRHg1LRkNee/6MRvkqChZ9aE4Xlv06TMmi8+HUklFY4=
-github.com/iotaledger/trie.go v0.0.0-20221006140514-b4a694d6e15b/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
-github.com/lunfardo314/easyfl v0.0.0-20221013154458-ba6f16d4a687 h1:LRp8CXAvSyp96DEbl76oI4VEEDJb6wcpKg0zduWChKM=
-github.com/lunfardo314/easyfl v0.0.0-20221013154458-ba6f16d4a687/go.mod h1:56VlapkwrqE1tfDoEzLV4kcKKgU3lwApA7Xx9m/vET8=
+github.com/iotaledger/trie.go v0.0.0-20221017095812-ade75b2bd36d h1:4F/Lts1sWtpGDlZ9FkGBHKjwDN1o+c7r94zQpq84VWk=
+github.com/iotaledger/trie.go v0.0.0-20221017095812-ade75b2bd36d/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
+github.com/iotaledger/trie.go v0.0.0-20221017164323-0f78dd268d13 h1:2VwWybB1V/uMZoUNpT/MXfb8e19J7gphUpRLTN+GqlU=
+github.com/iotaledger/trie.go v0.0.0-20221017164323-0f78dd268d13/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
+github.com/iotaledger/trie.go v0.0.0-20221017174658-f46a03bca8c9 h1:bPePKGOT15W7j+8rmdA+2iGF1GoTsOPjkOjujQNP6l4=
+github.com/iotaledger/trie.go v0.0.0-20221017174658-f46a03bca8c9/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
+github.com/iotaledger/trie.go v0.0.0-20221017180736-eebf1ccb33e4 h1:uVEm48KV1OAyFGsdLL2hwtBbFIpTK0Sbl8kdfszgrxg=
+github.com/iotaledger/trie.go v0.0.0-20221017180736-eebf1ccb33e4/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
 github.com/lunfardo314/easyfl v0.0.0-20221013161135-b914c5d23df9 h1:cNY/rfkn9iVy3oTxml/jgcn1rGoaphlH4muLJy8QLxU=
 github.com/lunfardo314/easyfl v0.0.0-20221013161135-b914c5d23df9/go.mod h1:56VlapkwrqE1tfDoEzLV4kcKKgU3lwApA7Xx9m/vET8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
@@ -14,8 +18,6 @@ github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSS
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PKk=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
-golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 h1:Y/gsMcFOcR+6S6f3YeMKl5g+dZMEWqcz5Czj/GWYbkM=
-golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
 golang.org/x/crypto v0.0.0-20221012134737-56aed061732a h1:NmSIgad6KjE6VvHciPZuNRTKxGhlPfD6OA87W/PLkqg=
 golang.org/x/crypto v0.0.0-20221012134737-56aed061732a/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
 golang.org/x/sys v0.0.0-20220906135438-9e1f76180b77 h1:C1tElbkWrsSkn3IRl1GCW/gETw1TywWIPgwZtXTZbYg=

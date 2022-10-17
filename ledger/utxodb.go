@@ -1,7 +1,6 @@
 package ledger
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"math/rand"
 	"time"
@@ -9,17 +8,31 @@ import (
 	"github.com/iotaledger/trie.go/common"
 )
 
-type UTXODB struct {
-	store common.KVStore
+type KVStore interface {
+	common.KVReader
+	common.BatchedUpdatable
+	common.Traversable
 }
 
-func NewUTXODB(store common.KVStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *UTXODB {
+type UTXODB struct {
+	store KVStore
+}
+
+const (
+	PartitionUTXO = byte(iota)
+	PartitionTrie
+	PartitionAccounts
+)
+
+func NewUTXODB(store KVStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *UTXODB {
 	out, oid := genesisOutput(genesisPublicKey, initialSupply, uint32(time.Now().Unix()))
-	ret := &UTXODB{
-		store: store,
+	batch := store.BatchedWriter()
+	batch.Set(common.Concat(PartitionUTXO, oid[:]), out.Bytes())
+	batch.Set(common.Concat(PartitionAccounts, out.Address(), oid[:]), []byte{0xff})
+	if err := batch.Commit(); err != nil {
+		panic(err)
 	}
-	ret.utxoPartition().Set(oid[:], out.Bytes())
-	return ret
+	return &UTXODB{store}
 }
 
 func NewUTXODBInMemory(genesisPublicKey ed25519.PublicKey, initialSupply uint64) *UTXODB {
@@ -28,10 +41,10 @@ func NewUTXODBInMemory(genesisPublicKey ed25519.PublicKey, initialSupply uint64)
 
 const supplyForTesting = uint64(1_000_000_000_000)
 
-func NewUTXODBForTesting(store common.KVStore) (*UTXODB, ed25519.PrivateKey, ed25519.PublicKey) {
-	privKey, pubKey := newKeyPair()
-	ret := NewUTXODBInMemory(pubKey, supplyForTesting)
-	return ret, privKey, pubKey
+func NewUTXODBForTesting() (*UTXODB, ed25519.PrivateKey, ed25519.PublicKey) {
+	originPrivKey, originPubKey := newKeyPair()
+	ret := NewUTXODBInMemory(originPubKey, supplyForTesting)
+	return ret, originPrivKey, originPubKey
 }
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
@@ -40,11 +53,8 @@ func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts 
 	out := NewOutput()
 	out.PutMainConstraint(ts, initialSupply)
 	out.PutAddress(addrData, ConstraintSigLockED25519)
+	// genesis OutputID is all-0
 	return out, OutputID{}
-}
-
-func (u *UTXODB) utxoPartition() common.KVStore {
-	return u.store
 }
 
 func (u *UTXODB) AddTransaction(txBytes []byte) error {
@@ -55,12 +65,12 @@ func (u *UTXODB) AddTransaction(txBytes []byte) error {
 	if err = ctx.Validate(); err != nil {
 		return err
 	}
-	u.updateLedger(ctx.Transaction())
+	u.updateLedger(ctx)
 	return nil
 }
 
 func (u *UTXODB) GetUTXO(id *OutputID) (OutputData, bool) {
-	ret := u.utxoPartition().Get(id.Bytes())
+	ret := u.store.Get(common.Concat(PartitionUTXO, id.Bytes()))
 	if len(ret) == 0 {
 		return nil, false
 	}
@@ -69,28 +79,36 @@ func (u *UTXODB) GetUTXO(id *OutputID) (OutputData, bool) {
 
 func (u *UTXODB) GetUTXOsForAddress(addr []byte) []OutputData {
 	ret := make([]OutputData, 0)
-	u.utxoPartition().Iterate(func(k, v []byte) bool {
-		if bytes.Equal(addr, OutputFromBytes(v).Address()) {
-			ret = append(ret, v)
-		}
+	iterator := u.store.Iterator(common.Concat(PartitionAccounts, addr))
+	iterator.Iterate(func(k, v []byte) bool {
+		ret = append(ret, v)
 		return true
 	})
 	return ret
 }
 
-// updateLedger in the future must be atomic
-func (u *UTXODB) updateLedger(tx *Transaction) {
-	tx.ForEachInputID(func(_ byte, o OutputID) bool {
-		u.utxoPartition().Set(o[:], nil)
+func (u *UTXODB) updateLedger(ctx *TransactionContext) {
+	batch := u.store.BatchedWriter()
+	// delete consumed outputs from the ledger and from accounts
+	tx := ctx.Transaction()
+	tx.ForEachInputID(func(idx byte, o OutputID) bool {
+		batch.Set(common.Concat(PartitionUTXO, o[:]), nil)
+		consumed := ctx.ConsumedOutput(idx)
+		addr := consumed.Address()
+		batch.Set(common.Concat(PartitionAccounts, addr, o[:]), nil)
 		return true
 	})
-	// add new outputs
-	txid := tx.ID()
+	// add new outputs to the ledger and to accounts
+	txID := tx.ID()
 	tx.ForEachOutput(func(o *Output, idx byte) bool {
-		id := NewOutputID(txid, idx)
-		u.utxoPartition().Set(id[:], o.Bytes())
+		id := NewOutputID(txID, idx)
+		batch.Set(common.Concat(PartitionUTXO, id[:]), o.Bytes())
+		batch.Set(common.Concat(PartitionAccounts, o.Address(), id[:]), []byte{0xff})
 		return true
 	})
+	if err := batch.Commit(); err != nil {
+		panic(err)
+	}
 }
 
 var rnd = rand.NewSource(time.Now().UnixNano())

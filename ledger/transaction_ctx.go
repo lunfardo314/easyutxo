@@ -195,6 +195,10 @@ func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 	return ret
 }
 
+func (v *TransactionContext) ConsumedOutput(idx byte) *Output {
+	return OutputFromBytes(v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch, idx)))
+}
+
 func (v *TransactionContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
 	outputPath := Path(branch, byte(0))
 	v.tree.ForEach(func(idx byte, outputData []byte) bool {
