@@ -4,39 +4,58 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
+	"io"
 
 	"github.com/iotaledger/trie.go/common"
-	"github.com/lunfardo314/easyfl"
+	"golang.org/x/crypto/blake2b"
 )
 
 type (
-	AddressData []byte
 	AddressType byte
-	Address     struct {
-		data       AddressData
-		constraint AddressType
-	}
+	Address     []byte
 )
 
+const AddressED25519 = AddressType(ConstraintSigLockED25519)
+
+func (at AddressType) DataSize() int {
+	switch at {
+	case AddressED25519:
+		return 32
+	}
+	panic("unknown address type")
+}
+
 func (at AddressType) String() string {
-	switch byte(at) {
-	case ConstraintSigLockED25519:
+	switch at {
+	case AddressED25519:
 		return "AddressED25519"
 	}
 	return "unknown address type"
 }
 
-func AddressFromED25519PubKey(pubKey ed25519.PublicKey) *Address {
-	return &Address{
-		data:       easyfl.MustEvalFromSource(nil, "addrDataED25519FromPubKey($0)", pubKey),
-		constraint: AddressType(ConstraintSigLockED25519),
+func AddressFromBytes(data []byte) (Address, error) {
+	if len(data) == 0 {
+		return nil, io.EOF
 	}
+	if len(data) != AddressType(data[0]).DataSize()+1 {
+		return nil, fmt.Errorf("AddressFromBytes: wrong data size")
+	}
+	return data, nil
+}
+
+func AddressFromED25519PubKey(pubKey ed25519.PublicKey) Address {
+	d := blake2b.Sum256(pubKey)
+	return common.Concat(byte(AddressED25519), d[:])
+}
+
+func (a Address) Type() AddressType {
+	return AddressType(a[0])
 }
 
 func (a Address) Bytes() []byte {
-	return common.Concat(byte(a.constraint), []byte(a.data))
+	return a
 }
 
 func (a Address) String() string {
-	return fmt.Sprintf("%s(%s)", a.constraint, hex.EncodeToString(a.data))
+	return fmt.Sprintf("%s(%s)", a.Type(), hex.EncodeToString(a[1:]))
 }

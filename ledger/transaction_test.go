@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	"github.com/lunfardo314/easyutxo"
@@ -10,19 +11,19 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	t.Run("1", func(t *testing.T) {
+	t.Run("empty tx", func(t *testing.T) {
 		tx := ledger.NewTransaction()
 		t.Logf("empty tx size: %d", len(tx.Bytes()))
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())
 	})
-	t.Run("2", func(t *testing.T) {
-		utxodb := ledger.NewStateInMemory(nil, 0)
+	t.Run("tx structure", func(t *testing.T) {
+		state := ledger.NewLedgerStateInMemory(nil, 100)
 		tx := ledger.NewTransaction()
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())
 
-		v, err := ledger.TransactionContextFromTransaction(tx.Bytes(), utxodb)
+		v, err := ledger.TransactionContextFromTransaction(tx.Bytes(), state)
 		require.NoError(t, err)
 		txid := tx.ID()
 		require.EqualValues(t, txid, v.TransactionID())
@@ -51,5 +52,23 @@ func TestBasics(t *testing.T) {
 		v2 = easyutxo.Concat(inputIDs, outputs, ts, inpComm, lib)
 		require.True(t, bytes.Equal(essence, v2))
 
+	})
+	t.Run("input commitment", func(t *testing.T) {
+		ctx := ledger.NewTransactionContext()
+		ctx.AddInputCommitment()
+		ic := ctx.InputCommitment()
+		ic1 := ctx.Tree().BytesAtPath(ledger.Path(ledger.TransactionBranch, ledger.TxInputCommitment))
+		require.EqualValues(t, ic, ic1)
+		t.Logf("input commitment: %s", hex.EncodeToString(ic))
+	})
+	t.Run("utxodb", func(t *testing.T) {
+		udb := ledger.NewUTXODB()
+		priv, pub := udb.OriginKeys()
+		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
+		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
+		t.Logf("origin address: %s", udb.OriginAddress())
+
+		_, _, addr := udb.GenerateAddress(0)
+		udb.TokensFromFaucet(addr, 100)
 	})
 }

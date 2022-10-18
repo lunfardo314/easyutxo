@@ -36,7 +36,7 @@ func TestOutput(t *testing.T) {
 
 		addrBack := outBack.Address()
 		require.EqualValues(t, ConstraintSigLockED25519, addrBack[0])
-		require.EqualValues(t, addr, addrBack[1:])
+		require.EqualValues(t, addr, addrBack)
 	})
 	t.Run("tokens", func(t *testing.T) {
 		out := NewOutput()
@@ -62,7 +62,7 @@ func TestOutput(t *testing.T) {
 		out.PutMainConstraint(uint32(time.Now().Unix()), 1337)
 		require.EqualValues(t, 1337, out.Amount())
 		addrBack := out.Address()
-		require.EqualValues(t, addr, addrBack[1:])
+		require.EqualValues(t, addr, addrBack)
 		t.Logf("utxo len %d bytes", len(out.Bytes()))
 	})
 }
@@ -101,7 +101,7 @@ func TestConstructTx(t *testing.T) {
 		count := 0
 		ctx.ForEachOutput(Path(ConsumedContextBranch, ConsumedContextOutputsBranch), func(out *Output, path lazyslice.TreePath) bool {
 			a := out.Address()
-			require.EqualValues(t, a[1:], addr)
+			require.EqualValues(t, a, addr)
 			require.EqualValues(t, a[0], ConstraintSigLockED25519)
 			require.EqualValues(t, 1337, out.Amount())
 			count++

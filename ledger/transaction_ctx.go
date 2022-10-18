@@ -8,6 +8,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"golang.org/x/crypto/blake2b"
 )
 
 // TransactionContext is a data structure, which contains transaction, consumed outputs and constraint library
@@ -159,6 +160,10 @@ func (v *TransactionContext) TransactionID() []byte {
 	return ret
 }
 
+func (v *TransactionContext) InputCommitment() []byte {
+	return v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
+}
+
 func (v *TransactionContext) ConsumeOutput(out *Output, oid OutputID) byte {
 	outIdx := v.tree.PushData(out.Bytes(), Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
 	idIdx := v.tree.PushData(oid[:], Path(TransactionBranch, TxInputIDsBranch))
@@ -174,6 +179,12 @@ func (v *TransactionContext) AddTransactionTimestamp(ts uint32) {
 	var d [4]byte
 	binary.BigEndian.PutUint32(d[:], ts)
 	v.tree.PutDataAtIdx(TxTimestamp, d[:], Path(TransactionBranch))
+}
+
+func (v *TransactionContext) AddInputCommitment() {
+	d := v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
+	h := blake2b.Sum256(d)
+	v.tree.PutDataAtIdx(TxInputCommitment, h[:], Path(TransactionBranch))
 }
 
 func (v *TransactionContext) UnlockED25519Inputs(pairs []*keyPair) {

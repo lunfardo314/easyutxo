@@ -10,7 +10,7 @@ import (
 type StateAccess interface {
 	GetUTXO(id *OutputID) (OutputData, bool)
 	// GetUTXOsForAddress order non-deterministic
-	GetUTXOsForAddress(addr *Address) []OutputWithID
+	GetUTXOsForAddress(addr Address) []OutputWithID
 }
 
 type KVStore interface {
@@ -29,7 +29,7 @@ const (
 	PartitionAccounts
 )
 
-func NewState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *State {
+func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *State {
 	out, oid := genesisOutput(genesisPublicKey, initialSupply, uint32(time.Now().Unix()))
 	batch := store.BatchedWriter()
 	batch.Set(common.Concat(PartitionUTXO, oid[:]), out.Bytes())
@@ -38,6 +38,11 @@ func NewState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSupply u
 		panic(err)
 	}
 	return &State{store}
+}
+
+// NewLedgerStateInMemory mostly for testing
+func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply uint64) *State {
+	return NewLedgerState(common.NewInMemoryKVStore(), genesisPublicKey, initialSupply)
 }
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
@@ -70,11 +75,11 @@ func (u *State) GetUTXO(id *OutputID) (OutputData, bool) {
 	return ret, true
 }
 
-func (u *State) GetUTXOsForAddress(addr *Address) []OutputWithID {
+func (u *State) GetUTXOsForAddress(addr Address) []OutputWithID {
 	ret := make([]OutputWithID, 0)
 	prefix := common.Concat(PartitionAccounts, addr)
 	u.store.Iterator(prefix).Iterate(func(k, v []byte) bool {
-		oid, err := OutputIDFromBytes(v[len(prefix):])
+		oid, err := OutputIDFromBytes(k[len(prefix):])
 		common.AssertNoError(err)
 
 		outBin, found := u.GetUTXO(&oid)

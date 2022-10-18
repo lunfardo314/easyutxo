@@ -98,12 +98,16 @@ func (o *Output) BlockBytes(idx byte) []byte {
 	return o.blocks.At(int(idx))
 }
 
-func (o *Output) PutAddress(addr *Address) {
+func (o *Output) PutAddress(addr Address) {
 	o.blocks.PutAtIdx(OutputBlockAddress, addr.Bytes())
 }
 
-func (o *Output) Address() []byte {
-	return o.blocks.At(int(OutputBlockAddress))
+func (o *Output) Address() Address {
+	ret, err := AddressFromBytes(o.blocks.At(int(OutputBlockAddress)))
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 func (o *Output) PutMainConstraint(timestamp uint32, amount uint64) {
