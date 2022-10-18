@@ -56,7 +56,7 @@ func NewTransactionContext() *TransactionContext {
 
 // TransactionContextFromTransaction finds all inputs in the ledger state.
 // Creates a blocks with ledger at long index 0 and all inputs at long index 1
-func TransactionContextFromTransaction(txBytes []byte, ledgerState LedgerState) (*TransactionContext, error) {
+func TransactionContextFromTransaction(txBytes []byte, ledgerState StateAccess) (*TransactionContext, error) {
 	tx := TransactionFromBytes(txBytes)
 	ret := &TransactionContext{tree: lazyslice.TreeEmpty()}
 	ret.tree.PushEmptySubtrees(2, nil)
@@ -189,8 +189,8 @@ type keyPair struct {
 func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 	ret := make(map[string]*keyPair)
 	for _, kp := range keyPairs {
-		addr := AddressDataFromED25519PubKey(kp.pubKey)
-		ret[string(addr)] = kp
+		addr := AddressFromED25519PubKey(kp.pubKey)
+		ret[string(addr.Bytes())] = kp
 	}
 	return ret
 }

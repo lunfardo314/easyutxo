@@ -28,8 +28,8 @@ func TestOutput(t *testing.T) {
 	})
 	t.Run("address", func(t *testing.T) {
 		out := NewOutput()
-		addr := AddressDataFromED25519PubKey(pubKey)
-		out.PutAddress(addr, ConstraintSigLockED25519)
+		addr := AddressFromED25519PubKey(pubKey)
+		out.PutAddress(addr)
 		outBack := OutputFromBytes(out.Bytes())
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
@@ -57,8 +57,8 @@ func TestOutput(t *testing.T) {
 	})
 	t.Run("minimum output", func(t *testing.T) {
 		out := NewOutput()
-		addr := AddressDataFromED25519PubKey(pubKey)
-		out.PutAddress(addr, ConstraintSigLockED25519)
+		addr := AddressFromED25519PubKey(pubKey)
+		out.PutAddress(addr)
 		out.PutMainConstraint(uint32(time.Now().Unix()), 1337)
 		require.EqualValues(t, 1337, out.Amount())
 		addrBack := out.Address()
@@ -83,8 +83,8 @@ func TestConstructTx(t *testing.T) {
 		t.Logf("transaction context bytes 1: %d", len(ctx.Tree().Bytes()))
 
 		out := NewOutput()
-		addr := AddressDataFromED25519PubKey(pubKey)
-		out.PutAddress(addr, ConstraintSigLockED25519)
+		addr := AddressFromED25519PubKey(pubKey)
+		out.PutAddress(addr)
 		out.PutMainConstraint(uint32(time.Now().Unix()), 1337)
 		dummyOid := DummyOutputID()
 		idx := ctx.ConsumeOutput(out, dummyOid)

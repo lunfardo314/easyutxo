@@ -36,6 +36,11 @@ type Output struct {
 	blocks *lazyslice.Array
 }
 
+type OutputWithID struct {
+	ID     OutputID
+	Output *Output
+}
+
 func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
 	copy(ret[:TransactionIDLength], id[:])
 	ret[TransactionIDLength] = idx
@@ -93,8 +98,8 @@ func (o *Output) BlockBytes(idx byte) []byte {
 	return o.blocks.At(int(idx))
 }
 
-func (o *Output) PutAddress(addr AddressData, constraint byte) {
-	o.blocks.PutAtIdx(OutputBlockAddress, easyutxo.Concat(constraint, []byte(addr)))
+func (o *Output) PutAddress(addr *Address) {
+	o.blocks.PutAtIdx(OutputBlockAddress, addr.Bytes())
 }
 
 func (o *Output) Address() []byte {
