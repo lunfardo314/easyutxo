@@ -1,25 +1,11 @@
 package ledger
 
 import (
-	"encoding/hex"
-
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )
 
-const (
-	TransactionIDLength = 32
-)
-
-type TransactionID []byte
-
-func (txid TransactionID) String() string {
-	return hex.EncodeToString(txid)
-}
-
-type Transaction struct {
-	tree *lazyslice.Tree
-}
+const ()
 
 // NewTransaction empty transaction blocks skeleton
 func NewTransaction() *Transaction {
@@ -41,15 +27,6 @@ func TransactionFromBytes(data []byte) *Transaction {
 
 func (tx *Transaction) Tree() *lazyslice.Tree {
 	return tx.tree
-}
-
-func (tx *Transaction) Bytes() []byte {
-	return tx.tree.Bytes()
-}
-
-func (tx *Transaction) ID() TransactionID {
-	ret := blake2b.Sum256(tx.Bytes())
-	return ret[:]
 }
 
 func (tx *Transaction) NumOutputs() int {

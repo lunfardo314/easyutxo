@@ -23,7 +23,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, tx.NumInputs())
 		require.EqualValues(t, 0, tx.NumOutputs())
 
-		v, err := ledger.TransactionContextFromTransaction(tx.Bytes(), state)
+		v, err := ledger.ValidationContextFromTransaction(tx.Bytes(), state)
 		require.NoError(t, err)
 		txid := tx.ID()
 		require.EqualValues(t, txid, v.TransactionID())
@@ -54,7 +54,7 @@ func TestBasics(t *testing.T) {
 
 	})
 	t.Run("input commitment", func(t *testing.T) {
-		ctx := ledger.NewTransactionContext()
+		ctx := ledger.NewValidationContext()
 		ctx.AddInputCommitment()
 		ic := ctx.InputCommitment()
 		ic1 := ctx.Tree().BytesAtPath(ledger.Path(ledger.TransactionBranch, ledger.TxInputCommitment))

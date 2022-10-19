@@ -2,32 +2,28 @@ package ledger
 
 import (
 	ed255192 "crypto/ed25519"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"golang.org/x/crypto/blake2b"
 )
 
-// TransactionContext is a data structure, which contains transaction, consumed outputs and constraint library
-type TransactionContext struct {
+// ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
+type ValidationContext struct {
 	tree *lazyslice.Tree
 }
 
 var Path = lazyslice.Path
 
-// Top level banches
+// Top level branches
 const (
 	TransactionBranch = byte(iota)
 	ConsumedContextBranch
 )
 
-// ConsumedContextBranch. 1st level branches
 const (
 	ConsumedContextOutputsBranch = byte(iota)
-	ConsumedContextConstraintLibraryBranch
 )
 
 // TransactionBranch. 1st level branches
@@ -37,40 +33,32 @@ const (
 	TxOutputBranch
 	TxTimestamp
 	TxInputCommitment
-	TxLocalLibraryBranch
 	TxTreeIndexMax
 )
 
 // Invocation types are indices of constraints in the global library
 const (
 	InvocationTypeInline = byte(iota)
-	InvocationTypeLocalLib
-	InvocationTypeFirstGlobal
+	InvocationTypeUnlockScript
 )
 
-func NewTransactionContext() *TransactionContext {
+func NewValidationContext() *ValidationContext {
 	tx := NewTransaction()
-	ret, err := TransactionContextFromTransaction(tx.Bytes(), nil)
+	ret, err := ValidationContextFromTransaction(tx.Bytes(), nil)
 	easyutxo.AssertNoError(err)
 	return ret
 }
 
-// TransactionContextFromTransaction finds all inputs in the ledger state.
-// Creates a blocks with ledger at long index 0 and all inputs at long index 1
-func TransactionContextFromTransaction(txBytes []byte, ledgerState StateAccess) (*TransactionContext, error) {
-	tx := TransactionFromBytes(txBytes)
-	ret := &TransactionContext{tree: lazyslice.TreeEmpty()}
-	ret.tree.PushEmptySubtrees(2, nil)
-	ret.tree.PutSubtreeAtIdx(tx.Tree(), TransactionBranch, nil)                                                   // #0 transaction
-	ret.tree.PushEmptySubtrees(2, Path(ConsumedContextBranch))                                                    // #1 consumed context (inputs, library)
-	ret.tree.PutSubtreeAtIdx(lazyslice.TreeEmpty(), ConsumedContextOutputsBranch, Path(ConsumedContextBranch))    // 1 @ 0 consumed outputs
-	ret.tree.PutSubtreeAtIdx(constraintTree, ConsumedContextConstraintLibraryBranch, Path(ConsumedContextBranch)) // 1 @ 1 script library blocks
+// ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
+func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (*ValidationContext, error) {
+	txBranch := lazyslice.ArrayFromBytes(txBytes, int(TxTreeIndexMax))
+	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(TxInputIDsBranch)))
 
 	var err error
-	consPath := Path(ConsumedContextBranch, ConsumedContextOutputsBranch)
 	var oid OutputID
 
-	ret.tree.ForEach(func(i byte, data []byte) bool {
+	consumedOutputsArray := lazyslice.EmptyArray(256)
+	inputIDs.ForEach(func(i int, data []byte) bool {
 		if oid, err = OutputIDFromBytes(data); err != nil {
 			return false
 		}
@@ -79,18 +67,23 @@ func TransactionContextFromTransaction(txBytes []byte, ledgerState StateAccess) 
 			err = fmt.Errorf("input not found: %s", oid.String())
 			return false
 		}
-		ret.tree.PushData(od, consPath)
+		consumedOutputsArray.Push(od)
 		return true
-	}, Path(TransactionBranch, TxOutputBranch))
-
+	})
 	if err != nil {
 		return nil, err
 	}
+	consumedBranch := lazyslice.EmptyArray(1)
+	consumedBranch.Push(consumedOutputsArray.Bytes())
+	ctx := lazyslice.EmptyArray(2)
+	ctx.Push(consumedBranch.Bytes())
+	ctx.Push(txBytes)
+	ret := &ValidationContext{tree: ctx.AsTree()}
 	return ret, nil
 }
 
-func TransactionContextFromTree(dataTree *lazyslice.Tree) *TransactionContext {
-	return &TransactionContext{
+func TransactionContextFromTree(dataTree *lazyslice.Tree) *ValidationContext {
+	return &ValidationContext{
 		tree: dataTree,
 	}
 }
@@ -99,29 +92,29 @@ func invokeConstraint(tree *lazyslice.Tree, path lazyslice.TreePath) []byte {
 	return TransactionContextFromTree(tree).Invoke(path)
 }
 
-func (v *TransactionContext) Tree() *lazyslice.Tree {
+func (v *ValidationContext) Tree() *lazyslice.Tree {
 	return v.tree
 }
 
-func (v *TransactionContext) Transaction() *Transaction {
+func (v *ValidationContext) Transaction() *Transaction {
 	return TransactionFromBytes(v.tree.BytesAtPath(Path(TransactionBranch)))
 }
 
-func (v *TransactionContext) CodeFromGlobalLibrary(idx byte) []byte {
+func (v *ValidationContext) CodeFromGlobalLibrary(idx byte) []byte {
 	return v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextConstraintLibraryBranch, idx))
 }
 
-func (v *TransactionContext) CodeFromLocalLibrary(idx byte) []byte {
+func (v *ValidationContext) CodeFromLocalLibrary(idx byte) []byte {
 	return v.tree.BytesAtPath(Path(TransactionBranch, TxLocalLibraryBranch, idx))
 }
 
-func (v *TransactionContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) []byte {
+func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) []byte {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	if len(invocation) < 1 {
 		panic("empty invocation")
 	}
 	switch invocation[0] {
-	case InvocationTypeLocalLib:
+	case InvocationTypeUnlockScript:
 		if len(invocation) < 2 {
 			panic("wrong invocation")
 		}
@@ -132,11 +125,11 @@ func (v *TransactionContext) parseInvocationCode(invocationFullPath lazyslice.Tr
 	return v.CodeFromGlobalLibrary(invocation[0])
 }
 
-func (v *TransactionContext) rootContext() *DataContext {
+func (v *ValidationContext) rootContext() *DataContext {
 	return NewDataContext(v.tree, nil)
 }
 
-func (v *TransactionContext) TransactionBytes() []byte {
+func (v *ValidationContext) TransactionBytes() []byte {
 	ret, err := easyfl.EvalFromSource(v.rootContext(), "txBytes")
 	if err != nil {
 		panic(err)
@@ -144,7 +137,7 @@ func (v *TransactionContext) TransactionBytes() []byte {
 	return ret
 }
 
-func (v *TransactionContext) TransactionEssenceBytes() []byte {
+func (v *ValidationContext) TransactionEssenceBytes() []byte {
 	ret, err := easyfl.EvalFromSource(v.rootContext(), "txEssenceBytes")
 	if err != nil {
 		panic(err)
@@ -152,7 +145,7 @@ func (v *TransactionContext) TransactionEssenceBytes() []byte {
 	return ret
 }
 
-func (v *TransactionContext) TransactionID() []byte {
+func (v *ValidationContext) TransactionID() []byte {
 	ret, err := easyfl.EvalFromSource(v.rootContext(), "txID")
 	if err != nil {
 		panic(err)
@@ -160,34 +153,11 @@ func (v *TransactionContext) TransactionID() []byte {
 	return ret
 }
 
-func (v *TransactionContext) InputCommitment() []byte {
+func (v *ValidationContext) InputCommitment() []byte {
 	return v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
 }
 
-func (v *TransactionContext) ConsumeOutput(out *Output, oid OutputID) byte {
-	outIdx := v.tree.PushData(out.Bytes(), Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
-	idIdx := v.tree.PushData(oid[:], Path(TransactionBranch, TxInputIDsBranch))
-	easyutxo.Assert(outIdx == idIdx, "ConsumeOutput: outIdx == idIdx")
-	return byte(outIdx)
-}
-
-func (v *TransactionContext) ProduceOutput(out *Output) byte {
-	return byte(v.tree.PushData(out.Bytes(), Path(TransactionBranch, TxOutputBranch)))
-}
-
-func (v *TransactionContext) AddTransactionTimestamp(ts uint32) {
-	var d [4]byte
-	binary.BigEndian.PutUint32(d[:], ts)
-	v.tree.PutDataAtIdx(TxTimestamp, d[:], Path(TransactionBranch))
-}
-
-func (v *TransactionContext) AddInputCommitment() {
-	d := v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
-	h := blake2b.Sum256(d)
-	v.tree.PutDataAtIdx(TxInputCommitment, h[:], Path(TransactionBranch))
-}
-
-func (v *TransactionContext) UnlockED25519Inputs(pairs []*keyPair) {
+func (v *ValidationContext) UnlockED25519Inputs(pairs []*keyPair) {
 	_ = prepareKeyPairs(pairs)
 	// TODO
 }
@@ -206,11 +176,11 @@ func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 	return ret
 }
 
-func (v *TransactionContext) ConsumedOutput(idx byte) *Output {
+func (v *ValidationContext) ConsumedOutput(idx byte) *Output {
 	return OutputFromBytes(v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch, idx)))
 }
 
-func (v *TransactionContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
+func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
 	outputPath := Path(branch, byte(0))
 	v.tree.ForEach(func(idx byte, outputData []byte) bool {
 		outputPath[2] = idx

@@ -21,25 +21,29 @@ import (
 
 const OutputIDLength = TransactionIDLength + 1
 
-type OutputID [OutputIDLength]byte
-
-type OutputData []byte
-
 const (
 	OutputBlockMain = byte(iota)
 	OutputBlockAddress
 	OutputNumRequiredBlocks
 )
 
-// Output wraps output lazy blocks
-type Output struct {
-	blocks *lazyslice.Array
-}
+type (
+	OutputID [OutputIDLength]byte
 
-type OutputWithID struct {
-	ID     OutputID
-	Output *Output
-}
+	Output struct {
+		Amount      uint64
+		Timestamp   uint32
+		Address     Address
+		Constraints []Constraint
+	}
+
+	Constraint []byte
+
+	OutputWithID struct {
+		ID     OutputID
+		Output *Output
+	}
+)
 
 func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
 	copy(ret[:TransactionIDLength], id[:])
@@ -60,8 +64,20 @@ func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	return
 }
 
-func (oid *OutputID) TransactionID() TransactionID {
-	return oid[:TransactionIDLength]
+func NewOutput() *Output {
+	ret := &Output{
+		Constraints: make([]Constraint, 0),
+	}
+	return ret
+}
+
+func (oid *OutputID) String() string {
+	return fmt.Sprintf("[%d]%s", oid.Index(), oid.TransactionID())
+}
+
+func (oid *OutputID) TransactionID() (ret TransactionID) {
+	copy(ret[:], oid[:TransactionIDLength])
+	return
 }
 
 func (oid *OutputID) Index() byte {
@@ -72,69 +88,104 @@ func (oid *OutputID) Bytes() []byte {
 	return oid[:]
 }
 
-func (oid *OutputID) String() string {
-	return fmt.Sprintf("[%d]%s", oid.Index(), oid.TransactionID())
+func OutputFromBytes(data []byte) (*Output, error) {
+	arr := lazyslice.ArrayFromBytes(data, 256)
+	if arr.NumElements() < 2 {
+		return nil, fmt.Errorf("wrong data length")
+	}
+	ret := NewOutput()
+	err := ret.parseMainConstraint(arr.At(int(OutputBlockMain)))
+	if err != nil {
+		return nil, err
+	}
+	ret.Address, err = AddressFromBytes(arr.At(int(OutputBlockAddress)))
+	if err != nil {
+		return nil, err
+	}
+	for i := 2; i < arr.NumElements(); i++ {
+		d := arr.At(i)
+		if len(d) < 1 {
+			return nil, fmt.Errorf("wrong data length")
+		}
+		ret.Constraints = append(ret.Constraints, arr.At(i))
+	}
+	return ret, nil
 }
 
-func NewOutput() *Output {
-	ret := &Output{
-		blocks: lazyslice.EmptyArray(256),
+func (o *Output) ToArray() *lazyslice.Array {
+	ret := lazyslice.EmptyArray(256)
+	var a [8]byte
+	binary.BigEndian.PutUint64(a[:], o.Amount)
+	ret.Push(o.mainConstraint()) // @ OutputBlockMain = 0
+	ret.Push(o.Address)          // @ OutputBlockAddress = 1
+	for _, c := range o.Constraints {
+		ret.Push(c)
 	}
-	ret.blocks.PushEmptyElements(2)
 	return ret
-}
-
-func OutputFromBytes(data []byte) *Output {
-	return &Output{
-		blocks: lazyslice.ArrayFromBytes(data, 256),
-	}
 }
 
 func (o *Output) Bytes() []byte {
-	return o.blocks.Bytes()
+	return o.ToArray().Bytes()
 }
 
-func (o *Output) BlockBytes(idx byte) []byte {
-	return o.blocks.At(int(idx))
-}
-
-func (o *Output) PutAddress(addr Address) {
-	o.blocks.PutAtIdx(OutputBlockAddress, addr.Bytes())
-}
-
-func (o *Output) Address() Address {
-	ret, err := AddressFromBytes(o.blocks.At(int(OutputBlockAddress)))
-	if err != nil {
-		panic(err)
+func (o *Output) PushConstraint(c Constraint) (byte, error) {
+	if o.NumConstraints() >= 256 {
+		return 0, fmt.Errorf("too many constraints")
 	}
-	return ret
+	o.Constraints = append(o.Constraints, c)
+	return byte(len(o.Constraints) + 1), nil
 }
 
-func (o *Output) PutMainConstraint(timestamp uint32, amount uint64) {
+func (o *Output) Constraint(idx byte) Constraint {
+	switch idx {
+	case 0:
+		return o.mainConstraint()
+	case 1:
+		return Constraint(o.Address)
+	default:
+		return o.Constraints[idx]
+	}
+}
+
+func (o *Output) mainConstraint() Constraint {
 	var a [8]byte
 	var ts [4]byte
-	binary.BigEndian.PutUint64(a[:], amount)
-	binary.BigEndian.PutUint32(ts[:], timestamp)
+	binary.BigEndian.PutUint64(a[:], o.Amount)
+	binary.BigEndian.PutUint32(ts[:], o.Timestamp)
 
-	o.blocks.PutAtIdx(OutputBlockMain, easyutxo.Concat(ConstraintMain, ts[:], a[:]))
+	return easyutxo.Concat(ConstraintMain, ts[:], a[:])
 }
 
-func (o *Output) Timestamp() uint32 {
-	mainBlock := o.blocks.At(int(OutputBlockMain))
-	return binary.BigEndian.Uint32(mainBlock[1:5])
+func (o *Output) parseMainConstraint(data []byte) error {
+	if len(data) != 1+4+8 {
+		return fmt.Errorf("wrong data length")
+	}
+	if data[0] != ConstraintMain {
+		return fmt.Errorf("main constraint code expected")
+	}
+	o.Timestamp = binary.BigEndian.Uint32(data[1:5])
+	o.Amount = binary.BigEndian.Uint64(data[5:])
+	return nil
 }
 
-func (o *Output) Amount() uint64 {
-	mainBlock := o.blocks.At(int(OutputBlockMain))
-	return binary.BigEndian.Uint64(mainBlock[5:])
+func (c Constraint) Type() byte {
+	return c[0]
 }
 
-func (o *Output) NumBlocks() int {
-	return o.blocks.NumElements()
+func (o *Output) NumConstraints() int {
+	return len(o.Constraints) + 2
 }
 
-func (o *Output) ForEachBlock(fun func(idx byte, blockData []byte) bool) {
-	o.blocks.ForEach(func(i int, data []byte) bool {
-		return fun(byte(i), data)
-	})
+func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) bool) {
+	if !fun(OutputBlockMain, o.mainConstraint()) {
+		return
+	}
+	if !fun(OutputBlockAddress, Constraint(o.Address)) {
+		return
+	}
+	for idx, c := range o.Constraints {
+		if !fun(byte(idx+2), c) {
+			return
+		}
+	}
 }

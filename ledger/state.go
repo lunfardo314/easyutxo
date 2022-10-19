@@ -56,7 +56,7 @@ func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts 
 }
 
 func (u *State) AddTransaction(txBytes []byte) error {
-	ctx, err := TransactionContextFromTransaction(txBytes, u)
+	ctx, err := ValidationContextFromTransaction(txBytes, u)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (u *State) GetUTXOsForAddress(addr Address) []OutputWithID {
 	return ret
 }
 
-func (u *State) updateLedger(ctx *TransactionContext) {
+func (u *State) updateLedger(ctx *ValidationContext) {
 	batch := u.store.BatchedWriter()
 	// delete consumed outputs from the ledger and from accounts
 	tx := ctx.Transaction()

@@ -179,6 +179,13 @@ func (a *Array) Bytes() []byte {
 	return a.bytes
 }
 
+func (a *Array) AsTree() *Tree {
+	return &Tree{
+		sa:       a,
+		subtrees: make(map[byte]*Tree),
+	}
+}
+
 func calcLenPrefix(data [][]byte) (lenPrefixType, error) {
 	if len(data) > MaxArrayLen {
 		return 0, errors.New("too long data")

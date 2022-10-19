@@ -11,11 +11,11 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func (v *TransactionContext) Eval(source string, path []byte) ([]byte, error) {
+func (v *ValidationContext) Eval(source string, path []byte) ([]byte, error) {
 	return easyfl.EvalFromSource(NewDataContext(v.tree, path), source)
 }
 
-func (v *TransactionContext) MustEval(source string, path []byte) []byte {
+func (v *ValidationContext) MustEval(source string, path []byte) []byte {
 	ret, err := v.Eval(source, path)
 	if err != nil {
 		panic(err)
@@ -23,7 +23,7 @@ func (v *TransactionContext) MustEval(source string, path []byte) []byte {
 	return ret
 }
 
-func (v *TransactionContext) CheckConstraint(source string, path []byte) error {
+func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
 	return easyutxo.CatchPanicOrError(func() error {
 		res := v.MustEval(source, path)
 		if len(res) == 0 {
@@ -33,7 +33,7 @@ func (v *TransactionContext) CheckConstraint(source string, path []byte) error {
 	})
 }
 
-func (v *TransactionContext) Invoke(invocationPath lazyslice.TreePath) []byte {
+func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
 	f, err := easyfl.ExpressionFromBinary(code)
 	if err != nil {
@@ -43,7 +43,7 @@ func (v *TransactionContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	return easyfl.EvalExpression(ctx, f)
 }
 
-func (v *TransactionContext) Validate() error {
+func (v *ValidationContext) Validate() error {
 	return easyutxo.CatchPanicOrError(func() error {
 		inSum, err := v.validateConsumedOutputs()
 		if err != nil {
@@ -63,15 +63,15 @@ func (v *TransactionContext) Validate() error {
 	})
 }
 
-func (v *TransactionContext) validateProducedOutputs() (uint64, error) {
+func (v *ValidationContext) validateProducedOutputs() (uint64, error) {
 	return v.validateOutputs(Path(TransactionBranch, TxOutputBranch))
 }
 
-func (v *TransactionContext) validateConsumedOutputs() (uint64, error) {
+func (v *ValidationContext) validateConsumedOutputs() (uint64, error) {
 	return v.validateOutputs(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
 }
 
-func (v *TransactionContext) validateOutputs(branch lazyslice.TreePath) (uint64, error) {
+func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, error) {
 	var err error
 	var sum uint64
 	v.ForEachOutput(branch, func(out *Output, path lazyslice.TreePath) bool {
@@ -92,7 +92,7 @@ func (v *TransactionContext) validateOutputs(branch lazyslice.TreePath) (uint64,
 	return sum, nil
 }
 
-func (v *TransactionContext) runOutput(out *Output, path lazyslice.TreePath) error {
+func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) error {
 	mainBlockBytes := out.BlockBytes(OutputBlockMain)
 	if len(mainBlockBytes) != 1+4+8 || mainBlockBytes[0] != 0 {
 		return fmt.Errorf("wrong main constraint")
@@ -114,7 +114,7 @@ func (v *TransactionContext) runOutput(out *Output, path lazyslice.TreePath) err
 	return err
 }
 
-func (v *TransactionContext) validateInputCommitment() error {
+func (v *ValidationContext) validateInputCommitment() error {
 	consumedOutputBytes := v.Tree().BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
 	h := blake2b.Sum256(consumedOutputBytes)
 	inputCommitment := v.Tree().BytesAtPath(Path(TransactionBranch, TxInputCommitment))

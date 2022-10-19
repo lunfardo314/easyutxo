@@ -74,12 +74,12 @@ func TestConstructTx(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("1", func(t *testing.T) {
-		glb := NewTransactionContext()
+		glb := NewValidationContext()
 		idx := glb.ConsumeOutput(NewOutput(), DummyOutputID())
 		require.EqualValues(t, 0, idx)
 	})
 	t.Run("1", func(t *testing.T) {
-		ctx := NewTransactionContext()
+		ctx := NewValidationContext()
 		t.Logf("transaction context bytes 1: %d", len(ctx.Tree().Bytes()))
 
 		out := NewOutput()

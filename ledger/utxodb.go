@@ -63,7 +63,7 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	origin := outs[0]
 	common.Assert(origin.Output.Amount() > amount, "UTXODB faucet is exhausted")
 
-	ctx := NewTransactionContext()
+	ctx := NewValidationContext()
 	ctx.ConsumeOutput(origin.Output, origin.ID)
 
 	out := NewOutput()
