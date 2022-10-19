@@ -78,12 +78,11 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 		if err = v.runOutput(out, path); err != nil {
 			return false
 		}
-		a := out.Amount()
-		if a > math.MaxUint64-sum {
+		if out.Amount > math.MaxUint64-sum {
 			err = fmt.Errorf("validateOutputs @ branch %v: uint64 arithmetic overflow", branch)
 			return false
 		}
-		sum += out.Amount()
+		sum += out.Amount
 		return true
 	})
 	if err != nil {
@@ -93,16 +92,16 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 }
 
 func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) error {
-	mainBlockBytes := out.BlockBytes(OutputBlockMain)
+	mainBlockBytes := out.Constraint(OutputBlockMain)
 	if len(mainBlockBytes) != 1+4+8 || mainBlockBytes[0] != 0 {
 		return fmt.Errorf("wrong main constraint")
 	}
-	if len(out.BlockBytes(OutputBlockAddress)) < 1 {
+	if len(out.Constraint(OutputBlockAddress)) < 1 {
 		return fmt.Errorf("wrong address constraint")
 	}
 	blockPath := easyutxo.Concat(path, byte(0))
 	var err error
-	out.ForEachBlock(func(idx byte, blockData []byte) bool {
+	out.ForEachConstraint(func(idx byte, constraint Constraint) bool {
 		blockPath[len(blockPath)-1] = idx
 		res := v.Invoke(blockPath)
 		if len(res) == 0 {
@@ -115,9 +114,9 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) erro
 }
 
 func (v *ValidationContext) validateInputCommitment() error {
-	consumedOutputBytes := v.Tree().BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
+	consumedOutputBytes := v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
 	h := blake2b.Sum256(consumedOutputBytes)
-	inputCommitment := v.Tree().BytesAtPath(Path(TransactionBranch, TxInputCommitment))
+	inputCommitment := v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
 	if !bytes.Equal(h[:], inputCommitment) {
 		return fmt.Errorf("consumed input hash not equal to input commitment")
 	}

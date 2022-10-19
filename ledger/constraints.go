@@ -4,12 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
 var constraints [256][]byte
-var constraintTree = lazyslice.TreeEmpty()
 
 const (
 	ConstraintReserved0 = byte(iota)
@@ -28,10 +27,6 @@ func init() {
 	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
 
 	easyfl.PrintLibraryStats()
-
-	for _, code := range constraints {
-		constraintTree.PushData(code, nil)
-	}
 }
 
 func registerConstraint(invocationCode byte, source string) error {
@@ -57,4 +52,10 @@ func mustRegisterConstraint(invocationCode byte, source string) {
 	if err := registerConstraint(invocationCode, source); err != nil {
 		panic(err)
 	}
+}
+
+func mustGetConstraintBinary(idx byte) []byte {
+	ret := constraints[idx]
+	common.Assert(len(ret) > 0, "can't find constraint '%d'", idx)
+	return ret
 }

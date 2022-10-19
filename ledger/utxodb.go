@@ -58,31 +58,34 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	outs := u.GetUTXOsForAddress(u.OriginAddress())
+	outs, err := u.GetUTXOsForAddress(u.OriginAddress())
+	common.AssertNoError(err)
 	common.Assert(len(outs) == 1, "len(outs)==1")
 	origin := outs[0]
-	common.Assert(origin.Output.Amount() > amount, "UTXODB faucet is exhausted")
+	common.Assert(origin.Output.Amount > amount, "UTXODB faucet is exhausted")
 
-	ctx := NewValidationContext()
-	ctx.ConsumeOutput(origin.Output, origin.ID)
+	ctx := NewTransactionContext()
+	_, err = ctx.ConsumeOutput(origin.Output, origin.ID)
+	common.AssertNoError(err)
 
-	out := NewOutput()
 	ts := uint32(time.Now().Unix())
-	out.PutMainConstraint(ts, amount)
-	out.PutAddress(addr)
+	out := NewOutput()
+	out.Timestamp = ts
+	out.Amount = amount
+	out.Address = Address{}
 
 	reminder := NewOutput()
-	reminder.PutMainConstraint(ts, origin.Output.Amount()-amount)
-	reminder.PutAddress(u.OriginAddress())
+	reminder.Timestamp = ts
+	reminder.Amount = origin.Output.Amount - amount
+	reminder.Address = u.OriginAddress()
 
-	ctx.ProduceOutput(out)
-	ctx.ProduceOutput(reminder)
-	ctx.AddTransactionTimestamp(ts)
-	ctx.AddInputCommitment()
+	_, err = ctx.ProduceOutput(out)
+	common.AssertNoError(err)
+	_, err = ctx.ProduceOutput(reminder)
+	common.AssertNoError(err)
 
-	if err := u.AddTransaction(ctx.Transaction().Bytes()); err != nil {
-		panic(err)
-	}
+	err = u.AddTransaction(ctx.Transaction.Bytes())
+	common.AssertNoError(err)
 }
 
 func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, Address) {

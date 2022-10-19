@@ -38,6 +38,19 @@ func (txid *TransactionID) String() string {
 	return hex.EncodeToString(txid[:])
 }
 
+func NewTransactionContext() *TransactionContext {
+	return &TransactionContext{
+		ConsumedOutputs: make([]*Output, 0),
+		Transaction: &Transaction{
+			InputIDs:        make([]OutputID, 0),
+			Outputs:         make([]*Output, 0),
+			UnlockBlocks:    make([]DataBlockRaw, 0),
+			Timestamp:       0,
+			InputCommitment: [32]byte{},
+		},
+	}
+}
+
 func (ctx *TransactionContext) NumInputs() int {
 	ret := len(ctx.ConsumedOutputs)
 	common.Assert(ret == len(ctx.Transaction.InputIDs), "ret==len(ctx.Transaction.InputIDs)")

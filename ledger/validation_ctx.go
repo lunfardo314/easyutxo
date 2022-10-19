@@ -1,12 +1,15 @@
 package ledger
 
 import (
+	"bytes"
 	ed255192 "crypto/ed25519"
 	"fmt"
 
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"golang.org/x/crypto/blake2b"
 )
 
 // ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
@@ -42,13 +45,6 @@ const (
 	InvocationTypeUnlockScript
 )
 
-func NewValidationContext() *ValidationContext {
-	tx := NewTransaction()
-	ret, err := ValidationContextFromTransaction(tx.Bytes(), nil)
-	easyutxo.AssertNoError(err)
-	return ret
-}
-
 // ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
 func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (*ValidationContext, error) {
 	txBranch := lazyslice.ArrayFromBytes(txBytes, int(TxTreeIndexMax))
@@ -82,47 +78,26 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (
 	return ret, nil
 }
 
-func TransactionContextFromTree(dataTree *lazyslice.Tree) *ValidationContext {
-	return &ValidationContext{
-		tree: dataTree,
-	}
-}
-
-func invokeConstraint(tree *lazyslice.Tree, path lazyslice.TreePath) []byte {
-	return TransactionContextFromTree(tree).Invoke(path)
-}
-
-func (v *ValidationContext) Tree() *lazyslice.Tree {
-	return v.tree
-}
-
-func (v *ValidationContext) Transaction() *Transaction {
-	return TransactionFromBytes(v.tree.BytesAtPath(Path(TransactionBranch)))
-}
-
-func (v *ValidationContext) CodeFromGlobalLibrary(idx byte) []byte {
-	return v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextConstraintLibraryBranch, idx))
-}
-
-func (v *ValidationContext) CodeFromLocalLibrary(idx byte) []byte {
-	return v.tree.BytesAtPath(Path(TransactionBranch, TxLocalLibraryBranch, idx))
-}
-
 func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) []byte {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
-	if len(invocation) < 1 {
-		panic("empty invocation")
-	}
+	common.Assert(len(invocation) >= 1, "constraint can't be empty")
 	switch invocation[0] {
 	case InvocationTypeUnlockScript:
-		if len(invocation) < 2 {
-			panic("wrong invocation")
-		}
-		return v.CodeFromLocalLibrary(invocation[1])
+		// unlock block must provide script which is pre-image of the hash
+		scriptBinary := v.unlockScriptBinary(invocationFullPath)
+		h := blake2b.Sum256(scriptBinary)
+		common.Assert(bytes.Equal(h[:], invocation[1:]), "wrong script")
+		return invocation[1:]
 	case InvocationTypeInline:
 		return invocation[1:]
 	}
-	return v.CodeFromGlobalLibrary(invocation[0])
+	return mustGetConstraintBinary(invocation[0])
+}
+
+func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
+	unlockBlockPath := easyutxo.Concat(invocationFullPath)
+	unlockBlockPath[1] = TxUnlockParamsBranch
+	return v.tree.BytesAtPath(unlockBlockPath)
 }
 
 func (v *ValidationContext) rootContext() *DataContext {
@@ -145,12 +120,15 @@ func (v *ValidationContext) TransactionEssenceBytes() []byte {
 	return ret
 }
 
-func (v *ValidationContext) TransactionID() []byte {
+func (v *ValidationContext) TransactionID() TransactionID {
 	ret, err := easyfl.EvalFromSource(v.rootContext(), "txID")
 	if err != nil {
 		panic(err)
 	}
-	return ret
+	var txid TransactionID
+	common.Assert(len(txid[:]) == len(ret), "wrong data length")
+	copy(txid[:], ret)
+	return txid
 }
 
 func (v *ValidationContext) InputCommitment() []byte {
@@ -177,13 +155,28 @@ func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 }
 
 func (v *ValidationContext) ConsumedOutput(idx byte) *Output {
-	return OutputFromBytes(v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch, idx)))
+	ret, err := OutputFromBytes(v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch, idx)))
+	common.AssertNoError(err)
+	return ret
 }
 
 func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
 	outputPath := Path(branch, byte(0))
 	v.tree.ForEach(func(idx byte, outputData []byte) bool {
 		outputPath[2] = idx
-		return fun(OutputFromBytes(outputData), outputPath)
+		out, err := OutputFromBytes(outputData)
+		common.AssertNoError(err)
+		return fun(out, outputPath)
 	}, branch)
+}
+
+func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *OutputID) bool) {
+	v.tree.ForEach(func(i byte, data []byte) bool {
+		oid, err := OutputIDFromBytes(data)
+		common.AssertNoError(err)
+		if !fun(i, &oid) {
+			return false
+		}
+		return true
+	}, Path(TransactionBranch, TxInputIDsBranch))
 }

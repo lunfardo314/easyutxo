@@ -26,9 +26,6 @@ func extendLibrary() {
 	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
 	easyfl.Extend("isProducedBranch", "equal(slice($0,0,1), 0x0002)")
 
-	requireAllCode = easyfl.EmbedShort("requireAll", 1, evalRequireAll, true)
-	easyfl.EmbedShort("requireAny", 1, evalRequireAny, true)
-
 	// LazyArray
 	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
 	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
@@ -62,47 +59,6 @@ func evalPath(ctx *easyfl.CallParams) []byte {
 
 func evalAtPath(ctx *easyfl.CallParams) []byte {
 	return ctx.DataContext().(*DataContext).dataTree.BytesAtPath(ctx.Arg(0))
-}
-
-func evalRequireAll(ctx *easyfl.CallParams) []byte {
-	blockIndices := ctx.Arg(0)
-	path := ctx.DataContext().(*DataContext).invocationPath
-	myIdx := path[len(path)-1]
-	pathCopy := make([]byte, len(path))
-	copy(pathCopy, path)
-
-	for _, idx := range blockIndices {
-		if idx <= myIdx {
-			// only forward
-			panic("evalRequireAll: can only invoke constraints forward")
-		}
-		pathCopy[len(path)-1] = idx
-		if len(invokeConstraint(ctx.DataContext().(*DataContext).dataTree, path)) == 0 {
-			return nil
-		}
-	}
-	return []byte{0xff}
-}
-
-func evalRequireAny(ctx *easyfl.CallParams) []byte {
-	blockIndices := ctx.Arg(0)
-	gc := ctx.DataContext().(*DataContext)
-	path := gc.invocationPath
-	myIdx := path[len(path)-1]
-	pathCopy := make([]byte, len(path))
-	copy(pathCopy, path)
-
-	for _, idx := range blockIndices {
-		if idx <= myIdx {
-			// only forward
-			panic("evalRequireAny: can only invoke constraints forward")
-		}
-		path[len(path)-1] = idx
-		if len(invokeConstraint(gc.dataTree, path)) != 0 {
-			return []byte{0xff}
-		}
-	}
-	return nil
 }
 
 func evalAtArray8(ctx *easyfl.CallParams) []byte {
