@@ -18,15 +18,14 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := NewOutput()
+		out := NewOutput(0, 0, nil)
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := NewOutput()
-		out.Address = AddressFromED25519PubKey(pubKey)
+		out := NewOutput(0, 0, AddressFromED25519PubKey(pubKey))
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -36,9 +35,7 @@ func TestOutput(t *testing.T) {
 		require.EqualValues(t, out.Address, outBack.Address)
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := NewOutput()
-		out.Timestamp = uint32(time.Now().Unix())
-		out.Amount = 1337
+		out := NewOutput(1337, uint32(time.Now().Unix()), nil)
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -57,7 +54,7 @@ func TestConstructTx(t *testing.T) {
 
 	t.Run("1", func(t *testing.T) {
 		glb := NewTransactionContext()
-		idx, err := glb.ConsumeOutput(NewOutput(), DummyOutputID())
+		idx, err := glb.ConsumeOutput(NewOutput(0, 0, nil), DummyOutputID())
 		require.NoError(t, err)
 		require.EqualValues(t, 0, idx)
 	})
@@ -65,10 +62,7 @@ func TestConstructTx(t *testing.T) {
 		ctx := NewTransactionContext()
 		t.Logf("transaction bytes 1: %d", len(ctx.Transaction.Bytes()))
 
-		out := NewOutput()
-		out.Address = AddressFromED25519PubKey(pubKey)
-		out.Timestamp = uint32(time.Now().Unix())
-		out.Amount = 1337
+		out := NewOutput(1337, uint32(time.Now().Unix()), AddressFromED25519PubKey(pubKey))
 		dummyOid := DummyOutputID()
 		idx, err := ctx.ConsumeOutput(out, dummyOid)
 		require.NoError(t, err)

@@ -15,6 +15,16 @@ const (
 	TransactionIDLength = 32
 )
 
+// Transaction tree
+const (
+	TxUnlockParamsBranch = byte(iota)
+	TxInputIDsBranch
+	TxOutputBranch
+	TxTimestamp
+	TxInputCommitment
+	TxTreeIndexMax
+)
+
 type (
 	TransactionID [TransactionIDLength]byte
 
@@ -102,15 +112,15 @@ func (tx *Transaction) ToArray() *lazyslice.Array {
 		outputs.Push(o.Bytes())
 	}
 
-	ret := lazyslice.EmptyArray(256)
-	ret.PushEmptyElements(int(TxTreeIndexMax))
-	ret.PutAtIdx(TxUnlockParamsBranch, unlockBlocks.Bytes())
-	ret.PutAtIdx(TxInputIDsBranch, inputIDs.Bytes())
-	ret.PutAtIdx(TxOutputBranch, outputs.Bytes())
 	var ts [4]byte
 	binary.BigEndian.PutUint32(ts[:], tx.Timestamp)
-	ret.PutAtIdx(TxTimestamp, ts[:])
-	ret.PutAtIdx(TxInputCommitment, tx.InputCommitment[:])
+	ret := lazyslice.MakeArray(
+		unlockBlocks,          // TxUnlockParamsBranch = 0
+		inputIDs,              // TxInputIDsBranch = 1
+		outputs,               // TxOutputBranch = 2
+		ts[:],                 // TxTimestamp = 3
+		tx.InputCommitment[:], // TxInputCommitment = 4
+	)
 
 	return ret
 }

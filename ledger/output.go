@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -64,8 +65,11 @@ func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	return
 }
 
-func NewOutput() *Output {
+func NewOutput(amount uint64, timestamp uint32, address Address) *Output {
 	ret := &Output{
+		Amount:      amount,
+		Timestamp:   timestamp,
+		Address:     address,
 		Constraints: make([]Constraint, 0),
 	}
 	return ret
@@ -93,7 +97,7 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if arr.NumElements() < 2 {
 		return nil, fmt.Errorf("wrong data length")
 	}
-	ret := NewOutput()
+	ret := NewOutput(0, 0, nil)
 	err := ret.parseMainConstraint(arr.At(int(OutputBlockMain)))
 	if err != nil {
 		return nil, err
@@ -147,13 +151,17 @@ func (o *Output) Constraint(idx byte) Constraint {
 	}
 }
 
+const mainConstraintSize = 1 + 4 + 8
+
 func (o *Output) mainConstraint() Constraint {
 	var a [8]byte
 	var ts [4]byte
 	binary.BigEndian.PutUint64(a[:], o.Amount)
 	binary.BigEndian.PutUint32(ts[:], o.Timestamp)
 
-	return easyutxo.Concat(ConstraintMain, ts[:], a[:])
+	ret := easyutxo.Concat(ConstraintMain, ts[:], a[:])
+	common.Assert(len(ret) == mainConstraintSize, "len(ret)==mainConstraintSize")
+	return ret
 }
 
 func (o *Output) parseMainConstraint(data []byte) error {

@@ -64,25 +64,22 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	origin := outs[0]
 	common.Assert(origin.Output.Amount > amount, "UTXODB faucet is exhausted")
 
+	ts := uint32(time.Now().Unix())
 	ctx := NewTransactionContext()
 	_, err = ctx.ConsumeOutput(origin.Output, origin.ID)
 	common.AssertNoError(err)
 
-	ts := uint32(time.Now().Unix())
-	out := NewOutput()
-	out.Timestamp = ts
-	out.Amount = amount
-	out.Address = Address{}
+	out := NewOutput(amount, ts, addr)
 
-	reminder := NewOutput()
-	reminder.Timestamp = ts
-	reminder.Amount = origin.Output.Amount - amount
-	reminder.Address = u.OriginAddress()
+	reminder := NewOutput(origin.Output.Amount-amount, ts, u.OriginAddress())
 
 	_, err = ctx.ProduceOutput(out)
 	common.AssertNoError(err)
 	_, err = ctx.ProduceOutput(reminder)
 	common.AssertNoError(err)
+
+	ctx.Transaction.Timestamp = ts
+	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
 	err = u.AddTransaction(ctx.Transaction.Bytes())
 	common.AssertNoError(err)

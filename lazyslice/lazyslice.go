@@ -81,6 +81,21 @@ func EmptyArray(maxNumElements ...int) *Array {
 	return ArrayFromBytes(emptyArrayPrefix.Bytes(), maxNumElements...)
 }
 
+func MakeArray(element ...interface{}) *Array {
+	ret := EmptyArray(len(element))
+	for _, el := range element {
+		switch e := el.(type) {
+		case []byte:
+			ret.Push(e)
+		case interface{ Bytes() []byte }:
+			ret.Push(e.Bytes())
+		default:
+			panic("lazyarray.Make: only '[]byte' and 'interface{Bytes() []byte}' types are allowed as arguments")
+		}
+	}
+	return ret
+}
+
 func (a *Array) SetData(data []byte) {
 	a.bytes = data
 	a.parsed = nil
@@ -322,15 +337,12 @@ func TreeEmpty() *Tree {
 	return TreeFromBytes(emptyArrayPrefix.Bytes())
 }
 
-func Path(p ...interface{}) TreePath {
-	return easyutxo.Concat(p...)
+func MakeTree(nodes ...interface{}) *Tree {
+	return &Tree{sa: MakeArray(nodes...)}
 }
 
-// PathMakeAppend allocates a new underlying array and appends bytes to it
-func PathMakeAppend(p TreePath, b ...byte) TreePath {
-	ret := make(TreePath, len(p), len(p)+len(b))
-	copy(ret, p)
-	return append(ret, b...)
+func Path(p ...interface{}) TreePath {
+	return easyutxo.Concat(p...)
 }
 
 func (p TreePath) Bytes() []byte {

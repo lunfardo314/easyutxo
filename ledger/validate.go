@@ -34,13 +34,14 @@ func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
 }
 
 func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
-	code := v.parseInvocationCode(v.tree.BytesAtPath(invocationPath))
+	code := v.parseInvocationCode(invocationPath)
 	f, err := easyfl.ExpressionFromBinary(code)
 	if err != nil {
 		panic(err)
 	}
 	ctx := NewDataContext(v.tree, invocationPath)
-	return easyfl.EvalExpression(ctx, f)
+	ret := easyfl.EvalExpression(ctx, f)
+	return ret
 }
 
 func (v *ValidationContext) Validate() error {
@@ -93,7 +94,7 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 
 func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) error {
 	mainBlockBytes := out.Constraint(OutputBlockMain)
-	if len(mainBlockBytes) != 1+4+8 || mainBlockBytes[0] != 0 {
+	if len(mainBlockBytes) != mainConstraintSize || mainBlockBytes[0] != ConstraintMain {
 		return fmt.Errorf("wrong main constraint")
 	}
 	if len(out.Constraint(OutputBlockAddress)) < 1 {
@@ -105,7 +106,7 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) erro
 		blockPath[len(blockPath)-1] = idx
 		res := v.Invoke(blockPath)
 		if len(res) == 0 {
-			err = fmt.Errorf("constraint @ path %v failed", blockPath)
+			err = fmt.Errorf("constraint failed. Path: %s", PathToString(blockPath))
 			return false
 		}
 		return true
@@ -121,4 +122,63 @@ func (v *ValidationContext) validateInputCommitment() error {
 		return fmt.Errorf("consumed input hash not equal to input commitment")
 	}
 	return nil
+}
+
+func PathToString(path []byte) string {
+	ret := "@"
+	if len(path) == 0 {
+		return ret + ".nil"
+	}
+	if len(path) >= 1 {
+		switch path[0] {
+		case TransactionBranch:
+			ret += ".tx"
+			if len(path) >= 2 {
+				switch path[1] {
+				case TxUnlockParamsBranch:
+					ret += ".unlock"
+				case TxInputIDsBranch:
+					ret += ".inID"
+				case TxOutputBranch:
+					ret += ".out"
+				case TxTimestamp:
+					ret += ".ts"
+				case TxInputCommitment:
+					ret += ".inhash"
+				default:
+					ret += "WRONG[1]"
+				}
+			}
+			if len(path) >= 3 {
+				ret += fmt.Sprintf("[%d]", path[2])
+			}
+			if len(path) >= 4 {
+				ret += fmt.Sprintf(".block[%d]", path[3])
+			}
+			if len(path) >= 5 {
+				ret += fmt.Sprintf("..%v", path[4:])
+			}
+		case ConsumedContextBranch:
+			ret += ".consumed"
+			if len(path) >= 2 {
+				if path[1] != 0 {
+					ret += ".WRONG[1]"
+				} else {
+					ret += ".[0]"
+				}
+			}
+			if len(path) >= 3 {
+				ret += fmt.Sprintf(".out[%d]", path[2])
+			}
+			if len(path) >= 4 {
+				ret += fmt.Sprintf(".block[%d]", path[3])
+			}
+			if len(path) >= 5 {
+				ret += fmt.Sprintf("..%v", path[4:])
+			}
+		default:
+			ret += ".WRONG[0]"
+		}
+	}
+	return ret
 }

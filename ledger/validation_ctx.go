@@ -29,16 +29,6 @@ const (
 	ConsumedContextOutputsBranch = byte(iota)
 )
 
-// TransactionBranch. 1st level branches
-const (
-	TxUnlockParamsBranch = byte(iota)
-	TxInputIDsBranch
-	TxOutputBranch
-	TxTimestamp
-	TxInputCommitment
-	TxTreeIndexMax
-)
-
 // Invocation types are indices of constraints in the global library
 const (
 	InvocationTypeInline = byte(iota)
@@ -48,7 +38,7 @@ const (
 // ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
 func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (*ValidationContext, error) {
 	txBranch := lazyslice.ArrayFromBytes(txBytes, int(TxTreeIndexMax))
-	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(TxInputIDsBranch)))
+	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(TxInputIDsBranch)), 256)
 
 	var err error
 	var oid OutputID
@@ -69,11 +59,10 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (
 	if err != nil {
 		return nil, err
 	}
-	consumedBranch := lazyslice.EmptyArray(1)
-	consumedBranch.Push(consumedOutputsArray.Bytes())
-	ctx := lazyslice.EmptyArray(2)
-	ctx.Push(consumedBranch.Bytes())
-	ctx.Push(txBytes)
+	ctx := lazyslice.MakeArray(
+		txBytes, // TransactionBranch = 0
+		lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
+	)
 	ret := &ValidationContext{tree: ctx.AsTree()}
 	return ret, nil
 }
