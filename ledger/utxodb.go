@@ -91,7 +91,11 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	unlockData := UnlockDataBySignatureED25519(ctx.Transaction.EssenceBytes(), u.originPrivateKey)
 	ctx.UnlockBlock(consumedOutputIdx).PutUnlockParams(unlockData, OutputBlockAddress)
 
-	err = u.AddTransaction(ctx.Transaction.Bytes(), u.trace)
+	trace := TraceOptionNone
+	if u.trace {
+		trace = TraceOptionFailedConstraints
+	}
+	err = u.AddTransaction(ctx.Transaction.Bytes(), trace)
 	easyfl.AssertNoError(err)
 }
 

@@ -10,24 +10,6 @@ type DataContext struct {
 	invocationPath lazyslice.TreePath
 }
 
-func NewDataContext(tree *lazyslice.Tree, path lazyslice.TreePath, trace ...bool) easyfl.GlobalData {
-	var ret easyfl.GlobalData
-	if len(trace) > 0 && trace[0] {
-		ret = easyfl.NewGlobalDataTracePrint(&DataContext{
-			dataTree:       tree,
-			invocationPath: path,
-		})
-	} else {
-		ret = easyfl.NewGlobalDataNoTrace(&DataContext{
-			dataTree:       tree,
-			invocationPath: path,
-		})
-	}
-	return ret
-}
-
-var requireAllCode byte
-
 func extendLibrary() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)

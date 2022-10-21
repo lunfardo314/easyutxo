@@ -12,8 +12,8 @@ import (
 
 // ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
 type ValidationContext struct {
-	tree  *lazyslice.Tree
-	trace bool
+	tree        *lazyslice.Tree
+	traceOption int
 }
 
 var Path = lazyslice.Path
@@ -34,8 +34,14 @@ const (
 	InvocationTypeUnlockScript
 )
 
+const (
+	TraceOptionNone = iota
+	TraceOptionAll
+	TraceOptionFailedConstraints
+)
+
 // ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
-func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, trace ...bool) (*ValidationContext, error) {
+func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, traceOption ...int) (*ValidationContext, error) {
 	txBranch := lazyslice.ArrayFromBytes(txBytes, int(TxTreeIndexMax))
 	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(TxInputIDsBranch)), 256)
 
@@ -63,8 +69,11 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, t
 		lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
 	)
 	ret := &ValidationContext{
-		tree:  ctx.AsTree(),
-		trace: len(trace) > 0 && trace[0],
+		tree:        ctx.AsTree(),
+		traceOption: TraceOptionNone,
+	}
+	if len(traceOption) > 0 {
+		ret.traceOption = traceOption[0]
 	}
 	return ret, nil
 }
@@ -92,7 +101,7 @@ func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.Tree
 }
 
 func (v *ValidationContext) rootContext() easyfl.GlobalData {
-	return NewDataContext(v.tree, nil)
+	return v.dataContext(nil)
 }
 
 func (v *ValidationContext) TransactionBytes() []byte {

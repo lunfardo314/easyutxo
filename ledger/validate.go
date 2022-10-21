@@ -10,8 +10,30 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
+func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
+	switch v.traceOption {
+	case TraceOptionNone:
+		return easyfl.NewGlobalDataNoTrace(&DataContext{
+			dataTree:       v.tree,
+			invocationPath: path,
+		})
+	case TraceOptionAll:
+		return easyfl.NewGlobalDataTracePrint(&DataContext{
+			dataTree:       v.tree,
+			invocationPath: path,
+		})
+	case TraceOptionFailedConstraints:
+		return easyfl.NewGlobalDataLog(&DataContext{
+			dataTree:       v.tree,
+			invocationPath: path,
+		})
+	default:
+		panic("wrong trace option")
+	}
+}
+
 func (v *ValidationContext) Eval(source string, path []byte) ([]byte, error) {
-	return easyfl.EvalFromSource(NewDataContext(v.tree, path), source)
+	return easyfl.EvalFromSource(v.dataContext(path), source)
 }
 
 func (v *ValidationContext) MustEval(source string, path []byte) []byte {
@@ -38,17 +60,18 @@ func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 	if err != nil {
 		panic(err)
 	}
-	ctx := NewDataContext(v.tree, invocationPath, v.trace)
+	ctx := v.dataContext(invocationPath)
 	if ctx.Trace() {
 		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(invocationPath)))
 	}
 	ret := easyfl.EvalExpression(ctx, f)
 	if ctx.Trace() {
-		ok := "OK"
 		if len(ret) == 0 {
-			ok = "FAIL"
+			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: FAIL", name, PathToString(invocationPath)))
+			ctx.(*easyfl.GlobalDataLog).PrintLog()
+		} else {
+			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: OK", name, PathToString(invocationPath)))
 		}
-		ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: %s", name, PathToString(invocationPath), ok))
 	}
 	return ret
 }
