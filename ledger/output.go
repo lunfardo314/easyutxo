@@ -44,6 +44,10 @@ type (
 		ID     OutputID
 		Output *Output
 	}
+
+	UnlockBlock struct {
+		lazyslice.Array
+	}
 )
 
 func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
@@ -196,4 +200,31 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 			return
 		}
 	}
+}
+
+func (o *Output) ConstraintCodes() []byte {
+	ret := []byte{OutputBlockMain, OutputBlockAddress}
+	for _, c := range o.Constraints {
+		ret = append(ret, c[0])
+	}
+	return ret
+}
+
+func (u *UnlockBlock) Bytes() []byte {
+	return u.Bytes()
+}
+
+func NewUnlockBlock() *UnlockBlock {
+	return &UnlockBlock{
+		Array: *lazyslice.EmptyArray(256),
+	}
+}
+
+// PutUnlockParams puts data at index. If index is out of bounds, pushes empty elements to fill the gaps
+// Unlock params in the element 'idx' corresponds to the consumed output constraint at the same index
+func (u *UnlockBlock) PutUnlockParams(data []byte, idx byte) {
+	for u.NumElements() <= int(idx) {
+		u.Push(nil)
+	}
+	u.PutAtIdx(idx, data)
 }

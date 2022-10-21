@@ -38,15 +38,6 @@ const SigLockConstraint = `
 // It all and up to embedded functions '@' which gives invocation location and '@Path' which gives data bytes
 // for any location inn the transaction specified by any valid path
 
-// 'selfUnlockedWithReference'' specifies validation of the input unlock with the reference
-func selfUnlockedWithReference: and(
-	equal(len8(selfUnlockBlock), 2),                     // unlock block must be 2 bytes long
-	lessThan(byte(selfUnlockBlock,0), selfOutputIndex),  // unlock block must point to another input with strictly 
-														 // smaller index	
-	equal(selfConstraint, selfReferencedConstraint)      // the referenced constraint bytes must be equal to the
-														 // self constrain bytes
-)
-
 // 'selfUnlockedWithSigED25519' specifies unlock constraint with the unlock block signature
 // the signature must be valid and hash of the public key must be equal to the provided address
 func selfUnlockedWithSigED25519: and(
@@ -62,6 +53,15 @@ func selfUnlockedWithSigED25519: and(
 			slice(selfUnlockBlock, 64, 96)
 		)
 	)
+)
+
+// 'selfUnlockedWithReference'' specifies validation of the input unlock with the reference
+func selfUnlockedWithReference: and(
+	equal(len8(selfUnlockBlock), 2),                     // unlock block must be 2 bytes long
+	lessThan(byte(selfUnlockBlock,0), selfOutputIndex),  // unlock block must point to another input with strictly 
+														 // smaller index	
+	equal(selfConstraint, selfReferencedConstraint)      // the referenced constraint bytes must be equal to the
+														 // self constrain bytes
 )
 
 // if it is 'produced' invocation context (constraint invoked in the input), only size of the address is checked

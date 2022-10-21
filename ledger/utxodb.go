@@ -86,6 +86,12 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
+	unlockBlock := NewUnlockBlock()
+	unlockBlock.PutUnlockParams(nil, OutputBlockMain)
+
+	// TODO signing
+	unlockBlock.PutUnlockParams(nil, OutputBlockAddress)
+
 	err = u.AddTransaction(ctx.Transaction.Bytes(), u.trace)
 	common.AssertNoError(err)
 }

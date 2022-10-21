@@ -47,8 +47,7 @@ func extendLibrary() {
 	easyfl.Extend("txOutputsBytes", "@Path(0x0002)")
 	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
-	easyfl.Extend("txLocalLibBytes", "@Path(0x0005)")
-	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txTimestampBytes, txInputCommitmentBytes, txLocalLibBytes)")
+	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txTimestampBytes, txInputCommitmentBytes)")
 	easyfl.Extend("addrDataED25519FromPubKey", "blake2b($0)")
 
 	easyfl.Extend("selfOutputBytes", "@Path(slice(@,0,2))")
