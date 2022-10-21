@@ -14,7 +14,8 @@ import (
 
 // ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
 type ValidationContext struct {
-	tree *lazyslice.Tree
+	tree  *lazyslice.Tree
+	trace bool
 }
 
 var Path = lazyslice.Path
@@ -36,7 +37,7 @@ const (
 )
 
 // ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
-func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (*ValidationContext, error) {
+func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, trace ...bool) (*ValidationContext, error) {
 	txBranch := lazyslice.ArrayFromBytes(txBytes, int(TxTreeIndexMax))
 	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(TxInputIDsBranch)), 256)
 
@@ -63,11 +64,14 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess) (
 		txBytes, // TransactionBranch = 0
 		lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
 	)
-	ret := &ValidationContext{tree: ctx.AsTree()}
+	ret := &ValidationContext{
+		tree:  ctx.AsTree(),
+		trace: len(trace) > 0 && trace[0],
+	}
 	return ret, nil
 }
 
-func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) []byte {
+func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) ([]byte, string) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	common.Assert(len(invocation) >= 1, "constraint can't be empty")
 	switch invocation[0] {
@@ -76,9 +80,9 @@ func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.Tre
 		scriptBinary := v.unlockScriptBinary(invocationFullPath)
 		h := blake2b.Sum256(scriptBinary)
 		common.Assert(bytes.Equal(h[:], invocation[1:]), "wrong script")
-		return invocation[1:]
+		return invocation[1:], "(unlock code by hash)"
 	case InvocationTypeInline:
-		return invocation[1:]
+		return invocation[1:], "(in-line constraint)"
 	}
 	return mustGetConstraintBinary(invocation[0])
 }
@@ -89,7 +93,7 @@ func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.Tree
 	return v.tree.BytesAtPath(unlockBlockPath)
 }
 
-func (v *ValidationContext) rootContext() *DataContext {
+func (v *ValidationContext) rootContext() easyfl.GlobalData {
 	return NewDataContext(v.tree, nil)
 }
 

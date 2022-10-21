@@ -17,6 +17,7 @@ type UTXODB struct {
 	originPrivateKey ed25519.PrivateKey
 	originPublicKey  ed25519.PublicKey
 	originAddress    Address
+	trace            bool
 }
 
 const (
@@ -27,7 +28,7 @@ const (
 	tokensFromFaucet  = uint64(1_000_000)
 )
 
-func NewUTXODB() *UTXODB {
+func NewUTXODB(trace ...bool) *UTXODB {
 	originPrivKeyBin, err := hex.DecodeString(originPrivateKey)
 	if err != nil {
 		panic(err)
@@ -41,6 +42,7 @@ func NewUTXODB() *UTXODB {
 		originPrivateKey: ed25519.PrivateKey(originPrivKeyBin),
 		originPublicKey:  originPubKey,
 		originAddress:    AddressFromED25519PubKey(originPubKey),
+		trace:            len(trace) > 0 && trace[0],
 	}
 	return ret
 }
@@ -65,6 +67,9 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	common.Assert(origin.Output.Amount > amount, "UTXODB faucet is exhausted")
 
 	ts := uint32(time.Now().Unix())
+	if origin.Output.Timestamp >= ts {
+		ts = origin.Output.Timestamp + 1
+	}
 	ctx := NewTransactionContext()
 	_, err = ctx.ConsumeOutput(origin.Output, origin.ID)
 	common.AssertNoError(err)
@@ -81,7 +86,7 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
-	err = u.AddTransaction(ctx.Transaction.Bytes())
+	err = u.AddTransaction(ctx.Transaction.Bytes(), u.trace)
 	common.AssertNoError(err)
 }
 

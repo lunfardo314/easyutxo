@@ -54,8 +54,8 @@ func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts 
 	return out, OutputID{}
 }
 
-func (u *State) AddTransaction(txBytes []byte) error {
-	ctx, err := ValidationContextFromTransaction(txBytes, u)
+func (u *State) AddTransaction(txBytes []byte, trace ...bool) error {
+	ctx, err := ValidationContextFromTransaction(txBytes, u, trace...)
 	if err != nil {
 		return err
 	}

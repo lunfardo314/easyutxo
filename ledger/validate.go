@@ -34,13 +34,23 @@ func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
 }
 
 func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
-	code := v.parseInvocationCode(invocationPath)
+	code, name := v.parseInvocationCode(invocationPath)
 	f, err := easyfl.ExpressionFromBinary(code)
 	if err != nil {
 		panic(err)
 	}
-	ctx := NewDataContext(v.tree, invocationPath)
+	ctx := NewDataContext(v.tree, invocationPath, v.trace)
+	if ctx.Trace() {
+		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(invocationPath)))
+	}
 	ret := easyfl.EvalExpression(ctx, f)
+	if ctx.Trace() {
+		ok := "OK"
+		if len(ret) == 0 {
+			ok = "FAIL"
+		}
+		ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: %s", name, PathToString(invocationPath), ok))
+	}
 	return ret
 }
 

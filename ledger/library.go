@@ -10,11 +10,20 @@ type DataContext struct {
 	invocationPath lazyslice.TreePath
 }
 
-func NewDataContext(tree *lazyslice.Tree, path lazyslice.TreePath) *DataContext {
-	return &DataContext{
-		dataTree:       tree,
-		invocationPath: path,
+func NewDataContext(tree *lazyslice.Tree, path lazyslice.TreePath, trace ...bool) easyfl.GlobalData {
+	var ret easyfl.GlobalData
+	if len(trace) > 0 && trace[0] {
+		ret = easyfl.NewGlobalDataTracePrint(&DataContext{
+			dataTree:       tree,
+			invocationPath: path,
+		})
+	} else {
+		ret = easyfl.NewGlobalDataNoTrace(&DataContext{
+			dataTree:       tree,
+			invocationPath: path,
+		})
 	}
+	return ret
 }
 
 var requireAllCode byte
@@ -46,7 +55,7 @@ func extendLibrary() {
 	easyfl.Extend("selfBlockBytes", "@Array8(selfOutputBytes, $0)")
 
 	easyfl.Extend("selfConstraint", "@Path(@)")
-	easyfl.Extend("selfConstraintData", "if(equal(byte(selfConstraint,0), 0),nil,tail(selfConstraint,1))")
+	easyfl.Extend("selfConstraintData", "tail(selfConstraint,1)")
 	easyfl.Extend("selfOutputIndex", "tail(@,2)")
 	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
 	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")

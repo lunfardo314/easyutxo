@@ -60,7 +60,7 @@ func TestBasics(t *testing.T) {
 	//	t.Logf("input commitment: %s", hex.EncodeToString(ic))
 	//})
 	t.Run("utxodb", func(t *testing.T) {
-		udb := ledger.NewUTXODB()
+		udb := ledger.NewUTXODB(true)
 		priv, pub := udb.OriginKeys()
 		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
 		t.Logf("orig pub key: %s", hex.EncodeToString(pub))

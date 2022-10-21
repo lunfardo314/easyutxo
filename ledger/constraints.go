@@ -8,7 +8,12 @@ import (
 	"github.com/lunfardo314/easyfl"
 )
 
-var constraints [256][]byte
+type constraintRecord struct {
+	name string
+	bin  []byte
+}
+
+var constraints [256]*constraintRecord
 
 const (
 	ConstraintReserved0 = byte(iota)
@@ -43,7 +48,10 @@ func registerConstraint(invocationCode byte, source string) error {
 	if numParams != 0 {
 		return fmt.Errorf("formula parameters cannot be used in the constraint: '%s'", source)
 	}
-	constraints[invocationCode] = code
+	constraints[invocationCode] = &constraintRecord{
+		name: source,
+		bin:  code,
+	}
 	fmt.Printf("constraint %d registered: '%s'\n", invocationCode, source)
 	return nil
 }
@@ -54,8 +62,8 @@ func mustRegisterConstraint(invocationCode byte, source string) {
 	}
 }
 
-func mustGetConstraintBinary(idx byte) []byte {
+func mustGetConstraintBinary(idx byte) ([]byte, string) {
 	ret := constraints[idx]
-	common.Assert(len(ret) > 0, "can't find constraint '%d'", idx)
-	return ret
+	common.Assert(ret != nil, "can't find constraint at index '%d'", idx)
+	return ret.bin, ret.name
 }

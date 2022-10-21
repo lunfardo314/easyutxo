@@ -1,5 +1,35 @@
 package ledger
 
+// MainConstraint is always in the #0 block of the output. It checks validity of the timestamp and amount
+// The constraint is:
+// - byte 0 - constraint code 2
+// - bytes 1-4 timestamp bytes, big-endian Unix seconds
+// - bytes 5-12 amount bytes, big-endian uint64
+const MainConstraint = `
+
+// amount is valid if it is 8 bytes-long and not all 0
+func amountValid: and(
+	equal(len8($0),8),
+	not(isZero($0))
+)
+
+// timestamp is valid if:
+// - for consumed output - must be strongly less tha  transaction timestamp
+// - for produced output - must be equal to the transaction timestamp
+func outputTimestampValid: or(
+	and( isProducedBranch(@), equal($0, txTimestampBytes) ),
+	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) )
+)
+
+// constrain valid if both timestamp and amount are valid 
+func amountAndTimestampValid : and(
+	outputTimestampValid(slice($0,0,3)),
+	amountValid(tail($0,4))
+)
+
+func mainConstraint : amountAndTimestampValid(selfConstraintData)
+`
+
 const SigLockConstraint = `
 
 // the function 'selfUnlockedWithReference'' is accessing the transaction context knowing it invocation
@@ -34,35 +64,21 @@ func selfUnlockedWithSigED25519: and(
 	)
 )
 
-// if it is 'consumed' invocation context (constraint invoked in the input), only size of the address is checked
+// if it is 'produced' invocation context (constraint invoked in the input), only size of the address is checked
 // Otherwise the first will check first condition if it is unlocked by reference, otherwise checks unlocking signature
 // Second condition not evaluated if the first is true 
 
-func sigLocED25519: if(
-	isConsumedBranch(@),
-    equal( len8(selfConstraintData), 32 ),
-	or(                                    
-		selfUnlockedWithReference,    // if it is unlocked with reference, the signature is not checked
-		selfUnlockedWithSigED25519    // otherwise signature is checked
+func sigLocED25519: or(
+	and(
+		isProducedBranch(@), 
+		equal( len8(selfConstraintData), 32) 
+	),
+    and(
+		isConsumedBranch(@), 
+		or(                                    
+			selfUnlockedWithReference,    // if it is unlocked with reference, the signature is not checked
+			selfUnlockedWithSigED25519    // otherwise signature is checked
+		)
 	)
 )
-`
-const MainConstraint = `
-
-func tokensValid: and(
-	equal(len8($0),8),
-	not(isZero($0))
-)
-
-func outputTimestampValid: or(
-	and( isProducedBranch(@), equal($0, txTimestampBytes) ),  // in produced output must be equal to transaction ts
-	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) ) // tx timestamp must be strongly greater than input
-)
-
-func amountAndTimestampValid : and(
-	outputTimestampValid(slice($0,0,3)),
-	tokensValid(tail($0,3))
-)
-
-func mainConstraint : amountAndTimestampValid(selfConstraintData)
 `
