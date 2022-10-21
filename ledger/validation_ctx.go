@@ -154,7 +154,7 @@ func (v *ValidationContext) ConsumedOutput(idx byte) *Output {
 }
 
 func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
-	outputPath := Path(branch, byte(0))
+	outputPath := easyutxo.Concat(branch, byte(0))
 	v.tree.ForEach(func(idx byte, outputData []byte) bool {
 		outputPath[2] = idx
 		out, err := OutputFromBytes(outputData)

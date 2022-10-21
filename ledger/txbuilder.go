@@ -1,12 +1,12 @@
 package ledger
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 
 	"github.com/iotaledger/trie.go/common"
+	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )
@@ -36,12 +36,14 @@ type (
 	Transaction struct {
 		InputIDs        []OutputID
 		Outputs         []*Output
-		UnlockBlocks    []DataBlockRaw
+		UnlockBlocks    []*UnlockParams
 		Timestamp       uint32
 		InputCommitment [32]byte
 	}
 
-	DataBlockRaw []byte
+	UnlockParams struct {
+		array *lazyslice.Array
+	}
 )
 
 func (txid *TransactionID) String() string {
@@ -54,7 +56,7 @@ func NewTransactionContext() *TransactionContext {
 		Transaction: &Transaction{
 			InputIDs:        make([]OutputID, 0),
 			Outputs:         make([]*Output, 0),
-			UnlockBlocks:    make([]DataBlockRaw, 0),
+			UnlockBlocks:    make([]*UnlockParams, 0),
 			Timestamp:       0,
 			InputCommitment: [32]byte{},
 		},
@@ -77,7 +79,13 @@ func (ctx *TransactionContext) ConsumeOutput(out *Output, oid OutputID) (byte, e
 	}
 	ctx.ConsumedOutputs = append(ctx.ConsumedOutputs, out)
 	ctx.Transaction.InputIDs = append(ctx.Transaction.InputIDs, oid)
+	ctx.Transaction.UnlockBlocks = append(ctx.Transaction.UnlockBlocks, NewUnlockBlock())
+
 	return byte(len(ctx.ConsumedOutputs) - 1), nil
+}
+
+func (ctx *TransactionContext) UnlockBlock(idx byte) *UnlockParams {
+	return ctx.Transaction.UnlockBlocks[idx]
 }
 
 func (ctx *TransactionContext) ProduceOutput(out *Output) (byte, error) {
@@ -89,12 +97,11 @@ func (ctx *TransactionContext) ProduceOutput(out *Output) (byte, error) {
 }
 
 func (ctx *TransactionContext) InputCommitment() [32]byte {
-	var buf bytes.Buffer
-
+	arr := lazyslice.EmptyArray(256)
 	for _, o := range ctx.ConsumedOutputs {
-		buf.Write(o.Bytes())
+		arr.Push(o.Bytes())
 	}
-	return blake2b.Sum256(buf.Bytes())
+	return blake2b.Sum256(arr.Bytes())
 }
 
 func (tx *Transaction) ToArray() *lazyslice.Array {
@@ -103,7 +110,7 @@ func (tx *Transaction) ToArray() *lazyslice.Array {
 	outputs := lazyslice.EmptyArray(256)
 
 	for _, b := range tx.UnlockBlocks {
-		unlockBlocks.Push(b)
+		unlockBlocks.Push(b.Bytes())
 	}
 	for _, oid := range tx.InputIDs {
 		inputIDs.Push(oid[:])
@@ -131,4 +138,14 @@ func (tx *Transaction) Bytes() []byte {
 
 func (tx *Transaction) ID() TransactionID {
 	return blake2b.Sum256(tx.Bytes())
+}
+
+func (tx *Transaction) EssenceBytes() []byte {
+	arr := tx.ToArray()
+	return easyutxo.Concat(
+		arr.At(int(TxInputIDsBranch)),
+		arr.At(int(TxOutputBranch)),
+		arr.At(int(TxTimestamp)),
+		arr.At(int(TxInputCommitment)),
+	)
 }

@@ -2,6 +2,7 @@ package easyutxo
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"testing"
 
@@ -78,4 +79,8 @@ func All0(d []byte) bool {
 		}
 	}
 	return true
+}
+
+func Hex(data []byte) string {
+	return fmt.Sprintf("0x[%d]"+hex.EncodeToString(data), len(data))
 }

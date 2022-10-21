@@ -1,12 +1,16 @@
 package ledger
 
 import (
+	"crypto"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/rand"
+	"time"
 
 	"github.com/iotaledger/trie.go/common"
+	"github.com/lunfardo314/easyutxo"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -58,4 +62,17 @@ func (a Address) Bytes() []byte {
 
 func (a Address) String() string {
 	return fmt.Sprintf("%s(%s)", a.Type(), hex.EncodeToString(a[1:]))
+}
+
+func UnlockDataByReference(ref byte) []byte {
+	return []byte{ref}
+}
+
+var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func UnlockDataBySignatureED25519(msg []byte, privKey ed25519.PrivateKey) []byte {
+	sig, err := privKey.Sign(rnd, msg, crypto.Hash(0))
+	common.AssertNoError(err)
+	pubKey := privKey.Public().(ed25519.PublicKey)
+	return easyutxo.Concat(sig, []byte(pubKey))
 }

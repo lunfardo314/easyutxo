@@ -129,7 +129,8 @@ func (v *ValidationContext) validateInputCommitment() error {
 	h := blake2b.Sum256(consumedOutputBytes)
 	inputCommitment := v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
 	if !bytes.Equal(h[:], inputCommitment) {
-		return fmt.Errorf("consumed input hash not equal to input commitment")
+		return fmt.Errorf("consumed input hash %v not equal to input commitment %v",
+			easyutxo.Hex(h[:]), easyutxo.Hex(inputCommitment))
 	}
 	return nil
 }

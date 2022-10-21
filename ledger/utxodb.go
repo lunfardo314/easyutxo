@@ -71,7 +71,7 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 		ts = origin.Output.Timestamp + 1
 	}
 	ctx := NewTransactionContext()
-	_, err = ctx.ConsumeOutput(origin.Output, origin.ID)
+	consumedOutputIdx, err := ctx.ConsumeOutput(origin.Output, origin.ID)
 	common.AssertNoError(err)
 
 	out := NewOutput(amount, ts, addr)
@@ -86,11 +86,9 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
-	unlockBlock := NewUnlockBlock()
-	unlockBlock.PutUnlockParams(nil, OutputBlockMain)
-
-	// TODO signing
-	unlockBlock.PutUnlockParams(nil, OutputBlockAddress)
+	// we must unlock the only consumed (genesis) output
+	unlockData := UnlockDataBySignatureED25519(ctx.Transaction.EssenceBytes(), u.originPrivateKey)
+	ctx.UnlockBlock(consumedOutputIdx).PutUnlockParams(unlockData, OutputBlockAddress)
 
 	err = u.AddTransaction(ctx.Transaction.Bytes(), u.trace)
 	common.AssertNoError(err)

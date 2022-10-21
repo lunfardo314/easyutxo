@@ -38,19 +38,23 @@ const SigLockConstraint = `
 // It all and up to embedded functions '@' which gives invocation location and '@Path' which gives data bytes
 // for any location inn the transaction specified by any valid path
 
+func selfSignatureED25519: slice(selfUnlockBlock, 0, 63) 
+
+func selfPublicKeyED25519: slice(selfUnlockBlock, 64, 95)
+
 // 'selfUnlockedWithSigED25519' specifies unlock constraint with the unlock block signature
 // the signature must be valid and hash of the public key must be equal to the provided address
 func selfUnlockedWithSigED25519: and(
 	equal(len8(selfUnlockBlock), 96),                    // unlock block must be 96 bytes long
 	validSignatureED25519(
-		txEssenceBytes,                        // function 'txEssenceBytes' returns transaction essence btes 
-		slice(selfUnlockBlock, 0, 64),         // first 64 bytes is signature
-		slice(selfUnlockBlock, 64, 96)         // the rest is public key
+		txEssenceBytes,                    // function 'txEssenceBytes' returns transaction essence bytes 
+		selfSignatureED25519,              // first 64 bytes is signature
+		selfPublicKeyED25519               // the rest is public key
 	),
 	equal(
 		selfConstraintData,                    // address in the constraint data must be equal to the has of the  
 		addrDataED25519FromPubKey(                 // public key
-			slice(selfUnlockBlock, 64, 96)
+			selfPublicKeyED25519
 		)
 	)
 )
