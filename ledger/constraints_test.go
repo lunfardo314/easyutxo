@@ -18,7 +18,7 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := NewOutput(0, 0, nil)
+		out := NewOutput(0, 0, AddressED25519Null())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -35,7 +35,7 @@ func TestOutput(t *testing.T) {
 		require.EqualValues(t, out.Address, outBack.Address)
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := NewOutput(1337, uint32(time.Now().Unix()), nil)
+		out := NewOutput(1337, uint32(time.Now().Unix()), AddressED25519Null())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())

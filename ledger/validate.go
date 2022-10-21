@@ -6,7 +6,6 @@ import (
 	"math"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )
@@ -24,7 +23,7 @@ func (v *ValidationContext) MustEval(source string, path []byte) []byte {
 }
 
 func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
-	return easyutxo.CatchPanicOrError(func() error {
+	return easyfl.CatchPanicOrError(func() error {
 		res := v.MustEval(source, path)
 		if len(res) == 0 {
 			return fmt.Errorf("constraint '%s' failed", source)
@@ -55,7 +54,7 @@ func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 }
 
 func (v *ValidationContext) Validate() error {
-	return easyutxo.CatchPanicOrError(func() error {
+	return easyfl.CatchPanicOrError(func() error {
 		inSum, err := v.validateConsumedOutputs()
 		if err != nil {
 			return err
@@ -110,7 +109,7 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) erro
 	if len(out.Constraint(OutputBlockAddress)) < 1 {
 		return fmt.Errorf("wrong address constraint")
 	}
-	blockPath := easyutxo.Concat(path, byte(0))
+	blockPath := easyfl.Concat(path, byte(0))
 	var err error
 	out.ForEachConstraint(func(idx byte, constraint Constraint) bool {
 		blockPath[len(blockPath)-1] = idx
@@ -130,7 +129,7 @@ func (v *ValidationContext) validateInputCommitment() error {
 	inputCommitment := v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
 	if !bytes.Equal(h[:], inputCommitment) {
 		return fmt.Errorf("consumed input hash %v not equal to input commitment %v",
-			easyutxo.Hex(h[:]), easyutxo.Hex(inputCommitment))
+			easyfl.Fmt(h[:]), easyfl.Fmt(inputCommitment))
 	}
 	return nil
 }

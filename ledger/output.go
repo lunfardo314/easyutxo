@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
-	"github.com/lunfardo314/easyutxo"
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -159,8 +158,8 @@ func (o *Output) mainConstraint() Constraint {
 	binary.BigEndian.PutUint64(a[:], o.Amount)
 	binary.BigEndian.PutUint32(ts[:], o.Timestamp)
 
-	ret := easyutxo.Concat(ConstraintMain, ts[:], a[:])
-	common.Assert(len(ret) == mainConstraintSize, "len(ret)==mainConstraintSize")
+	ret := easyfl.Concat(ConstraintMain, ts[:], a[:])
+	easyfl.Assert(len(ret) == mainConstraintSize, "len(ret)==mainConstraintSize")
 	return ret
 }
 

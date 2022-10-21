@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iotaledger/trie.go/common"
+	"github.com/lunfardo314/easyfl"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -61,10 +62,10 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 		amount = howMany[0]
 	}
 	outs, err := u.GetUTXOsForAddress(u.OriginAddress())
-	common.AssertNoError(err)
-	common.Assert(len(outs) == 1, "len(outs)==1")
+	easyfl.AssertNoError(err)
+	easyfl.Assert(len(outs) == 1, "len(outs)==1")
 	origin := outs[0]
-	common.Assert(origin.Output.Amount > amount, "UTXODB faucet is exhausted")
+	easyfl.Assert(origin.Output.Amount > amount, "UTXODB faucet is exhausted")
 
 	ts := uint32(time.Now().Unix())
 	if origin.Output.Timestamp >= ts {
@@ -72,16 +73,16 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	}
 	ctx := NewTransactionContext()
 	consumedOutputIdx, err := ctx.ConsumeOutput(origin.Output, origin.ID)
-	common.AssertNoError(err)
+	easyfl.AssertNoError(err)
 
 	out := NewOutput(amount, ts, addr)
 
 	reminder := NewOutput(origin.Output.Amount-amount, ts, u.OriginAddress())
 
 	_, err = ctx.ProduceOutput(out)
-	common.AssertNoError(err)
+	easyfl.AssertNoError(err)
 	_, err = ctx.ProduceOutput(reminder)
-	common.AssertNoError(err)
+	easyfl.AssertNoError(err)
 
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
@@ -91,7 +92,7 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	ctx.UnlockBlock(consumedOutputIdx).PutUnlockParams(unlockData, OutputBlockAddress)
 
 	err = u.AddTransaction(ctx.Transaction.Bytes(), u.trace)
-	common.AssertNoError(err)
+	easyfl.AssertNoError(err)
 }
 
 func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, Address) {

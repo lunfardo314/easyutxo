@@ -5,9 +5,7 @@ import (
 	ed255192 "crypto/ed25519"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )
@@ -73,13 +71,13 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, t
 
 func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) ([]byte, string) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
-	common.Assert(len(invocation) >= 1, "constraint can't be empty")
+	easyfl.Assert(len(invocation) >= 1, "constraint can't be empty")
 	switch invocation[0] {
 	case InvocationTypeUnlockScript:
 		// unlock block must provide script which is pre-image of the hash
 		scriptBinary := v.unlockScriptBinary(invocationFullPath)
 		h := blake2b.Sum256(scriptBinary)
-		common.Assert(bytes.Equal(h[:], invocation[1:]), "wrong script")
+		easyfl.Assert(bytes.Equal(h[:], invocation[1:]), "wrong script")
 		return invocation[1:], "(unlock code by hash)"
 	case InvocationTypeInline:
 		return invocation[1:], "(in-line constraint)"
@@ -88,7 +86,7 @@ func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.Tre
 }
 
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
-	unlockBlockPath := easyutxo.Concat(invocationFullPath)
+	unlockBlockPath := easyfl.Concat(invocationFullPath)
 	unlockBlockPath[1] = TxUnlockParamsBranch
 	return v.tree.BytesAtPath(unlockBlockPath)
 }
@@ -119,7 +117,7 @@ func (v *ValidationContext) TransactionID() TransactionID {
 		panic(err)
 	}
 	var txid TransactionID
-	common.Assert(len(txid[:]) == len(ret), "wrong data length")
+	easyfl.Assert(len(txid[:]) == len(ret), "wrong data length")
 	copy(txid[:], ret)
 	return txid
 }
@@ -149,16 +147,16 @@ func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 
 func (v *ValidationContext) ConsumedOutput(idx byte) *Output {
 	ret, err := OutputFromBytes(v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch, idx)))
-	common.AssertNoError(err)
+	easyfl.AssertNoError(err)
 	return ret
 }
 
 func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
-	outputPath := easyutxo.Concat(branch, byte(0))
+	outputPath := easyfl.Concat(branch, byte(0))
 	v.tree.ForEach(func(idx byte, outputData []byte) bool {
 		outputPath[2] = idx
 		out, err := OutputFromBytes(outputData)
-		common.AssertNoError(err)
+		easyfl.AssertNoError(err)
 		return fun(out, outputPath)
 	}, branch)
 }
@@ -166,7 +164,7 @@ func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(ou
 func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *OutputID) bool) {
 	v.tree.ForEach(func(i byte, data []byte) bool {
 		oid, err := OutputIDFromBytes(data)
-		common.AssertNoError(err)
+		easyfl.AssertNoError(err)
 		if !fun(i, &oid) {
 			return false
 		}

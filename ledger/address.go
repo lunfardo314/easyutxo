@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/iotaledger/trie.go/common"
-	"github.com/lunfardo314/easyutxo"
+	"github.com/lunfardo314/easyfl"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -52,6 +52,11 @@ func AddressFromED25519PubKey(pubKey ed25519.PublicKey) Address {
 	return common.Concat(byte(AddressED25519), d[:])
 }
 
+func AddressED25519Null() Address {
+	var empty [32]byte
+	return common.Concat(byte(AddressED25519), empty[:])
+}
+
 func (a Address) Type() AddressType {
 	return AddressType(a[0])
 }
@@ -72,7 +77,7 @@ var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func UnlockDataBySignatureED25519(msg []byte, privKey ed25519.PrivateKey) []byte {
 	sig, err := privKey.Sign(rnd, msg, crypto.Hash(0))
-	common.AssertNoError(err)
+	easyfl.AssertNoError(err)
 	pubKey := privKey.Public().(ed25519.PublicKey)
-	return easyutxo.Concat(sig, []byte(pubKey))
+	return easyfl.Concat(sig, []byte(pubKey))
 }

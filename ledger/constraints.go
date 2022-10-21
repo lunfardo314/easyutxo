@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 )
 
@@ -64,6 +63,6 @@ func mustRegisterConstraint(invocationCode byte, source string) {
 
 func mustGetConstraintBinary(idx byte) ([]byte, string) {
 	ret := constraints[idx]
-	common.Assert(ret != nil, "can't find constraint at index '%d'", idx)
+	easyfl.Assert(ret != nil, "can't find constraint at index '%d'", idx)
 	return ret.bin, ret.name
 }

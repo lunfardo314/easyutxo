@@ -5,8 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
-	"github.com/lunfardo314/easyutxo"
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
 )
@@ -65,7 +64,7 @@ func NewTransactionContext() *TransactionContext {
 
 func (ctx *TransactionContext) NumInputs() int {
 	ret := len(ctx.ConsumedOutputs)
-	common.Assert(ret == len(ctx.Transaction.InputIDs), "ret==len(ctx.Transaction.InputIDs)")
+	easyfl.Assert(ret == len(ctx.Transaction.InputIDs), "ret==len(ctx.Transaction.InputIDs)")
 	return ret
 }
 
@@ -142,7 +141,7 @@ func (tx *Transaction) ID() TransactionID {
 
 func (tx *Transaction) EssenceBytes() []byte {
 	arr := tx.ToArray()
-	return easyutxo.Concat(
+	return easyfl.Concat(
 		arr.At(int(TxInputIDsBranch)),
 		arr.At(int(TxOutputBranch)),
 		arr.At(int(TxTimestamp)),

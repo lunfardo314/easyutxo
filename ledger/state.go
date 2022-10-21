@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iotaledger/trie.go/common"
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
 
@@ -48,7 +49,7 @@ func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply ui
 }
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
-	common.Assert(initialSupply > 0, "initialSupply > 0")
+	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
 	out := NewOutput(initialSupply, ts, AddressFromED25519PubKey(genesisPublicKey))
 	// genesis OutputID is all-0
 	return out, OutputID{}

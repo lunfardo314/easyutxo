@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo"
 )
 
@@ -342,7 +343,7 @@ func MakeTree(nodes ...interface{}) *Tree {
 }
 
 func Path(p ...interface{}) TreePath {
-	return easyutxo.Concat(p...)
+	return easyfl.Concat(p...)
 }
 
 func (p TreePath) Bytes() []byte {
