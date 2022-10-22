@@ -54,7 +54,7 @@ func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
 	})
 }
 
-func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
+func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) ([]byte, string) {
 	code, name := v.parseInvocationCode(invocationPath)
 	f, err := easyfl.ExpressionFromBinary(code)
 	if err != nil {
@@ -73,7 +73,7 @@ func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) []byte {
 			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: OK", name, PathToString(invocationPath)))
 		}
 	}
-	return ret
+	return ret, name
 }
 
 func (v *ValidationContext) Validate() error {
@@ -136,9 +136,9 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) erro
 	var err error
 	out.ForEachConstraint(func(idx byte, constraint Constraint) bool {
 		blockPath[len(blockPath)-1] = idx
-		res := v.Invoke(blockPath)
+		res, name := v.Invoke(blockPath)
 		if len(res) == 0 {
-			err = fmt.Errorf("constraint failed. Path: %s", PathToString(blockPath))
+			err = fmt.Errorf("constraint '%s' failed. Path: %s", name, PathToString(blockPath))
 			return false
 		}
 		return true

@@ -29,7 +29,7 @@ func extendLibrary() {
 	easyfl.Extend("txOutputsBytes", "@Path(0x0002)")
 	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
-	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txTimestampBytes, txInputCommitmentBytes)")
+	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txInputCommitmentBytes)")
 	easyfl.Extend("addrDataED25519FromPubKey", "blake2b($0)")
 
 	easyfl.Extend("selfOutputBytes", "@Path(slice(@,0,2))")
@@ -40,7 +40,6 @@ func extendLibrary() {
 	easyfl.Extend("selfOutputIndex", "tail(@,2)")
 	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
 	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")
-
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {

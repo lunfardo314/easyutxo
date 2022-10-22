@@ -179,6 +179,11 @@ func (c Constraint) Type() byte {
 	return c[0]
 }
 
+func (c Constraint) Name() string {
+	_, name := mustGetConstraintBinary(c[0])
+	return name
+}
+
 func (o *Output) NumConstraints() int {
 	return len(o.Constraints) + 2
 }

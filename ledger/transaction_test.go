@@ -67,6 +67,7 @@ func TestBasics(t *testing.T) {
 		t.Logf("origin address: %s", udb.OriginAddress())
 
 		_, _, addr := udb.GenerateAddress(0)
-		udb.TokensFromFaucet(addr, 100)
+		err := udb.TokensFromFaucet(addr, 100)
+		require.NoError(t, err)
 	})
 }

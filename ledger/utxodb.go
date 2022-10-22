@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/iotaledger/trie.go/common"
@@ -56,16 +57,21 @@ func (u *UTXODB) OriginAddress() Address {
 	return u.originAddress
 }
 
-func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
+func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) error {
 	amount := tokensFromFaucet
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
 	outs, err := u.GetUTXOsForAddress(u.OriginAddress())
-	easyfl.AssertNoError(err)
+	if err != nil {
+		return err
+	}
+
 	easyfl.Assert(len(outs) == 1, "len(outs)==1")
 	origin := outs[0]
-	easyfl.Assert(origin.Output.Amount > amount, "UTXODB faucet is exhausted")
+	if origin.Output.Amount < amount {
+		return fmt.Errorf("UTXODB faucet is exhausted")
+	}
 
 	ts := uint32(time.Now().Unix())
 	if origin.Output.Timestamp >= ts {
@@ -95,8 +101,7 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) {
 	if u.trace {
 		trace = TraceOptionFailedConstraints
 	}
-	err = u.AddTransaction(ctx.Transaction.Bytes(), trace)
-	easyfl.AssertNoError(err)
+	return u.AddTransaction(ctx.Transaction.Bytes(), trace)
 }
 
 func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, Address) {

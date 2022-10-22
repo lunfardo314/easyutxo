@@ -15,6 +15,8 @@ github.com/lunfardo314/easyfl v0.0.0-20221021165717-6218cfa96ff8 h1:KP6dbwgbgcEf
 github.com/lunfardo314/easyfl v0.0.0-20221021165717-6218cfa96ff8/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
 github.com/lunfardo314/easyfl v0.0.0-20221021170415-5aa57cdd433d h1:JZB+/jVntWno8cJnsteOEdChftBijvAOYE8Mw9KQypY=
 github.com/lunfardo314/easyfl v0.0.0-20221021170415-5aa57cdd433d/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
+github.com/lunfardo314/easyfl v0.0.0-20221022081020-f5d3dd7dccff h1:h7ksV+4EG5JGSajhZ0kAmGn75dk3yAC/aeXKFROtj9g=
+github.com/lunfardo314/easyfl v0.0.0-20221022081020-f5d3dd7dccff/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

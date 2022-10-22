@@ -144,7 +144,6 @@ func (tx *Transaction) EssenceBytes() []byte {
 	return easyfl.Concat(
 		arr.At(int(TxInputIDsBranch)),
 		arr.At(int(TxOutputBranch)),
-		arr.At(int(TxTimestamp)),
 		arr.At(int(TxInputCommitment)),
 	)
 }
