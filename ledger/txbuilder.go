@@ -1,9 +1,12 @@
 package ledger
 
 import (
+	"crypto/ed25519"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"time"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
@@ -146,4 +149,62 @@ func (tx *Transaction) EssenceBytes() []byte {
 		arr.At(int(TxOutputBranch)),
 		arr.At(int(TxInputCommitment)),
 	)
+}
+
+func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, targetAddress Address, amount uint64) ([]byte, error) {
+	sourcePubKey := privKey.Public().(ed25519.PublicKey)
+	sourceAddr := AddressFromED25519PubKey(sourcePubKey)
+	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(outs, func(i, j int) bool {
+		return outs[i].Output.Amount < outs[j].Output.Amount
+	})
+	consumedOuts := outs[:0]
+	availableTokens := uint64(0)
+	ts := uint32(time.Now().Unix())
+	for _, o := range outs {
+		consumedOuts = append(consumedOuts, o)
+		if o.Output.Timestamp >= ts {
+			ts = o.Output.Timestamp + 1
+		}
+		availableTokens += o.Output.Amount
+		if availableTokens >= amount {
+			break
+		}
+	}
+	if availableTokens < amount {
+		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
+			sourceAddr.String(), amount, availableTokens)
+	}
+	ctx := NewTransactionContext()
+	for _, o := range consumedOuts {
+		if _, err = ctx.ConsumeOutput(o.Output, o.ID); err != nil {
+			return nil, err
+		}
+	}
+	out := NewOutput(amount, ts, targetAddress)
+	if _, err = ctx.ProduceOutput(out); err != nil {
+		return nil, err
+	}
+	if availableTokens > amount {
+		reminderOut := NewOutput(availableTokens-amount, ts, sourceAddr)
+		if _, err = ctx.ProduceOutput(reminderOut); err != nil {
+			return nil, err
+		}
+	}
+	ctx.Transaction.Timestamp = ts
+	ctx.Transaction.InputCommitment = ctx.InputCommitment()
+
+	unlockDataRef := UnlockDataByReference(0)
+	for i := range consumedOuts {
+		if i == 0 {
+			unlockData := UnlockDataBySignatureED25519(ctx.Transaction.EssenceBytes(), privKey)
+			ctx.UnlockBlock(0).PutUnlockParams(unlockData, OutputBlockAddress)
+			continue
+		}
+		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, OutputBlockAddress)
+	}
+	return ctx.Transaction.Bytes(), nil
 }
