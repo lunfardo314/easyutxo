@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/stretchr/testify/require"
 )
@@ -97,6 +98,62 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, u.Supply()-100-ledger.TokensFromFaucetDefault, u.Balance(u.OriginAddress()))
 		require.EqualValues(t, 100+ledger.TokensFromFaucetDefault, u.Balance(addr))
 		require.EqualValues(t, 1, u.NumUTXOs(addr))
+	})
+	t.Run("utxodb 3", func(t *testing.T) {
+		u := ledger.NewUTXODB(true)
+		priv, pub := u.OriginKeys()
+		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
+		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
+		t.Logf("origin address: %s", u.OriginAddress())
 
+		privKey, _, addr := u.GenerateAddress(0)
+		const howMany = 256
+
+		total := uint64(0)
+		for i := uint64(1); i <= howMany; i++ {
+			err := u.TokensFromFaucet(addr, i)
+			require.NoError(t, err)
+			total += i
+
+			require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+			require.EqualValues(t, u.Supply()-total, u.Balance(u.OriginAddress()))
+			require.EqualValues(t, total, u.Balance(addr))
+			require.EqualValues(t, i, u.NumUTXOs(addr))
+		}
+
+		txBytes, err := ledger.MakeTransferTransaction(u, privKey, addr, u.Balance(addr))
+		require.NoError(t, err)
+		t.Logf("tx size = %d bytes", len(txBytes))
+
+		err = u.TransferTokens(privKey, addr, u.Balance(addr))
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+		require.EqualValues(t, u.Supply()-total, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, total, u.Balance(addr))
+		require.EqualValues(t, 1, u.NumUTXOs(addr))
+	})
+	t.Run("utxodb too many inputs", func(t *testing.T) {
+		u := ledger.NewUTXODB(true)
+		priv, pub := u.OriginKeys()
+		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
+		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
+		t.Logf("origin address: %s", u.OriginAddress())
+
+		privKey, _, addr := u.GenerateAddress(0)
+		const howMany = 257
+
+		total := uint64(0)
+		for i := uint64(1); i <= howMany; i++ {
+			err := u.TokensFromFaucet(addr, i)
+			require.NoError(t, err)
+			total += i
+
+			require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+			require.EqualValues(t, u.Supply()-total, u.Balance(u.OriginAddress()))
+			require.EqualValues(t, total, u.Balance(addr))
+			require.EqualValues(t, i, u.NumUTXOs(addr))
+		}
+		err := u.TransferTokens(privKey, addr, u.Balance(addr))
+		easyfl.RequireErrorWith(t, err, "exceeded max number of consumed outputs")
 	})
 }

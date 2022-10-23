@@ -14,7 +14,7 @@ func amountValid: and(
 )
 
 // timestamp is valid if:
-// - for consumed output - must be strongly less tha  transaction timestamp
+// - for consumed output - must be strongly less than the transaction timestamp
 // - for produced output - must be equal to the transaction timestamp
 func outputTimestampValid: or(
 	and( isProducedBranch(@), equal($0, txTimestampBytes) ),

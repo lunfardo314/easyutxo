@@ -338,10 +338,6 @@ func TreeEmpty() *Tree {
 	return TreeFromBytes(emptyArrayPrefix.Bytes())
 }
 
-func MakeTree(nodes ...interface{}) *Tree {
-	return &Tree{sa: MakeArray(nodes...)}
-}
-
 func Path(p ...interface{}) TreePath {
 	return easyfl.Concat(p...)
 }
@@ -399,10 +395,6 @@ func (st *Tree) PutDataAtIdx(idx byte, data []byte, path TreePath) {
 	subtree.PutDataAtIdx(idx, data, path[1:])
 	st.subtrees[path[0]] = subtree
 	st.sa.invalidateBytes()
-}
-
-func (st *Tree) SetEmptyArrayAtIdx(idx byte, path TreePath) {
-	st.PutDataAtIdx(idx, emptyArrayPrefix.Bytes(), path)
 }
 
 func (st *Tree) Subtree(path TreePath) *Tree {
@@ -465,14 +457,6 @@ func (st *Tree) NumElements(path TreePath) int {
 	return st.Subtree(path).sa.NumElements()
 }
 
-func (st *Tree) IsEmpty(path TreePath) bool {
-	return st.NumElements(path) == 0
-}
-
-func (st *Tree) IsFullAtPath(path TreePath) bool {
-	return st.NumElements(path) >= 256
-}
-
 func (st *Tree) ForEach(fun func(i byte, data []byte) bool, path TreePath) {
 	sub := st.Subtree(path)
 	for i := 0; i < sub.sa.NumElements(); i++ {
@@ -486,12 +470,4 @@ func (st *Tree) ForEachIndex(fun func(i byte) bool, path TreePath) {
 			break
 		}
 	}
-}
-
-func (st *Tree) ForEachSubtree(fun func(idx byte, subtree *Tree) bool, path TreePath) {
-	subtree := st.Subtree(path)
-	subtree.ForEachIndex(func(i byte) bool {
-		subtree1 := subtree.Subtree(Path(i))
-		return fun(i, subtree1)
-	}, nil)
 }

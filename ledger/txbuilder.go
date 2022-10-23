@@ -151,24 +151,36 @@ func (tx *Transaction) EssenceBytes() []byte {
 	)
 }
 
-func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, targetAddress Address, amount uint64) ([]byte, error) {
+func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, targetAddress Address, amount uint64, desc ...bool) ([]byte, error) {
 	sourcePubKey := privKey.Public().(ed25519.PublicKey)
 	sourceAddr := AddressFromED25519PubKey(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(outs, func(i, j int) bool {
-		return outs[i].Output.Amount < outs[j].Output.Amount
-	})
+
+	if len(desc) == 0 || desc[0] {
+		sort.Slice(outs, func(i, j int) bool {
+			return outs[i].Output.Amount > outs[j].Output.Amount
+		})
+	} else {
+		sort.Slice(outs, func(i, j int) bool {
+			return outs[i].Output.Amount < outs[j].Output.Amount
+		})
+	}
 	consumedOuts := outs[:0]
 	availableTokens := uint64(0)
 	ts := uint32(time.Now().Unix())
+	numConsumedOutputs := 0
 	for _, o := range outs {
+		if numConsumedOutputs >= 256 {
+			return nil, fmt.Errorf("exceeded max number of consumed outputs 256")
+		}
 		consumedOuts = append(consumedOuts, o)
 		if o.Output.Timestamp >= ts {
 			ts = o.Output.Timestamp + 1
 		}
+		numConsumedOutputs++
 		availableTokens += o.Output.Amount
 		if availableTokens >= amount {
 			break
