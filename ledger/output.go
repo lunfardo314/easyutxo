@@ -75,7 +75,8 @@ func NewOutput(amount uint64, timestamp uint32, address Address) *Output {
 }
 
 func (oid *OutputID) String() string {
-	return fmt.Sprintf("[%d]%s", oid.Index(), oid.TransactionID())
+	txid := oid.TransactionID()
+	return fmt.Sprintf("[%d]%s", oid.Index(), txid.String())
 }
 
 func (oid *OutputID) TransactionID() (ret TransactionID) {

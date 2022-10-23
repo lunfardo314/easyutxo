@@ -33,19 +33,19 @@ func mainConstraint : amountAndTimestampValid(selfConstraintData)
 const SigLockConstraint = `
 
 // the function 'selfUnlockedWithReference'' is accessing the transaction context knowing it invocation
-// place (output index). Other functions 'selfUnlockBlock', 'selfOutputIndex', 'selfConstraint', 
+// place (output index). Other functions 'selfUnlockParameters', 'selfOutputIndex', 'selfConstraint', 
 // 'selfReferencedConstraint' etc are all invocation context specific
 // It all and up to embedded functions '@' which gives invocation location and '@Path' which gives data bytes
 // for any location in the transaction specified by any valid path
 
-func selfSignatureED25519: slice(selfUnlockBlock, 0, 63) 
+func selfSignatureED25519: slice(selfUnlockParameters, 0, 63) 
 
-func selfPublicKeyED25519: slice(selfUnlockBlock, 64, 95)
+func selfPublicKeyED25519: slice(selfUnlockParameters, 64, 95)
 
 // 'selfUnlockedWithSigED25519' specifies unlock constraint with the unlock block signature
 // the signature must be valid and hash of the public key must be equal to the provided address
 func selfUnlockedWithSigED25519: and(
-	equal(len8(selfUnlockBlock), 96),      // unlock block must be 96 bytes long
+	equal(len8(selfUnlockParameters), 96),      // unlock block must be 96 bytes long
 	validSignatureED25519(
 		txEssenceBytes,                    // function 'txEssenceHash' returns transaction essence bytes 
 		selfSignatureED25519,              // first 64 bytes is signature
@@ -61,8 +61,8 @@ func selfUnlockedWithSigED25519: and(
 
 // 'selfUnlockedWithReference'' specifies validation of the input unlock with the reference
 func selfUnlockedWithReference: and(
-	equal(len8(selfUnlockBlock), 2),                     // unlock block must be 2 bytes long
-	lessThan(byte(selfUnlockBlock,0), selfOutputIndex),  // unlock block must point to another input with 
+	equal(len8(selfUnlockParameters), 1),                // unlock block must be 2 bytes long
+	lessThan(selfUnlockParameters, selfOutputIndex),     // unlock block must point to another input with 
 														 // strictly smaller index. This prevents reference cycles	
 	equal(selfConstraint, selfReferencedConstraint)      // the referenced constraint bytes must be equal to the
 														 // self constrain bytes

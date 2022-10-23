@@ -3,7 +3,6 @@ package ledger
 import (
 	"crypto/ed25519"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"sort"
 	"time"
@@ -36,7 +35,7 @@ type (
 	}
 
 	Transaction struct {
-		InputIDs        []OutputID
+		InputIDs        []*OutputID
 		Outputs         []*Output
 		UnlockBlocks    []*UnlockParams
 		Timestamp       uint32
@@ -49,14 +48,14 @@ type (
 )
 
 func (txid *TransactionID) String() string {
-	return hex.EncodeToString(txid[:])
+	return easyfl.Fmt(txid[:])
 }
 
 func NewTransactionContext() *TransactionContext {
 	return &TransactionContext{
 		ConsumedOutputs: make([]*Output, 0),
 		Transaction: &Transaction{
-			InputIDs:        make([]OutputID, 0),
+			InputIDs:        make([]*OutputID, 0),
 			Outputs:         make([]*Output, 0),
 			UnlockBlocks:    make([]*UnlockParams, 0),
 			Timestamp:       0,
@@ -80,7 +79,7 @@ func (ctx *TransactionContext) ConsumeOutput(out *Output, oid OutputID) (byte, e
 		return 0, fmt.Errorf("too many consumed outputs")
 	}
 	ctx.ConsumedOutputs = append(ctx.ConsumedOutputs, out)
-	ctx.Transaction.InputIDs = append(ctx.Transaction.InputIDs, oid)
+	ctx.Transaction.InputIDs = append(ctx.Transaction.InputIDs, &oid)
 	ctx.Transaction.UnlockBlocks = append(ctx.Transaction.UnlockBlocks, NewUnlockBlock())
 
 	return byte(len(ctx.ConsumedOutputs) - 1), nil
@@ -101,7 +100,8 @@ func (ctx *TransactionContext) ProduceOutput(out *Output) (byte, error) {
 func (ctx *TransactionContext) InputCommitment() [32]byte {
 	arr := lazyslice.EmptyArray(256)
 	for _, o := range ctx.ConsumedOutputs {
-		arr.Push(o.Bytes())
+		b := o.Bytes()
+		arr.Push(b)
 	}
 	return blake2b.Sum256(arr.Bytes())
 }

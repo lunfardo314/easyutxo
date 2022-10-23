@@ -32,14 +32,26 @@ func extendLibrary() {
 	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txInputCommitmentBytes)")
 	easyfl.Extend("addrDataED25519FromPubKey", "blake2b($0)")
 
-	easyfl.Extend("selfOutputBytes", "@Path(slice(@,0,2))")
-	easyfl.Extend("selfBlockBytes", "@Array8(selfOutputBytes, $0)")
-
+	// unlock param branch (0 - transaction, 0 unlock params)
+	easyfl.Extend("unlockParamBranch", "0x0000")
+	// invoked output block
 	easyfl.Extend("selfConstraint", "@Path(@)")
+	// output index of the invocation
+	easyfl.Extend("selfOutputIndex", "slice(@, 2, 2)")
+	// block index of the invocation
+	easyfl.Extend("selfBlockIndex", "tail(@, 3)")
+	// branch (2 bytes) of the constraint invocation
+	easyfl.Extend("selfBranch", "slice(@,0,1)")
+	// output index || block index
+	easyfl.Extend("selfConstraintIndex", "slice(@, 2, 3)")
+	// invocation output data
 	easyfl.Extend("selfConstraintData", "tail(selfConstraint,1)")
-	easyfl.Extend("selfOutputIndex", "tail(@,2)")
-	easyfl.Extend("selfUnlockBlock", "@Path(concat(0, 0, slice(@, 2, 3)))")
-	easyfl.Extend("selfReferencedConstraint", "@Path(concat(slice(@,0,1), selfUnlockBlock))")
+	// unlock parameters of the invoked consumed constraint
+	easyfl.Extend("selfUnlockParameters", "@Path(concat(unlockParamBranch, selfConstraintIndex))")
+	// path referenced by the reference unlock params
+	easyfl.Extend("selfReferencedPath", "concat(selfBranch, selfUnlockParameters, selfBlockIndex)")
+	// constraint referenced by the referenced path
+	easyfl.Extend("selfReferencedConstraint", "@Path(selfReferencedPath)")
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {

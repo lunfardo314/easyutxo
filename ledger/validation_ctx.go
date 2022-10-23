@@ -49,10 +49,18 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, t
 	var oid OutputID
 
 	consumedOutputsArray := lazyslice.EmptyArray(256)
+	ids := make(map[string]struct{})
 	inputIDs.ForEach(func(i int, data []byte) bool {
 		if oid, err = OutputIDFromBytes(data); err != nil {
 			return false
 		}
+		// check repeating inputIDs
+		if _, repeating := ids[string(data)]; repeating {
+			err = fmt.Errorf("repeating input ID: %s", oid.String())
+			return false
+		}
+		ids[string(data)] = struct{}{}
+
 		od, ok := ledgerState.GetUTXO(&oid)
 		if !ok {
 			err = fmt.Errorf("input not found: %s", oid.String())

@@ -13,7 +13,7 @@ import (
 type StateAccess interface {
 	GetUTXO(id *OutputID) ([]byte, bool)
 	// GetUTXOsForAddress order non-deterministic
-	GetUTXOsForAddress(addr Address) ([]OutputWithID, error)
+	GetUTXOsForAddress(addr Address) ([]*OutputWithID, error)
 }
 
 type KVStore interface {
@@ -75,8 +75,8 @@ func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-func (u *State) GetUTXOsForAddress(addr Address) ([]OutputWithID, error) {
-	ret := make([]OutputWithID, 0)
+func (u *State) GetUTXOsForAddress(addr Address) ([]*OutputWithID, error) {
+	ret := make([]*OutputWithID, 0)
 	prefix := common.Concat(PartitionAccounts, addr)
 	var err error
 	var oid OutputID
@@ -95,7 +95,7 @@ func (u *State) GetUTXOsForAddress(addr Address) ([]OutputWithID, error) {
 		if err != nil {
 			return false
 		}
-		ret = append(ret, OutputWithID{
+		ret = append(ret, &OutputWithID{
 			ID:     oid,
 			Output: out,
 		})

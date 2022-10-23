@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"golang.org/x/crypto/blake2b"
@@ -54,7 +55,7 @@ func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
 	})
 }
 
-func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) ([]byte, string) {
+func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) ([]byte, string, error) {
 	code, name := v.parseInvocationCode(invocationPath)
 	f, err := easyfl.ExpressionFromBinary(code)
 	if err != nil {
@@ -64,36 +65,57 @@ func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) ([]byte, s
 	if ctx.Trace() {
 		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(invocationPath)))
 	}
-	ret := easyfl.EvalExpression(ctx, f)
+	var ret []byte
+	err = common.CatchPanicOrError(func() error {
+		ret = easyfl.EvalExpression(ctx, f)
+		return nil
+	})
 	if ctx.Trace() {
-		if len(ret) == 0 {
-			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: FAIL", name, PathToString(invocationPath)))
+		if err != nil {
+			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: FAIL with '%v'",
+				name, PathToString(invocationPath), err))
 			ctx.(*easyfl.GlobalDataLog).PrintLog()
 		} else {
-			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: OK", name, PathToString(invocationPath)))
+			if len(ret) == 0 {
+				ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: FAIL", name, PathToString(invocationPath)))
+				ctx.(*easyfl.GlobalDataLog).PrintLog()
+			} else {
+				ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: OK", name, PathToString(invocationPath)))
+			}
 		}
 	}
-	return ret, name
+	return ret, name, err
 }
 
 func (v *ValidationContext) Validate() error {
-	return easyfl.CatchPanicOrError(func() error {
-		inSum, err := v.validateConsumedOutputs()
-		if err != nil {
-			return err
-		}
-		outSum, err := v.validateProducedOutputs()
-		if err != nil {
-			return err
-		}
-		if inSum != outSum {
-			return fmt.Errorf("unbalanced amount between inputs and outputs")
-		}
-		if err = v.validateInputCommitment(); err != nil {
-			return err
-		}
-		return nil
+	var inSum, outSum uint64
+	var err error
+	err = easyfl.CatchPanicOrError(func() error {
+		var err1 error
+		inSum, err1 = v.validateConsumedOutputs()
+		return err1
 	})
+	if err != nil {
+		return err
+	}
+	err = easyfl.CatchPanicOrError(func() error {
+		var err1 error
+		outSum, err1 = v.validateProducedOutputs()
+		return err1
+	})
+	if err != nil {
+		return err
+	}
+	err = easyfl.CatchPanicOrError(func() error {
+		return v.validateInputCommitment()
+	})
+	if err != nil {
+		return err
+	}
+	if inSum != outSum {
+		return fmt.Errorf("unbalanced amount between inputs and outputs")
+	}
+	return nil
 }
 
 func (v *ValidationContext) validateProducedOutputs() (uint64, error) {
@@ -136,9 +158,18 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) erro
 	var err error
 	out.ForEachConstraint(func(idx byte, constraint Constraint) bool {
 		blockPath[len(blockPath)-1] = idx
-		res, name := v.Invoke(blockPath)
+		var res []byte
+		var name string
+
+		res, name, err = v.Invoke(blockPath)
+		if err != nil {
+			err = fmt.Errorf("constraint '%s' failed err='%v'. Path: %s",
+				name, err, PathToString(blockPath))
+			return false
+		}
 		if len(res) == 0 {
-			err = fmt.Errorf("constraint '%s' failed. Path: %s", name, PathToString(blockPath))
+			err = fmt.Errorf("constraint '%s' failed'. Path: %s",
+				name, PathToString(blockPath))
 			return false
 		}
 		return true
