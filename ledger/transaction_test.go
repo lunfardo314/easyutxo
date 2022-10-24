@@ -160,7 +160,7 @@ func TestBasics(t *testing.T) {
 		err := u.TransferTokens(privKey, addr, u.Balance(addr))
 		easyfl.RequireErrorWith(t, err, "exceeded max number of consumed outputs")
 	})
-	t.Run("utxodb 4 fan outputs", func(t *testing.T) {
+	t.Run("utxodb fan out outputs", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
