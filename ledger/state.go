@@ -3,6 +3,7 @@ package ledger
 import (
 	"crypto/ed25519"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/iotaledger/trie.go/common"
@@ -24,6 +25,7 @@ type KVStore interface {
 
 // State is a ledger state
 type State struct {
+	mutex *sync.RWMutex
 	store KVStore
 }
 
@@ -40,7 +42,10 @@ func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSu
 	if err := batch.Commit(); err != nil {
 		panic(err)
 	}
-	return &State{store}
+	return &State{
+		mutex: &sync.RWMutex{},
+		store: store,
+	}
 }
 
 // NewLedgerStateInMemory mostly for testing
@@ -56,6 +61,9 @@ func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts 
 }
 
 func (u *State) AddTransaction(txBytes []byte, traceOption ...int) error {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+
 	ctx, err := ValidationContextFromTransaction(txBytes, u, traceOption...)
 	if err != nil {
 		return err
@@ -63,8 +71,7 @@ func (u *State) AddTransaction(txBytes []byte, traceOption ...int) error {
 	if err = ctx.Validate(); err != nil {
 		return err
 	}
-	u.updateLedger(ctx)
-	return nil
+	return u.updateLedger(ctx)
 }
 
 func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
@@ -76,6 +83,9 @@ func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
 }
 
 func (u *State) GetUTXOsForAddress(addr Address) ([]*OutputWithID, error) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+
 	ret := make([]*OutputWithID, 0)
 	prefix := common.Concat(PartitionAccounts, addr)
 	var err error
@@ -104,15 +114,26 @@ func (u *State) GetUTXOsForAddress(addr Address) ([]*OutputWithID, error) {
 	return ret, err
 }
 
-func (u *State) updateLedger(ctx *ValidationContext) {
+func (u *State) updateLedger(ctx *ValidationContext) error {
 	batch := u.store.BatchedWriter()
+	var err error
 	// delete consumed outputs from the ledger and from accounts
 	ctx.ForEachInputID(func(idx byte, o *OutputID) bool {
-		batch.Set(common.Concat(PartitionUTXO, o[:]), nil)
+		consumedKey := common.Concat(PartitionUTXO, o[:])
 		consumed := ctx.ConsumedOutput(idx)
+
+		if len(u.store.Get(consumedKey)) == 0 {
+			// only can happen if two threads are reading/writing to the same account. Not a normal situation
+			err = fmt.Errorf("reace condition while deleting output from address %s", consumed.Address)
+			return false
+		}
+		batch.Set(consumedKey, nil)
 		batch.Set(common.Concat(PartitionAccounts, consumed.Address, o[:]), nil)
 		return true
 	})
+	if err != nil {
+		return err
+	}
 	// add new outputs to the ledger and to accounts
 	txID := ctx.TransactionID()
 	ctx.ForEachOutput(Path(TransactionBranch, TxOutputBranch), func(o *Output, outputPath lazyslice.TreePath) bool {
@@ -121,7 +142,5 @@ func (u *State) updateLedger(ctx *ValidationContext) {
 		batch.Set(common.Concat(PartitionAccounts, o.Address, id[:]), []byte{0xff})
 		return true
 	})
-	if err := batch.Commit(); err != nil {
-		panic(err)
-	}
+	return batch.Commit()
 }
