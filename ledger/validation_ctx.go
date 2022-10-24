@@ -84,14 +84,13 @@ const (
 	inlineScriptName = "(in-line script constraint)"
 )
 
-// parseInvocationScript return binary script, name for tracing and flag if it is tu be run (true) or ignored (false)
-func (v *ValidationContext) parseInvocationScript(invocationFullPath lazyslice.TreePath) ([]byte, string, bool) {
+// parseConstraintScript return binary script, name for tracing and flag if it is tu be run (true) or ignored (false)
+func (v *ValidationContext) parseConstraintScript(invocationFullPath lazyslice.TreePath, isProducedContext bool) ([]byte, string, bool) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	easyfl.Assert(len(invocation) >= 1, "constraint can't be empty")
-	producedOutputContext := bytes.HasPrefix(invocationFullPath, []byte{TransactionBranch, TxOutputBranch})
 	switch ConstraintType(invocation[0]) {
 	case ConstraintTypeUnlockScript:
-		if producedOutputContext {
+		if isProducedContext {
 			return nil, unlockScriptName, false
 		}
 		// unlock block must provide script which is pre-image of the hash
@@ -101,7 +100,7 @@ func (v *ValidationContext) parseInvocationScript(invocationFullPath lazyslice.T
 		return invocation[1:], unlockScriptName, true
 
 	case ConstraintTypeInlineScript:
-		if producedOutputContext {
+		if isProducedContext {
 			return nil, inlineScriptName, false
 		}
 		return invocation[1:], inlineScriptName, true
@@ -158,13 +157,13 @@ func (v *ValidationContext) ConsumedOutput(idx byte) *Output {
 	return ret
 }
 
-func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, path lazyslice.TreePath) bool) {
+func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *Output, byteSize uint32, path lazyslice.TreePath) bool) {
 	outputPath := easyfl.Concat(branch, byte(0))
 	v.tree.ForEach(func(idx byte, outputData []byte) bool {
 		outputPath[2] = idx
 		out, err := OutputFromBytes(outputData)
 		easyfl.AssertNoError(err)
-		return fun(out, outputPath)
+		return fun(out, uint32(len(outputData)), outputPath)
 	}, branch)
 }
 

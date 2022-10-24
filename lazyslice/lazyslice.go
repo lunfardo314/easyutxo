@@ -399,7 +399,9 @@ func (st *Tree) NumElements(path TreePath) int {
 func (st *Tree) ForEach(fun func(i byte, data []byte) bool, path TreePath) {
 	sub := st.Subtree(path)
 	for i := 0; i < sub.sa.NumElements(); i++ {
-		fun(byte(i), sub.sa.At(i))
+		if !fun(byte(i), sub.sa.At(i)) {
+			return
+		}
 	}
 }
 

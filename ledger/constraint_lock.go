@@ -19,6 +19,7 @@ type (
 	Lock     []byte
 )
 
+// LockAddressED25519 ED25519 address is a special type of Lock
 const LockAddressED25519 = LockType(ConstraintTypeSigLockED25519)
 
 func (at LockType) DataSize() int {

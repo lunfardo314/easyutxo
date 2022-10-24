@@ -155,6 +155,7 @@ type MakeTransferTransactionParams struct {
 	SenderKey         ed25519.PrivateKey
 	TargetAddress     Lock
 	Amount            uint64
+	AdjustToMinimum   bool
 	DescendingOutputs bool
 	AddSender         bool
 }
@@ -165,6 +166,21 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
+	}
+
+	ts := uint32(time.Now().Unix())
+	amount := par.Amount
+	if par.AdjustToMinimum {
+		outTentative := NewOutput(par.Amount, ts, par.TargetAddress)
+		if par.AddSender {
+			if _, err = outTentative.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
+				return nil, err
+			}
+		}
+		minimumDeposit := MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
+		if par.Amount < minimumDeposit {
+			amount = minimumDeposit
+		}
 	}
 
 	if par.DescendingOutputs {
@@ -178,8 +194,8 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 	}
 	consumedOuts := outs[:0]
 	availableTokens := uint64(0)
-	ts := uint32(time.Now().Unix())
 	numConsumedOutputs := 0
+
 	for _, o := range outs {
 		if numConsumedOutputs >= 256 {
 			return nil, fmt.Errorf("exceeded max number of consumed outputs 256")
@@ -190,11 +206,12 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 		}
 		numConsumedOutputs++
 		availableTokens += o.Output.Amount
-		if availableTokens >= par.Amount {
+		if availableTokens >= amount {
 			break
 		}
 	}
-	if availableTokens < par.Amount {
+
+	if availableTokens < amount {
 		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
 			sourceAddr.String(), par.Amount, availableTokens)
 	}
@@ -204,7 +221,7 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 			return nil, err
 		}
 	}
-	out := NewOutput(par.Amount, ts, par.TargetAddress)
+	out := NewOutput(amount, ts, par.TargetAddress)
 	if par.AddSender {
 		if _, err = out.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
 			return nil, err
@@ -213,8 +230,8 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 	if _, err = ctx.ProduceOutput(out); err != nil {
 		return nil, err
 	}
-	if availableTokens > par.Amount {
-		reminderOut := NewOutput(availableTokens-par.Amount, ts, sourceAddr)
+	if availableTokens > amount {
+		reminderOut := NewOutput(availableTokens-amount, ts, sourceAddr)
 		if _, err = ctx.ProduceOutput(reminderOut); err != nil {
 			return nil, err
 		}

@@ -110,15 +110,17 @@ func TestBasics(t *testing.T) {
 		const howMany = 256
 
 		total := uint64(0)
-		for i := uint64(1); i <= howMany; i++ {
+		numOuts := 0
+		for i := uint64(100); i <= howMany; i++ {
 			err := u.TokensFromFaucet(addr, i)
 			require.NoError(t, err)
 			total += i
+			numOuts++
 
 			require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
 			require.EqualValues(t, u.Supply()-total, u.Balance(u.OriginAddress()))
 			require.EqualValues(t, total, u.Balance(addr))
-			require.EqualValues(t, i, u.NumUTXOs(addr))
+			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 
 		txBytes, err := ledger.MakeTransferTransaction(u, ledger.MakeTransferTransactionParams{
@@ -144,18 +146,20 @@ func TestBasics(t *testing.T) {
 		t.Logf("origin address: %s", u.OriginAddress())
 
 		privKey, _, addr := u.GenerateAddress(0)
-		const howMany = 257
+		const howMany = 500
 
 		total := uint64(0)
-		for i := uint64(1); i <= howMany; i++ {
+		numOuts := 0
+		for i := uint64(50); i <= howMany; i++ {
 			err := u.TokensFromFaucet(addr, i)
 			require.NoError(t, err)
 			total += i
+			numOuts++
 
 			require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
 			require.EqualValues(t, u.Supply()-total, u.Balance(u.OriginAddress()))
 			require.EqualValues(t, total, u.Balance(addr))
-			require.EqualValues(t, i, u.NumUTXOs(addr))
+			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 		err := u.TransferTokens(privKey, addr, u.Balance(addr))
 		easyfl.RequireErrorWith(t, err, "exceeded max number of consumed outputs")
@@ -169,19 +173,19 @@ func TestBasics(t *testing.T) {
 
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		const howMany = 100
-		err := u.TokensFromFaucet(addr0, howMany)
+		err := u.TokensFromFaucet(addr0, howMany*50)
 		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-howMany, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, howMany, u.Balance(addr0))
+		require.EqualValues(t, u.Supply()-howMany*50, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, howMany*50, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
 		privKey1, _, addr1 := u.GenerateAddress(1)
 
 		for i := 0; i < howMany; i++ {
-			err = u.TransferTokens(privKey0, addr1, 1)
+			err = u.TransferTokens(privKey0, addr1, 50)
 			require.NoError(t, err)
 		}
-		require.EqualValues(t, howMany, u.Balance(addr1))
+		require.EqualValues(t, howMany*50, int(u.Balance(addr1)))
 		require.EqualValues(t, howMany, u.NumUTXOs(addr1))
 		require.EqualValues(t, 0, u.Balance(addr0))
 		require.EqualValues(t, 0, u.NumUTXOs(addr0))
@@ -193,8 +197,8 @@ func TestBasics(t *testing.T) {
 			require.True(t, o.Output.Sender() == nil)
 		}
 
-		err = u.TransferTokens(privKey1, addr0, howMany, true)
-		require.EqualValues(t, howMany, u.Balance(addr0))
+		err = u.TransferTokens(privKey1, addr0, howMany*50, true)
+		require.EqualValues(t, howMany*50, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 		require.EqualValues(t, 0, u.Balance(addr1))
 		require.EqualValues(t, 0, u.NumUTXOs(addr1))

@@ -137,7 +137,7 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 	}
 	// add new outputs to the ledger and to accounts
 	txID := ctx.TransactionID()
-	ctx.ForEachOutput(Path(TransactionBranch, TxOutputBranch), func(o *Output, outputPath lazyslice.TreePath) bool {
+	ctx.ForEachOutput(Path(TransactionBranch, TxOutputBranch), func(o *Output, _ uint32, outputPath lazyslice.TreePath) bool {
 		id := NewOutputID(txID, outputPath[2])
 		batch.Set(common.Concat(PartitionUTXO, id[:]), o.Bytes())
 		batch.Set(common.Concat(PartitionAccounts, o.Lock, id[:]), []byte{0xff})
