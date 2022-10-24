@@ -106,8 +106,8 @@ var constraints = make(map[ConstraintType]*constraintRecord)
 type ConstraintType byte
 
 const (
-	ConstraintReserved0 = ConstraintType(iota)
-	ConstraintReserved1
+	ConstraintTypeInlineScript = ConstraintType(iota)
+	ConstraintTypeUnlockScript
 	ConstraintTypeMain
 	ConstraintTypeSigLockED25519
 	ConstraintTypeSender

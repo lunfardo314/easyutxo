@@ -28,12 +28,6 @@ const (
 	ConsumedContextOutputsBranch = byte(iota)
 )
 
-// Invocation types are indices of constraints in the global library
-const (
-	InvocationTypeInline = byte(iota)
-	InvocationTypeUnlockScript
-)
-
 const (
 	TraceOptionNone = iota
 	TraceOptionAll
@@ -86,22 +80,38 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState StateAccess, t
 	return ret, nil
 }
 
-func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.TreePath) ([]byte, string) {
+const (
+	unlockScriptName = "(unlock script constraint)"
+	inlineScriptName = "(in-line script constraint)"
+)
+
+// parseInvocationScript return binary script, name for tracing and flag if it is tu be run (true) or ignored (false)
+func (v *ValidationContext) parseInvocationScript(invocationFullPath lazyslice.TreePath) ([]byte, string, bool) {
 	invocation := v.tree.BytesAtPath(invocationFullPath)
 	easyfl.Assert(len(invocation) >= 1, "constraint can't be empty")
-	switch invocation[0] {
-	case InvocationTypeUnlockScript:
+	producedOutputContext := bytes.HasPrefix(invocationFullPath, []byte{TransactionBranch, TxOutputBranch})
+	switch ConstraintType(invocation[0]) {
+	case ConstraintTypeUnlockScript:
+		if producedOutputContext {
+			return nil, unlockScriptName, false
+		}
 		// unlock block must provide script which is pre-image of the hash
 		scriptBinary := v.unlockScriptBinary(invocationFullPath)
 		h := blake2b.Sum256(scriptBinary)
-		easyfl.Assert(bytes.Equal(h[:], invocation[1:]), "wrong script")
-		return invocation[1:], "(unlock code by hash)"
-	case InvocationTypeInline:
-		return invocation[1:], "(in-line constraint)"
+		easyfl.Assert(bytes.Equal(h[:], invocation[1:]), "script does not match provided hash")
+		return invocation[1:], unlockScriptName, true
+
+	case ConstraintTypeInlineScript:
+		if producedOutputContext {
+			return nil, inlineScriptName, false
+		}
+		return invocation[1:], inlineScriptName, true
 	}
-	return mustGetConstraintBinary(ConstraintType(invocation[0]))
+	script, name := mustGetConstraintBinary(ConstraintType(invocation[0]))
+	return script, name, true
 }
 
+// unlockScriptBinary finds script from unlock block
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
 	unlockBlockPath := easyfl.Concat(invocationFullPath)
 	unlockBlockPath[1] = TxUnlockParamsBranch

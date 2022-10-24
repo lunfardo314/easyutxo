@@ -55,9 +55,16 @@ func (v *ValidationContext) CheckConstraint(source string, path []byte) error {
 	})
 }
 
+// Invoke checks the constraint at path. In-line and unlock scripts are ignored
+// for 'produces output' context
 func (v *ValidationContext) Invoke(invocationPath lazyslice.TreePath) ([]byte, string, error) {
-	code, name := v.parseInvocationCode(invocationPath)
-	f, err := easyfl.ExpressionFromBinary(code)
+	binScript, name, runYN := v.parseInvocationScript(invocationPath)
+	if !runYN {
+		// inline and unlock scripts are ignored in 'produced output' context
+		return nil, name, nil
+	}
+	// it is either consumed output context or it is an embedded constraint
+	f, err := easyfl.ExpressionFromBinary(binScript)
 	if err != nil {
 		panic(err)
 	}
