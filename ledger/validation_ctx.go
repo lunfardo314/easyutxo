@@ -99,7 +99,7 @@ func (v *ValidationContext) parseInvocationCode(invocationFullPath lazyslice.Tre
 	case InvocationTypeInline:
 		return invocation[1:], "(in-line constraint)"
 	}
-	return mustGetConstraintBinary(invocation[0])
+	return mustGetConstraintBinary(ConstraintType(invocation[0]))
 }
 
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {

@@ -38,7 +38,7 @@ func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSu
 	out, oid := genesisOutput(genesisPublicKey, initialSupply, uint32(time.Now().Unix()))
 	batch := store.BatchedWriter()
 	batch.Set(common.Concat(PartitionUTXO, oid[:]), out.Bytes())
-	batch.Set(common.Concat(PartitionAccounts, out.Address, oid[:]), []byte{0xff})
+	batch.Set(common.Concat(PartitionAccounts, out.Lock, oid[:]), []byte{0xff})
 	if err := batch.Commit(); err != nil {
 		panic(err)
 	}
@@ -56,7 +56,7 @@ func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply ui
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
 	genesisLock := LockFromED25519PubKey(genesisPublicKey)
-	out := NewOutput(initialSupply, ts, genesisLock, SenderFromLock(genesisLock, 0))
+	out := NewOutput(initialSupply, ts, genesisLock)
 	// genesis OutputID is all-0
 	return out, OutputID{}
 }
@@ -125,11 +125,11 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 
 		if len(u.store.Get(consumedKey)) == 0 {
 			// only can happen if two threads are reading/writing to the same account. Not a normal situation
-			err = fmt.Errorf("reace condition while deleting output from address %s", consumed.Address)
+			err = fmt.Errorf("reace condition while deleting output from address %s", consumed.Lock)
 			return false
 		}
 		batch.Set(consumedKey, nil)
-		batch.Set(common.Concat(PartitionAccounts, consumed.Address, o[:]), nil)
+		batch.Set(common.Concat(PartitionAccounts, consumed.Lock, o[:]), nil)
 		return true
 	})
 	if err != nil {
@@ -140,7 +140,7 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 	ctx.ForEachOutput(Path(TransactionBranch, TxOutputBranch), func(o *Output, outputPath lazyslice.TreePath) bool {
 		id := NewOutputID(txID, outputPath[2])
 		batch.Set(common.Concat(PartitionUTXO, id[:]), o.Bytes())
-		batch.Set(common.Concat(PartitionAccounts, o.Address, id[:]), []byte{0xff})
+		batch.Set(common.Concat(PartitionAccounts, o.Lock, id[:]), []byte{0xff})
 		return true
 	})
 	return batch.Commit()

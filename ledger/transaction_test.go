@@ -121,7 +121,11 @@ func TestBasics(t *testing.T) {
 			require.EqualValues(t, i, u.NumUTXOs(addr))
 		}
 
-		txBytes, err := ledger.MakeTransferTransaction(u, privKey, addr, u.Balance(addr))
+		txBytes, err := ledger.MakeTransferTransaction(u, ledger.MakeTransferTransactionParams{
+			SenderKey:     privKey,
+			TargetAddress: addr,
+			Amount:        u.Balance(addr),
+		})
 		require.NoError(t, err)
 		t.Logf("tx size = %d bytes", len(txBytes))
 
@@ -182,16 +186,23 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, u.Balance(addr0))
 		require.EqualValues(t, 0, u.NumUTXOs(addr0))
 
-		err = u.TransferTokens(privKey1, addr0, howMany)
+		outs, err := u.GetUTXOsForAddress(addr1)
+		require.NoError(t, err)
+		require.EqualValues(t, howMany, len(outs))
+		for _, o := range outs {
+			require.True(t, o.Output.Sender() == nil)
+		}
+
+		err = u.TransferTokens(privKey1, addr0, howMany, true)
 		require.EqualValues(t, howMany, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 		require.EqualValues(t, 0, u.Balance(addr1))
 		require.EqualValues(t, 0, u.NumUTXOs(addr1))
 
-		outs, err := u.GetUTXOsForAddress(addr0)
+		outs, err = u.GetUTXOsForAddress(addr0)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outs))
 
-		require.EqualValues(t, addr1, outs[0].Output.Sender.Lock)
+		require.EqualValues(t, addr1, outs[0].Output.Sender().Lock())
 	})
 }

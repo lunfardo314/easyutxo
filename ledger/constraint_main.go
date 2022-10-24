@@ -34,10 +34,8 @@ func amountAndTimestampValid : and(
 
 // checks if all mandatory constraints are not nil
 // should not check presence of the main constraint itself
-func mandatoryConstraintsPresent: and(
-	selfSiblingBlock(lockConstraintBlockIndex),
-	selfSiblingBlock(senderConstraintBlockIndex),
-)
+func mandatoryConstraintsPresent: selfSiblingBlock(lockConstraintBlockIndex)
+
 
 func mainConstraint : and(
 	mandatoryConstraintsPresent,

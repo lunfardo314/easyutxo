@@ -1,6 +1,9 @@
 package ledger
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -10,7 +13,9 @@ type DataContext struct {
 	invocationPath lazyslice.TreePath
 }
 
-func extendLibrary() {
+func init() {
+	//-------------------------------- standard EasyFL library extensions ------------------------------
+
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
@@ -60,6 +65,18 @@ func extendLibrary() {
 	easyfl.Extend("selfReferencedPath", "concat(selfBranch, selfUnlockParameters, selfBlockIndex)")
 	// constraint referenced by the referenced path
 	easyfl.Extend("selfReferencedConstraint", "@Path(selfReferencedPath)")
+
+	//--------------------------- constraints ------------------------------------
+
+	easyfl.MustExtendMany(MainConstraintSource)
+	easyfl.MustExtendMany(SigLockED25519ConstraintSource)
+	easyfl.MustExtendMany(SenderConstraintSource)
+
+	mustRegisterConstraint(ConstraintTypeMain, "mainConstraint")
+	mustRegisterConstraint(ConstraintTypeSigLockED25519, "sigLockED25519")
+	mustRegisterConstraint(ConstraintTypeSender, "senderValid")
+
+	easyfl.PrintLibraryStats()
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
@@ -77,4 +94,55 @@ func evalAtArray8(ctx *easyfl.CallParams) []byte {
 		panic("evalAtArray8: 1-byte value expected")
 	}
 	return arr.At(int(idx[0]))
+}
+
+type constraintRecord struct {
+	name string
+	bin  []byte
+}
+
+var constraints = make(map[ConstraintType]*constraintRecord)
+
+type ConstraintType byte
+
+const (
+	ConstraintReserved0 = ConstraintType(iota)
+	ConstraintReserved1
+	ConstraintTypeMain
+	ConstraintTypeSigLockED25519
+	ConstraintTypeSender
+)
+
+func registerConstraint(invocationCode ConstraintType, source string) error {
+	if invocationCode <= 1 {
+		return errors.New("invocation codes 0 and 1 are reserved")
+	}
+	if _, found := constraints[invocationCode]; found {
+		return fmt.Errorf("repeating invocation code %d: '%s'", invocationCode, source)
+	}
+	_, numParams, code, err := easyfl.CompileExpression(source)
+	if err != nil {
+		return err
+	}
+	if numParams != 0 {
+		return fmt.Errorf("formula parameters cannot be used in the constraint: '%s'", source)
+	}
+	constraints[invocationCode] = &constraintRecord{
+		name: source,
+		bin:  code,
+	}
+	fmt.Printf("constraint %d registered: '%s'\n", invocationCode, source)
+	return nil
+}
+
+func mustRegisterConstraint(invocationCode ConstraintType, source string) {
+	if err := registerConstraint(invocationCode, source); err != nil {
+		panic(err)
+	}
+}
+
+func mustGetConstraintBinary(idx ConstraintType) ([]byte, string) {
+	ret := constraints[idx]
+	easyfl.Assert(ret != nil, "can't find constraint at constraintID '%d'", idx)
+	return ret.bin, ret.name
 }

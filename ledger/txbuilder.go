@@ -151,15 +151,23 @@ func (tx *Transaction) EssenceBytes() []byte {
 	)
 }
 
-func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, targetAddress Lock, amount uint64, desc ...bool) ([]byte, error) {
-	sourcePubKey := privKey.Public().(ed25519.PublicKey)
+type MakeTransferTransactionParams struct {
+	SenderKey         ed25519.PrivateKey
+	TargetAddress     Lock
+	Amount            uint64
+	DescendingOutputs bool
+	AddSender         bool
+}
+
+func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionParams) ([]byte, error) {
+	sourcePubKey := par.SenderKey.Public().(ed25519.PublicKey)
 	sourceAddr := LockFromED25519PubKey(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(desc) == 0 || desc[0] {
+	if par.DescendingOutputs {
 		sort.Slice(outs, func(i, j int) bool {
 			return outs[i].Output.Amount > outs[j].Output.Amount
 		})
@@ -182,13 +190,13 @@ func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, tar
 		}
 		numConsumedOutputs++
 		availableTokens += o.Output.Amount
-		if availableTokens >= amount {
+		if availableTokens >= par.Amount {
 			break
 		}
 	}
-	if availableTokens < amount {
+	if availableTokens < par.Amount {
 		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
-			sourceAddr.String(), amount, availableTokens)
+			sourceAddr.String(), par.Amount, availableTokens)
 	}
 	ctx := NewTransactionContext()
 	for _, o := range consumedOuts {
@@ -196,12 +204,17 @@ func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, tar
 			return nil, err
 		}
 	}
-	out := NewOutput(amount, ts, targetAddress, SenderFromLock(sourceAddr, 0))
+	out := NewOutput(par.Amount, ts, par.TargetAddress)
+	if par.AddSender {
+		if _, err = out.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
+			return nil, err
+		}
+	}
 	if _, err = ctx.ProduceOutput(out); err != nil {
 		return nil, err
 	}
-	if availableTokens > amount {
-		reminderOut := NewOutput(availableTokens-amount, ts, sourceAddr, SenderFromLock(sourceAddr, 0))
+	if availableTokens > par.Amount {
+		reminderOut := NewOutput(availableTokens-par.Amount, ts, sourceAddr)
 		if _, err = ctx.ProduceOutput(reminderOut); err != nil {
 			return nil, err
 		}
@@ -212,7 +225,7 @@ func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, tar
 	unlockDataRef := UnlockParamsByReference(0)
 	for i := range consumedOuts {
 		if i == 0 {
-			unlockData := UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), privKey)
+			unlockData := UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderKey)
 			ctx.UnlockBlock(0).PutUnlockParams(unlockData, OutputBlockLock)
 			continue
 		}

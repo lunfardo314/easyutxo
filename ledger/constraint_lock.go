@@ -19,7 +19,7 @@ type (
 	Lock     []byte
 )
 
-const LockAddressED25519 = LockType(ConstraintIDSigLockED25519)
+const LockAddressED25519 = LockType(ConstraintTypeSigLockED25519)
 
 func (at LockType) DataSize() int {
 	switch at {

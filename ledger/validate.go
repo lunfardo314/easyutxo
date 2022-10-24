@@ -148,7 +148,7 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 
 func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) error {
 	mainBlockBytes := out.Constraint(OutputBlockMain)
-	if len(mainBlockBytes) != mainConstraintSize || mainBlockBytes[0] != ConstraintIDMain {
+	if len(mainBlockBytes) != mainConstraintSize || ConstraintType(mainBlockBytes[0]) != ConstraintTypeMain {
 		// we enforce presence of the main constraint, the rest is checked by it
 		return fmt.Errorf("wrong main constraint")
 	}

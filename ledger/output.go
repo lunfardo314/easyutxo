@@ -24,7 +24,6 @@ const OutputIDLength = TransactionIDLength + 1
 const (
 	OutputBlockMain = byte(iota)
 	OutputBlockLock
-	OutputBlockSender
 	OutputNumMandatoryBlocks
 )
 
@@ -38,8 +37,7 @@ type (
 		// - #2 sender constraint
 		Amount    uint64
 		Timestamp uint32
-		Address   Lock
-		Sender    *Sender
+		Lock      Lock
 		// other constraints are optional
 		OptionalConstraints []Constraint
 	}
@@ -71,12 +69,11 @@ func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	return
 }
 
-func NewOutput(amount uint64, timestamp uint32, address Lock, sender *Sender) *Output {
+func NewOutput(amount uint64, timestamp uint32, address Lock) *Output {
 	ret := &Output{
 		Amount:              amount,
 		Timestamp:           timestamp,
-		Address:             address,
-		Sender:              sender,
+		Lock:                address,
 		OptionalConstraints: make([]Constraint, 0),
 	}
 	return ret
@@ -105,16 +102,12 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if arr.NumElements() < 2 {
 		return nil, fmt.Errorf("wrong data length")
 	}
-	ret := NewOutput(0, 0, nil, nil)
+	ret := NewOutput(0, 0, nil)
 	err := ret.parseMainConstraint(arr.At(int(OutputBlockMain)))
 	if err != nil {
 		return nil, err
 	}
-	ret.Address, err = LockFromBytes(arr.At(int(OutputBlockLock)))
-	if err != nil {
-		return nil, err
-	}
-	ret.Sender, err = SenderFromBytes(arr.At(int(OutputBlockSender)))
+	ret.Lock, err = LockFromBytes(arr.At(int(OutputBlockLock)))
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +126,7 @@ func (o *Output) ToArray() *lazyslice.Array {
 	var a [8]byte
 	binary.BigEndian.PutUint64(a[:], o.Amount)
 	ret.Push(o.mainConstraint()) // @ OutputBlockMain = 0
-	ret.Push(o.Address)          // @ OutputBlockLock = 1
-	ret.Push(o.Sender.Bytes())   // @ OutputBlockSender = 2
+	ret.Push(o.Lock)             // @ OutputBlockLock = 1
 	for _, c := range o.OptionalConstraints {
 		ret.Push(c)
 	}
@@ -158,7 +150,7 @@ func (o *Output) Constraint(idx byte) Constraint {
 	case 0:
 		return o.mainConstraint()
 	case 1:
-		return Constraint(o.Address)
+		return Constraint(o.Lock)
 	default:
 		return o.OptionalConstraints[idx]
 	}
@@ -172,7 +164,7 @@ func (o *Output) mainConstraint() Constraint {
 	binary.BigEndian.PutUint64(a[:], o.Amount)
 	binary.BigEndian.PutUint32(ts[:], o.Timestamp)
 
-	ret := easyfl.Concat(ConstraintIDMain, ts[:], a[:])
+	ret := easyfl.Concat(byte(ConstraintTypeMain), ts[:], a[:])
 	easyfl.Assert(len(ret) == mainConstraintSize, "len(ret)==mainConstraintSize")
 	return ret
 }
@@ -181,7 +173,7 @@ func (o *Output) parseMainConstraint(data []byte) error {
 	if len(data) != 1+4+8 {
 		return fmt.Errorf("wrong data length")
 	}
-	if data[0] != ConstraintIDMain {
+	if ConstraintType(data[0]) != ConstraintTypeMain {
 		return fmt.Errorf("main constraint code expected")
 	}
 	o.Timestamp = binary.BigEndian.Uint32(data[1:5])
@@ -189,12 +181,12 @@ func (o *Output) parseMainConstraint(data []byte) error {
 	return nil
 }
 
-func (c Constraint) Type() byte {
-	return c[0]
+func (c Constraint) Type() ConstraintType {
+	return ConstraintType(c[0])
 }
 
 func (c Constraint) Name() string {
-	_, name := mustGetConstraintBinary(c[0])
+	_, name := mustGetConstraintBinary(ConstraintType(c[0]))
 	return name
 }
 
@@ -206,10 +198,7 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 	if !fun(OutputBlockMain, o.mainConstraint()) {
 		return
 	}
-	if !fun(OutputBlockLock, Constraint(o.Address)) {
-		return
-	}
-	if !fun(OutputBlockSender, o.Sender.Bytes()) {
+	if !fun(OutputBlockLock, Constraint(o.Lock)) {
 		return
 	}
 	for idx, c := range o.OptionalConstraints {
@@ -219,11 +208,15 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 	}
 }
 
-func (o *Output) ConstraintCodes() []byte {
-	ret := []byte{OutputBlockMain, OutputBlockLock}
-	for _, c := range o.OptionalConstraints {
-		ret = append(ret, c[0])
-	}
+func (o *Output) Sender() Sender {
+	var ret Sender
+	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+		if constraint.Type() == ConstraintTypeSender {
+			ret = Sender(constraint)
+			return false
+		}
+		return true
+	})
 	return ret
 }
 
