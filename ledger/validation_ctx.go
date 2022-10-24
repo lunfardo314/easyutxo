@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"bytes"
-	ed255192 "crypto/ed25519"
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
@@ -151,25 +150,6 @@ func (v *ValidationContext) TransactionID() TransactionID {
 
 func (v *ValidationContext) InputCommitment() []byte {
 	return v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
-}
-
-func (v *ValidationContext) UnlockED25519Inputs(pairs []*keyPair) {
-	_ = prepareKeyPairs(pairs)
-	// TODO
-}
-
-type keyPair struct {
-	pubKey  ed255192.PublicKey
-	privKey ed255192.PrivateKey
-}
-
-func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
-	ret := make(map[string]*keyPair)
-	for _, kp := range keyPairs {
-		addr := LockFromED25519PubKey(kp.pubKey)
-		ret[string(addr.Bytes())] = kp
-	}
-	return ret
 }
 
 func (v *ValidationContext) ConsumedOutput(idx byte) *Output {

@@ -18,8 +18,6 @@ import (
 type Array struct {
 	bytes          []byte
 	parsed         [][]byte
-	userBit0       bool
-	userBit1       bool
 	maxNumElements int
 }
 
@@ -31,35 +29,35 @@ type lenPrefixType uint16
 // 0 byte with ArrayMaxData code, the number of bits reserved for element data length
 // 1 byte is number of elements in the array
 const (
-	DataLenBytes0  = uint16(0x00) << 14
-	DataLenBytes8  = uint16(0x01) << 14
-	DataLenBytes16 = uint16(0x02) << 14
-	DataLenBytes32 = uint16(0x03) << 14
+	dataLenBytes0  = uint16(0x00) << 14
+	dataLenBytes8  = uint16(0x01) << 14
+	dataLenBytes16 = uint16(0x02) << 14
+	dataLenBytes32 = uint16(0x03) << 14
 
-	DataLenMask  = uint16(0x03) << 14
-	ArrayLenMask = ^DataLenMask
-	MaxArrayLen  = int(ArrayLenMask) // 16383
+	dataLenMask  = uint16(0x03) << 14
+	arrayLenMask = ^dataLenMask
+	maxArrayLen  = int(arrayLenMask) // 16383
 
 	emptyArrayPrefix = lenPrefixType(0)
 )
 
 func (dl lenPrefixType) DataLenBytes() int {
-	m := uint16(dl) & DataLenMask
+	m := uint16(dl) & dataLenMask
 	switch m {
-	case DataLenBytes0:
+	case dataLenBytes0:
 		return 0
-	case DataLenBytes8:
+	case dataLenBytes8:
 		return 1
-	case DataLenBytes16:
+	case dataLenBytes16:
 		return 2
-	case DataLenBytes32:
+	case dataLenBytes32:
 		return 4
 	}
 	panic("very bad")
 }
 
-func (dl lenPrefixType) NumElements() int {
-	s := uint16(dl) & ArrayLenMask
+func (dl lenPrefixType) numElements() int {
+	s := uint16(dl) & arrayLenMask
 	return int(s)
 }
 
@@ -68,7 +66,7 @@ func (dl lenPrefixType) Bytes() []byte {
 }
 
 func ArrayFromBytes(data []byte, maxNumElements ...int) *Array {
-	mx := MaxArrayLen
+	mx := maxArrayLen
 	if len(maxNumElements) > 0 {
 		mx = maxNumElements[0]
 	}
@@ -106,14 +104,6 @@ func (a *Array) SetEmptyArray() {
 	a.SetData([]byte{0, 0})
 }
 
-func (a *Array) IsEmpty() bool {
-	return a.NumElements() == 0
-}
-
-func (a *Array) IsFull() bool {
-	return a.NumElements() >= a.maxNumElements
-}
-
 func (a *Array) Push(data []byte) int {
 	if len(a.parsed) >= a.maxNumElements {
 		panic("Array.Push: too many elements")
@@ -124,15 +114,18 @@ func (a *Array) Push(data []byte) int {
 	return len(a.parsed) - 1
 }
 
+// PutAtIdx puts data at index, panics if array has no element at that index
 func (a *Array) PutAtIdx(idx byte, data []byte) {
 	a.parsed[idx] = data
 	a.bytes = nil // invalidate bytes
 }
 
-func (a *Array) PushEmptyElements(n int) {
-	for i := 0; i < n; i++ {
+// PutAtIdxGrow puts data at index, grows array of necessary
+func (a *Array) PutAtIdxGrow(idx byte, data []byte) {
+	for int(idx) >= a.NumElements() {
 		a.Push(nil)
 	}
+	a.PutAtIdx(idx, data)
 }
 
 func (a *Array) ForEach(fun func(i int, data []byte) bool) {
@@ -203,7 +196,7 @@ func (a *Array) AsTree() *Tree {
 }
 
 func calcLenPrefix(data [][]byte) (lenPrefixType, error) {
-	if len(data) > MaxArrayLen {
+	if len(data) > maxArrayLen {
 		return 0, errors.New("too long data")
 	}
 	if len(data) == 0 {
@@ -212,16 +205,16 @@ func calcLenPrefix(data [][]byte) (lenPrefixType, error) {
 	var dl uint16
 	var t uint16
 	for _, d := range data {
-		t = DataLenBytes0
+		t = dataLenBytes0
 		switch {
 		case len(d) > math.MaxUint32:
 			return 0, errors.New("data can't be longer that MaxInt32")
 		case len(d) > math.MaxUint16:
-			t = DataLenBytes32
+			t = dataLenBytes32
 		case len(d) > math.MaxUint8:
-			t = DataLenBytes16
+			t = dataLenBytes16
 		case len(d) > 0:
-			t = DataLenBytes8
+			t = dataLenBytes8
 		}
 		if dl < t {
 			dl = t
@@ -307,15 +300,16 @@ func parseArray(data []byte, maxNumElements int) ([][]byte, error) {
 		return nil, errors.New("unexpected EOF")
 	}
 	prefix := lenPrefixType(easyutxo.DecodeInteger[uint16](data[:2]))
-	if prefix.NumElements() > maxNumElements {
+	if prefix.numElements() > maxNumElements {
 		return nil, fmt.Errorf("parseArray: number of elements in the prefix %d is larger than maxNumElements %d ",
-			prefix.NumElements(), maxNumElements)
+			prefix.numElements(), maxNumElements)
 	}
-	return decodeData(data[2:], prefix.DataLenBytes(), prefix.NumElements())
+	return decodeData(data[2:], prefix.DataLenBytes(), prefix.numElements())
 }
 
 //------------------------------------------------------------------------------
 
+// Tree is a read only interface to Array, which is interpreted as a tree
 type Tree struct {
 	// bytes
 	sa *Array
@@ -325,6 +319,7 @@ type Tree struct {
 
 type TreePath []byte
 
+// MaxElementsLazyTree each node of the tree can have maximum 256 elements
 const MaxElementsLazyTree = 256
 
 func TreeFromBytes(data []byte) *Tree {
@@ -372,31 +367,6 @@ func (st *Tree) getSubtree(idx byte) *Tree {
 	return TreeFromBytes(st.sa.At(int(idx)))
 }
 
-// PushData Array at the end of the global path must exist and must be Array
-func (st *Tree) PushData(data []byte, path TreePath) int {
-	if len(path) == 0 {
-		return st.sa.Push(data)
-	}
-	subtree := st.getSubtree(path[0])
-	ret := subtree.PushData(data, path[1:])
-	st.subtrees[path[0]] = subtree
-	st.sa.invalidateBytes()
-	return ret
-}
-
-// PutDataAtIdx Array at the end of the globalpath must exist and must be Array
-func (st *Tree) PutDataAtIdx(idx byte, data []byte, path TreePath) {
-	if len(path) == 0 {
-		st.sa.PutAtIdx(idx, data)
-		delete(st.subtrees, idx)
-		return
-	}
-	subtree := st.getSubtree(path[0])
-	subtree.PutDataAtIdx(idx, data, path[1:])
-	st.subtrees[path[0]] = subtree
-	st.sa.invalidateBytes()
-}
-
 func (st *Tree) Subtree(path TreePath) *Tree {
 	if len(path) == 0 {
 		return st
@@ -419,37 +389,6 @@ func (st *Tree) BytesAtPath(path TreePath) []byte {
 	ret := subtree.BytesAtPath(path[1:])
 	st.subtrees[path[0]] = subtree
 	return ret
-}
-
-func (st *Tree) GetDataAtIdx(idx byte, path TreePath) []byte {
-	st.BytesAtPath(path) // updates invalidated bytes
-	return st.Subtree(path).sa.At(int(idx))
-}
-
-func (st *Tree) PushSubtreeFromBytes(data []byte, path TreePath) int {
-	return st.PushData(data, path)
-}
-
-// PushEmptySubtrees pushes creates a new Array at the end of the globalpath, if it exists
-func (st *Tree) PushEmptySubtrees(n int, path TreePath) {
-	for i := 0; i < n; i++ {
-		st.PushSubtreeFromBytes(emptyArrayPrefix.Bytes(), path)
-	}
-}
-
-// PushSubtree pushes data and parsed tree of that data.
-// Only correct is pushed tree is read-only (e.g. library)
-func (st *Tree) PushSubtree(tr *Tree, path TreePath) int {
-	subtree := st.Subtree(path)
-	ret := subtree.sa.Push(tr.Bytes())
-	subtree.subtrees[byte(subtree.sa.NumElements()-1)] = tr
-	return ret
-}
-
-func (st *Tree) PutSubtreeAtIdx(tr *Tree, idx byte, path TreePath) {
-	subtree := st.Subtree(path)
-	subtree.sa.PutAtIdx(idx, tr.Bytes())
-	subtree.subtrees[idx] = tr
 }
 
 // NumElements returns number of elements of the Array at the end of globalpath
