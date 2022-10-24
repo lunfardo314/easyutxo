@@ -151,9 +151,9 @@ func (tx *Transaction) EssenceBytes() []byte {
 	)
 }
 
-func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, targetAddress Address, amount uint64, desc ...bool) ([]byte, error) {
+func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, targetAddress Lock, amount uint64, desc ...bool) ([]byte, error) {
 	sourcePubKey := privKey.Public().(ed25519.PublicKey)
-	sourceAddr := AddressFromED25519PubKey(sourcePubKey)
+	sourceAddr := LockFromED25519PubKey(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
@@ -196,12 +196,12 @@ func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, tar
 			return nil, err
 		}
 	}
-	out := NewOutput(amount, ts, targetAddress)
+	out := NewOutput(amount, ts, targetAddress, SenderFromLock(sourceAddr, 0))
 	if _, err = ctx.ProduceOutput(out); err != nil {
 		return nil, err
 	}
 	if availableTokens > amount {
-		reminderOut := NewOutput(availableTokens-amount, ts, sourceAddr)
+		reminderOut := NewOutput(availableTokens-amount, ts, sourceAddr, SenderFromLock(sourceAddr, 0))
 		if _, err = ctx.ProduceOutput(reminderOut); err != nil {
 			return nil, err
 		}
@@ -209,14 +209,14 @@ func MakeTransferTransaction(ledger StateAccess, privKey ed25519.PrivateKey, tar
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
-	unlockDataRef := UnlockDataByReference(0)
+	unlockDataRef := UnlockParamsByReference(0)
 	for i := range consumedOuts {
 		if i == 0 {
-			unlockData := UnlockDataBySignatureED25519(ctx.Transaction.EssenceBytes(), privKey)
-			ctx.UnlockBlock(0).PutUnlockParams(unlockData, OutputBlockAddress)
+			unlockData := UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), privKey)
+			ctx.UnlockBlock(0).PutUnlockParams(unlockData, OutputBlockLock)
 			continue
 		}
-		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, OutputBlockAddress)
+		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, OutputBlockLock)
 	}
 	return ctx.Transaction.Bytes(), nil
 }

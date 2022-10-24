@@ -14,7 +14,7 @@ import (
 type StateAccess interface {
 	GetUTXO(id *OutputID) ([]byte, bool)
 	// GetUTXOsForAddress order non-deterministic
-	GetUTXOsForAddress(addr Address) ([]*OutputWithID, error)
+	GetUTXOsForAddress(addr Lock) ([]*OutputWithID, error)
 }
 
 type KVStore interface {
@@ -55,7 +55,8 @@ func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply ui
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	out := NewOutput(initialSupply, ts, AddressFromED25519PubKey(genesisPublicKey))
+	genesisLock := LockFromED25519PubKey(genesisPublicKey)
+	out := NewOutput(initialSupply, ts, genesisLock, SenderFromLock(genesisLock, 0))
 	// genesis OutputID is all-0
 	return out, OutputID{}
 }
@@ -82,7 +83,7 @@ func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-func (u *State) GetUTXOsForAddress(addr Address) ([]*OutputWithID, error) {
+func (u *State) GetUTXOsForAddress(addr Lock) ([]*OutputWithID, error) {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
 

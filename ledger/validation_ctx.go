@@ -156,7 +156,7 @@ type keyPair struct {
 func prepareKeyPairs(keyPairs []*keyPair) map[string]*keyPair {
 	ret := make(map[string]*keyPair)
 	for _, kp := range keyPairs {
-		addr := AddressFromED25519PubKey(kp.pubKey)
+		addr := LockFromED25519PubKey(kp.pubKey)
 		ret[string(addr.Bytes())] = kp
 	}
 	return ret

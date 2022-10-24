@@ -99,7 +99,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 100+ledger.TokensFromFaucetDefault, u.Balance(addr))
 		require.EqualValues(t, 1, u.NumUTXOs(addr))
 	})
-	t.Run("utxodb 3", func(t *testing.T) {
+	t.Run("utxodb 3 compress outputs", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
@@ -155,5 +155,43 @@ func TestBasics(t *testing.T) {
 		}
 		err := u.TransferTokens(privKey, addr, u.Balance(addr))
 		easyfl.RequireErrorWith(t, err, "exceeded max number of consumed outputs")
+	})
+	t.Run("utxodb 4 fan outputs", func(t *testing.T) {
+		u := ledger.NewUTXODB(true)
+		priv, pub := u.OriginKeys()
+		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
+		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
+		t.Logf("origin address: %s", u.OriginAddress())
+
+		privKey0, _, addr0 := u.GenerateAddress(0)
+		const howMany = 100
+		err := u.TokensFromFaucet(addr0, howMany)
+		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+		require.EqualValues(t, u.Supply()-howMany, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, howMany, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+		privKey1, _, addr1 := u.GenerateAddress(1)
+
+		for i := 0; i < howMany; i++ {
+			err = u.TransferTokens(privKey0, addr1, 1)
+			require.NoError(t, err)
+		}
+		require.EqualValues(t, howMany, u.Balance(addr1))
+		require.EqualValues(t, howMany, u.NumUTXOs(addr1))
+		require.EqualValues(t, 0, u.Balance(addr0))
+		require.EqualValues(t, 0, u.NumUTXOs(addr0))
+
+		err = u.TransferTokens(privKey1, addr0, howMany)
+		require.EqualValues(t, howMany, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+		require.EqualValues(t, 0, u.Balance(addr1))
+		require.EqualValues(t, 0, u.NumUTXOs(addr1))
+
+		outs, err := u.GetUTXOsForAddress(addr0)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, len(outs))
+
+		require.EqualValues(t, addr1, outs[0].Output.Sender.Lock)
 	})
 }

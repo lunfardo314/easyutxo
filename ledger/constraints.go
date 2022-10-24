@@ -17,18 +17,21 @@ var constraints [256]*constraintRecord
 const (
 	ConstraintReserved0 = byte(iota)
 	ConstraintReserved1
-	ConstraintMain
-	ConstraintSigLockED25519
+	ConstraintIDMain
+	ConstraintIDSigLockED25519
+	ConstraintIDSender
 )
 
 func init() {
 	extendLibrary()
 
-	easyfl.MustExtendMany(SigLockConstraint)
-	easyfl.MustExtendMany(MainConstraint)
+	easyfl.MustExtendMany(MainConstraintSource)
+	easyfl.MustExtendMany(SigLockED25519ConstraintSource)
+	easyfl.MustExtendMany(SenderConstraintSource)
 
-	mustRegisterConstraint(ConstraintMain, "mainConstraint")
-	mustRegisterConstraint(ConstraintSigLockED25519, "sigLocED25519")
+	mustRegisterConstraint(ConstraintIDMain, "mainConstraint")
+	mustRegisterConstraint(ConstraintIDSigLockED25519, "sigLockED25519")
+	mustRegisterConstraint(ConstraintIDSender, "senderValid")
 
 	easyfl.PrintLibraryStats()
 }

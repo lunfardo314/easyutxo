@@ -14,12 +14,17 @@ func extendLibrary() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
-	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
-	easyfl.Extend("isProducedBranch", "equal(slice($0,0,1), 0x0002)")
-
 	// LazyArray
 	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
 	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
+
+	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
+	easyfl.Extend("isProducedBranch", "equal(slice($0,0,1), 0x0002)")
+	easyfl.Extend("consumedOutputPathByIndex", "concat(0x0100,$0)")
+	easyfl.Extend("producedOutputPathByIndex", "concat(0x0000,$0)")
+	easyfl.Extend("consumedOutputByIndex", "@Path(concat(0x0100,$0))")
+	easyfl.Extend("producedOutputByIndex", "@Path(concat(0x0000,$0))")
+	easyfl.Extend("consumedLockByOutputIndex", "@Array8(consumedOutputByIndex($0),1)")
 
 	// special transaction related
 
@@ -31,6 +36,9 @@ func extendLibrary() {
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
 	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txInputCommitmentBytes)")
 	easyfl.Extend("addrDataED25519FromPubKey", "blake2b($0)")
+
+	easyfl.Extend("selfOutputPath", "slice(@,0,2)")
+	easyfl.Extend("selfSiblingBlock", "@Array8(@Path(selfOutputPath), $0)")
 
 	// unlock param branch (0 - transaction, 0 unlock params)
 	easyfl.Extend("unlockParamBranch", "0x0000")

@@ -23,18 +23,25 @@ const OutputIDLength = TransactionIDLength + 1
 
 const (
 	OutputBlockMain = byte(iota)
-	OutputBlockAddress
-	OutputNumRequiredBlocks
+	OutputBlockLock
+	OutputBlockSender
+	OutputNumMandatoryBlocks
 )
 
 type (
 	OutputID [OutputIDLength]byte
 
 	Output struct {
-		Amount      uint64
-		Timestamp   uint32
-		Address     Address
-		Constraints []Constraint
+		// Mandatory constraints are:
+		// - #0 amount/timestamp - main constraint
+		// - #1 address constraint for indexing. May be nil, then it is not indexed
+		// - #2 sender constraint
+		Amount    uint64
+		Timestamp uint32
+		Address   Lock
+		Sender    *Sender
+		// other constraints are optional
+		OptionalConstraints []Constraint
 	}
 
 	Constraint []byte
@@ -64,12 +71,13 @@ func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	return
 }
 
-func NewOutput(amount uint64, timestamp uint32, address Address) *Output {
+func NewOutput(amount uint64, timestamp uint32, address Lock, sender *Sender) *Output {
 	ret := &Output{
-		Amount:      amount,
-		Timestamp:   timestamp,
-		Address:     address,
-		Constraints: make([]Constraint, 0),
+		Amount:              amount,
+		Timestamp:           timestamp,
+		Address:             address,
+		Sender:              sender,
+		OptionalConstraints: make([]Constraint, 0),
 	}
 	return ret
 }
@@ -97,21 +105,25 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if arr.NumElements() < 2 {
 		return nil, fmt.Errorf("wrong data length")
 	}
-	ret := NewOutput(0, 0, nil)
+	ret := NewOutput(0, 0, nil, nil)
 	err := ret.parseMainConstraint(arr.At(int(OutputBlockMain)))
 	if err != nil {
 		return nil, err
 	}
-	ret.Address, err = AddressFromBytes(arr.At(int(OutputBlockAddress)))
+	ret.Address, err = LockFromBytes(arr.At(int(OutputBlockLock)))
 	if err != nil {
 		return nil, err
 	}
-	for i := 2; i < arr.NumElements(); i++ {
+	ret.Sender, err = SenderFromBytes(arr.At(int(OutputBlockSender)))
+	if err != nil {
+		return nil, err
+	}
+	for i := int(OutputNumMandatoryBlocks); i < arr.NumElements(); i++ {
 		d := arr.At(i)
 		if len(d) < 1 {
 			return nil, fmt.Errorf("wrong data length")
 		}
-		ret.Constraints = append(ret.Constraints, arr.At(i))
+		ret.OptionalConstraints = append(ret.OptionalConstraints, arr.At(i))
 	}
 	return ret, nil
 }
@@ -121,8 +133,9 @@ func (o *Output) ToArray() *lazyslice.Array {
 	var a [8]byte
 	binary.BigEndian.PutUint64(a[:], o.Amount)
 	ret.Push(o.mainConstraint()) // @ OutputBlockMain = 0
-	ret.Push(o.Address)          // @ OutputBlockAddress = 1
-	for _, c := range o.Constraints {
+	ret.Push(o.Address)          // @ OutputBlockLock = 1
+	ret.Push(o.Sender.Bytes())   // @ OutputBlockSender = 2
+	for _, c := range o.OptionalConstraints {
 		ret.Push(c)
 	}
 	return ret
@@ -136,8 +149,8 @@ func (o *Output) PushConstraint(c Constraint) (byte, error) {
 	if o.NumConstraints() >= 256 {
 		return 0, fmt.Errorf("too many constraints")
 	}
-	o.Constraints = append(o.Constraints, c)
-	return byte(len(o.Constraints) + 1), nil
+	o.OptionalConstraints = append(o.OptionalConstraints, c)
+	return byte(len(o.OptionalConstraints) + 1), nil
 }
 
 func (o *Output) Constraint(idx byte) Constraint {
@@ -147,7 +160,7 @@ func (o *Output) Constraint(idx byte) Constraint {
 	case 1:
 		return Constraint(o.Address)
 	default:
-		return o.Constraints[idx]
+		return o.OptionalConstraints[idx]
 	}
 }
 
@@ -159,7 +172,7 @@ func (o *Output) mainConstraint() Constraint {
 	binary.BigEndian.PutUint64(a[:], o.Amount)
 	binary.BigEndian.PutUint32(ts[:], o.Timestamp)
 
-	ret := easyfl.Concat(ConstraintMain, ts[:], a[:])
+	ret := easyfl.Concat(ConstraintIDMain, ts[:], a[:])
 	easyfl.Assert(len(ret) == mainConstraintSize, "len(ret)==mainConstraintSize")
 	return ret
 }
@@ -168,7 +181,7 @@ func (o *Output) parseMainConstraint(data []byte) error {
 	if len(data) != 1+4+8 {
 		return fmt.Errorf("wrong data length")
 	}
-	if data[0] != ConstraintMain {
+	if data[0] != ConstraintIDMain {
 		return fmt.Errorf("main constraint code expected")
 	}
 	o.Timestamp = binary.BigEndian.Uint32(data[1:5])
@@ -186,26 +199,29 @@ func (c Constraint) Name() string {
 }
 
 func (o *Output) NumConstraints() int {
-	return len(o.Constraints) + 2
+	return len(o.OptionalConstraints) + 2
 }
 
 func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) bool) {
 	if !fun(OutputBlockMain, o.mainConstraint()) {
 		return
 	}
-	if !fun(OutputBlockAddress, Constraint(o.Address)) {
+	if !fun(OutputBlockLock, Constraint(o.Address)) {
 		return
 	}
-	for idx, c := range o.Constraints {
-		if !fun(byte(idx+2), c) {
+	if !fun(OutputBlockSender, o.Sender.Bytes()) {
+		return
+	}
+	for idx, c := range o.OptionalConstraints {
+		if !fun(byte(idx+int(OutputNumMandatoryBlocks)), c) {
 			return
 		}
 	}
 }
 
 func (o *Output) ConstraintCodes() []byte {
-	ret := []byte{OutputBlockMain, OutputBlockAddress}
-	for _, c := range o.Constraints {
+	ret := []byte{OutputBlockMain, OutputBlockLock}
+	for _, c := range o.OptionalConstraints {
 		ret = append(ret, c[0])
 	}
 	return ret

@@ -148,11 +148,9 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 
 func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) error {
 	mainBlockBytes := out.Constraint(OutputBlockMain)
-	if len(mainBlockBytes) != mainConstraintSize || mainBlockBytes[0] != ConstraintMain {
+	if len(mainBlockBytes) != mainConstraintSize || mainBlockBytes[0] != ConstraintIDMain {
+		// we enforce presence of the main constraint, the rest is checked by it
 		return fmt.Errorf("wrong main constraint")
-	}
-	if len(out.Constraint(OutputBlockAddress)) < 1 {
-		return fmt.Errorf("wrong address constraint")
 	}
 	blockPath := easyfl.Concat(path, byte(0))
 	var err error

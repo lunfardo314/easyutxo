@@ -18,7 +18,7 @@ type UTXODB struct {
 	supply           uint64
 	originPrivateKey ed25519.PrivateKey
 	originPublicKey  ed25519.PublicKey
-	originAddress    Address
+	originAddress    Lock
 	trace            bool
 }
 
@@ -44,7 +44,7 @@ func NewUTXODB(trace ...bool) *UTXODB {
 		supply:           supplyForTesting,
 		originPrivateKey: ed25519.PrivateKey(originPrivKeyBin),
 		originPublicKey:  originPubKey,
-		originAddress:    AddressFromED25519PubKey(originPubKey),
+		originAddress:    LockFromED25519PubKey(originPubKey),
 		trace:            len(trace) > 0 && trace[0],
 	}
 	return ret
@@ -58,11 +58,11 @@ func (u *UTXODB) OriginKeys() (ed25519.PrivateKey, ed25519.PublicKey) {
 	return u.originPrivateKey, u.originPublicKey
 }
 
-func (u *UTXODB) OriginAddress() Address {
+func (u *UTXODB) OriginAddress() Lock {
 	return u.originAddress
 }
 
-func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) error {
+func (u *UTXODB) TokensFromFaucet(addr Lock, howMany ...uint64) error {
 	amount := TokensFromFaucetDefault
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
@@ -79,17 +79,17 @@ func (u *UTXODB) TokensFromFaucet(addr Address, howMany ...uint64) error {
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, Address) {
+func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, Lock) {
 	var u16 [2]byte
 	binary.BigEndian.PutUint16(u16[:], n)
 	seed := blake2b.Sum256(common.Concat([]byte(deterministicSeed), u16[:]))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	addr := AddressFromED25519PubKey(pub)
+	addr := LockFromED25519PubKey(pub)
 	return priv, pub, addr
 }
 
-func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetAddress Address, amount uint64) error {
+func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetAddress Lock, amount uint64) error {
 	txBytes, err := MakeTransferTransaction(u, privKey, targetAddress, amount)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetAddress Addres
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) account(addr Address) (uint64, int) {
+func (u *UTXODB) account(addr Lock) (uint64, int) {
 	outs, err := u.GetUTXOsForAddress(addr)
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
@@ -111,12 +111,12 @@ func (u *UTXODB) account(addr Address) (uint64, int) {
 	return balance, len(outs)
 }
 
-func (u *UTXODB) Balance(addr Address) uint64 {
+func (u *UTXODB) Balance(addr Lock) uint64 {
 	ret, _ := u.account(addr)
 	return ret
 }
 
-func (u *UTXODB) NumUTXOs(addr Address) int {
+func (u *UTXODB) NumUTXOs(addr Lock) int {
 	_, ret := u.account(addr)
 	return ret
 }
