@@ -21,26 +21,32 @@ func amountValid: and(
 // timestamp is valid if:
 // - for consumed output - must be strongly less than the transaction timestamp
 // - for produced output - must be equal to the transaction timestamp
-func outputTimestampValid: or(
+func timestampValid: or(
 	and( isProducedBranch(@), equal($0, txTimestampBytes) ),
 	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) )
 )
 
+func amountBytes: tail(selfConstraintData,4)
+func timestampBytes: slice(selfConstraintData,0,3)
+
 // constrain valid if both timestamp and amount are valid 
 func amountAndTimestampValid : and(
-	outputTimestampValid(slice($0,0,3)),
-	amountValid(tail($0,4))
+	timestampValid(timestampBytes),
+	amountValid(amountBytes)
 )
 
 // checks if all mandatory constraints are not nil
 // should not check presence of the main constraint itself
 func mandatoryConstraintsPresent: selfSiblingBlock(lockConstraintBlockIndex)
 
+func storageDepositEnough: greaterOrEqualThan(
+	amountBytes,
+	concat(u32/0, mul16_32(#vbCost16,len16(selfOutputBytes)))
+)
 
 func mainConstraint : and(
 	mandatoryConstraintsPresent,
-	amountAndTimestampValid(selfConstraintData)
+	amountAndTimestampValid,
+	storageDepositEnough
 )
 `
-
-// TODO main constraint should check lock and sender

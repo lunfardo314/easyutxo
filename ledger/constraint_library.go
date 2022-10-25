@@ -19,6 +19,8 @@ func init() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
+	easyfl.Extend("#vbCost16", "u16/1")
+
 	// LazyArray
 	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
 	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
@@ -44,6 +46,7 @@ func init() {
 
 	easyfl.Extend("selfOutputPath", "slice(@,0,2)")
 	easyfl.Extend("selfSiblingBlock", "@Array8(@Path(selfOutputPath), $0)")
+	easyfl.Extend("selfOutputBytes", "@Path(selfOutputPath)")
 
 	// unlock param branch (0 - transaction, 0 unlock params)
 	easyfl.Extend("unlockParamBranch", "0x0000")

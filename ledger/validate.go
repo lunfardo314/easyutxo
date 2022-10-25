@@ -139,6 +139,7 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath, isProduce
 	return sum, nil
 }
 
+// runOutput checks constraints of the output one-by-one
 func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath, isProducedContext bool) (uint32, error) {
 	mainBlockBytes := out.Constraint(OutputBlockMain)
 	if len(mainBlockBytes) != mainConstraintSize || ConstraintType(mainBlockBytes[0]) != ConstraintTypeMain {
@@ -166,11 +167,15 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath, isPr
 			return false
 		}
 		if len(res) == 4 {
+			// 4 bytes long slice returned by the constraint is interpreted as 'true' and as uint32 extraStorageWeight
 			extraStorageDepositWeight += binary.BigEndian.Uint32(res)
 		}
 		return true
 	})
-	return extraStorageDepositWeight, err
+	if err != nil {
+		return 0, err
+	}
+	return extraStorageDepositWeight, nil
 }
 
 func (v *ValidationContext) validateInputCommitment() error {
