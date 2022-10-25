@@ -59,8 +59,10 @@ func init() {
 	easyfl.Extend("selfBranch", "slice(@,0,1)")
 	// output index || block index
 	easyfl.Extend("selfConstraintIndex", "slice(@, 2, 3)")
+	// data of a constraint
+	easyfl.Extend("constraintData", "tail($0,1)")
 	// invocation output data
-	easyfl.Extend("selfConstraintData", "tail(selfConstraint,1)")
+	easyfl.Extend("selfConstraintData", "constraintData(selfConstraint)")
 	// unlock parameters of the invoked consumed constraint
 	easyfl.Extend("selfUnlockParameters", "@Path(concat(unlockParamBranch, selfConstraintIndex))")
 	// path referenced by the reference unlock params
