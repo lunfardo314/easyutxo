@@ -1,5 +1,22 @@
 package ledger
 
+import (
+	"encoding/binary"
+	"fmt"
+)
+
+func MainConstraintFromBytes(data []byte) (uint64, uint32, error) {
+	if len(data) != 1+4+8 {
+		return 0, 0, fmt.Errorf("wrong data length")
+	}
+	if ConstraintType(data[0]) != ConstraintTypeMain {
+		return 0, 0, fmt.Errorf("main constraint code expected")
+	}
+	ts := binary.BigEndian.Uint32(data[1:5])
+	amount := binary.BigEndian.Uint64(data[5:])
+	return amount, ts, nil
+}
+
 // MainConstraintSource is always in the #0 block of the output. It checks validity of the timestamp and amount
 // The constraint is:
 // - byte 0 - constraint code 2

@@ -67,7 +67,7 @@ func (u *UTXODB) TokensFromFaucet(addr Lock, howMany ...uint64) error {
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	txBytes, err := MakeTransferTransaction(u, MakeTransferTransactionParams{
+	txBytes, err := MakeTransferTransaction(u, TransferTransactionParams{
 		SenderKey:     u.originPrivateKey,
 		TargetAddress: addr,
 		Amount:        amount,
@@ -94,7 +94,7 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 }
 
 func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetAddress Lock, amount uint64, addSender ...bool) error {
-	txBytes, err := MakeTransferTransaction(u, MakeTransferTransactionParams{
+	txBytes, err := MakeTransferTransaction(u, TransferTransactionParams{
 		SenderKey:     privKey,
 		TargetAddress: targetAddress,
 		Amount:        amount,

@@ -103,7 +103,8 @@ func OutputFromBytes(data []byte) (*Output, error) {
 		return nil, fmt.Errorf("wrong data length")
 	}
 	ret := NewOutput(0, 0, nil)
-	err := ret.parseMainConstraint(arr.At(int(OutputBlockMain)))
+	var err error
+	ret.Amount, ret.Timestamp, err = MainConstraintFromBytes(arr.At(int(OutputBlockMain)))
 	if err != nil {
 		return nil, err
 	}
@@ -169,20 +170,12 @@ func (o *Output) mainConstraint() Constraint {
 	return ret
 }
 
-func (o *Output) parseMainConstraint(data []byte) error {
-	if len(data) != 1+4+8 {
-		return fmt.Errorf("wrong data length")
-	}
-	if ConstraintType(data[0]) != ConstraintTypeMain {
-		return fmt.Errorf("main constraint code expected")
-	}
-	o.Timestamp = binary.BigEndian.Uint32(data[1:5])
-	o.Amount = binary.BigEndian.Uint64(data[5:])
-	return nil
-}
-
 func (c Constraint) Type() ConstraintType {
 	return ConstraintType(c[0])
+}
+
+func (c Constraint) Data() []byte {
+	return c[1:]
 }
 
 func (c Constraint) Name() string {
@@ -208,16 +201,32 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 	}
 }
 
-func (o *Output) Sender() Sender {
-	var ret Sender
+func (o *Output) Sender() (Lock, bool) {
+	var ret Lock
+	found := false
 	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
 		if constraint.Type() == ConstraintTypeSender {
-			ret = Sender(constraint)
+			ret = Sender(constraint).Lock()
+			found = true
 			return false
 		}
 		return true
 	})
-	return ret
+	return ret, found
+}
+
+func (o *Output) TimeLock() (uint32, bool) {
+	var ret uint32
+	found := false
+	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+		if constraint.Type() == ConstraintTypeTimeLock {
+			ret = binary.BigEndian.Uint32(constraint.Data())
+			found = true
+			return false
+		}
+		return true
+	})
+	return ret, found
 }
 
 //---------------------------------------------------------

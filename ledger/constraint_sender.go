@@ -6,7 +6,7 @@ import (
 
 type Sender Constraint
 
-func SenderFromLock(lock Lock, referencedInput byte) Sender {
+func NewSenderConstraint(lock Lock, referencedInput byte) Constraint {
 	return easyfl.Concat(byte(ConstraintTypeSender), referencedInput, lock)
 }
 

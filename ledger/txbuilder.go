@@ -152,17 +152,18 @@ func (tx *Transaction) EssenceBytes() []byte {
 	)
 }
 
-type MakeTransferTransactionParams struct {
+type TransferTransactionParams struct {
+	Timestamp         uint32 // takes time.Now() if 0
 	SenderKey         ed25519.PrivateKey
 	TargetAddress     Lock
 	Amount            uint64
 	AdjustToMinimum   bool
 	DescendingOutputs bool
 	AddSender         bool
-	AddTimeLockForSec uint32
+	AddTimeLockForSec uint32 // add seconds to timestamp for time lock condition. No effect if 0
 }
 
-func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionParams) ([]byte, error) {
+func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) ([]byte, error) {
 	sourcePubKey := par.SenderKey.Public().(ed25519.PublicKey)
 	sourceAddr := LockFromED25519PubKey(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
@@ -171,25 +172,10 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 	}
 
 	ts := uint32(time.Now().Unix())
-	amount := par.Amount
-	if par.AdjustToMinimum {
-		outTentative := NewOutput(par.Amount, ts, par.TargetAddress)
-		if par.AddSender {
-			if _, err = outTentative.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
-				return nil, err
-			}
-		}
-		if par.AddTimeLockForSec > 0 {
-			tentativeTimeLock := easyfl.Concat(byte(ConstraintTypeTimeLock), make([]byte, 4))
-			if _, err = outTentative.PushConstraint(tentativeTimeLock); err != nil {
-				return nil, err
-			}
-		}
-		minimumDeposit := MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
-		if par.Amount < minimumDeposit {
-			amount = minimumDeposit
-		}
+	if par.Timestamp > 0 {
+		ts = par.Timestamp
 	}
+	amount := AdjustedAmount(&par)
 
 	if par.DescendingOutputs {
 		sort.Slice(outs, func(i, j int) bool {
@@ -232,18 +218,16 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 	out := NewOutput(amount, ts, par.TargetAddress)
 	if par.AddSender {
 		// add sender constraint
-		if _, err = out.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
+		if _, err = out.PushConstraint(NewSenderConstraint(sourceAddr, 0)); err != nil {
 			return nil, err
 		}
 	}
 	if par.AddTimeLockForSec > 0 {
 		// add time lock constraint
 		if par.AddTimeLockForSec > math.MaxUint32-ts {
-			return nil, fmt.Errorf("wrong timelock %d", par.AddTimeLockForSec)
+			return nil, fmt.Errorf("wrong timelock delta %d", par.AddTimeLockForSec)
 		}
-		var tl [4]byte
-		binary.BigEndian.PutUint32(tl[:], ts+par.AddTimeLockForSec)
-		if _, err = out.PushConstraint(easyfl.Concat(byte(ConstraintTypeTimeLock), tl[:])); err != nil {
+		if _, err = out.PushConstraint(NewTimeLockConstraint(ts + par.AddTimeLockForSec)); err != nil {
 			return nil, err
 		}
 	}
@@ -269,4 +253,29 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, OutputBlockLock)
 	}
 	return ctx.Transaction.Bytes(), nil
+}
+
+// AdjustedAmount adjust amount to minimum storage deposit requirements
+func AdjustedAmount(par *TransferTransactionParams) uint64 {
+	if !par.AdjustToMinimum {
+		// not adjust. Will render wrong transaction if not enough tokens
+		return par.Amount
+	}
+	ts := uint32(0)
+
+	outTentative := NewOutput(par.Amount, ts, par.TargetAddress)
+	if par.AddSender {
+		_, err := outTentative.PushConstraint(Constraint(NewSenderConstraint(LockED25519Null(), 0)))
+		easyfl.AssertNoError(err)
+	}
+	if par.AddTimeLockForSec > 0 {
+		tentativeTimeLock := easyfl.Concat(byte(ConstraintTypeTimeLock), make([]byte, 4))
+		_, err := outTentative.PushConstraint(tentativeTimeLock)
+		easyfl.AssertNoError(err)
+	}
+	minimumDeposit := MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
+	if par.Amount < minimumDeposit {
+		return minimumDeposit
+	}
+	return par.Amount
 }

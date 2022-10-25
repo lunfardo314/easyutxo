@@ -124,7 +124,7 @@ func TestBasics(t *testing.T) {
 			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.MakeTransferTransactionParams{
+		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
 			SenderKey:     privKey,
 			TargetAddress: addr,
 			Amount:        u.Balance(addr),
@@ -195,7 +195,8 @@ func TestBasics(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, howMany, len(outs))
 		for _, o := range outs {
-			require.True(t, o.Output.Sender() == nil)
+			_, ok := o.Output.Sender()
+			require.False(t, ok)
 		}
 
 		err = u.TransferTokens(privKey1, addr0, howMany*50, true)
@@ -208,7 +209,9 @@ func TestBasics(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outs))
 
-		require.EqualValues(t, addr1, outs[0].Output.Sender().Lock())
+		snd, ok := outs[0].Output.Sender()
+		require.True(t, ok)
+		require.EqualValues(t, addr1, snd)
 	})
 	t.Run("time lock", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
@@ -218,19 +221,20 @@ func TestBasics(t *testing.T) {
 		t.Logf("origin address: %s", u.OriginAddress())
 
 		privKey0, _, addr0 := u.GenerateAddress(0)
-		const howMany = 100
-		err := u.TokensFromFaucet(addr0, howMany*50)
+		err := u.TokensFromFaucet(addr0, 10000)
 		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-howMany*50, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, howMany*50, u.Balance(addr0))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
 		priv1, _, addr1 := u.GenerateAddress(1)
 
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.MakeTransferTransactionParams{
+		ts := uint32(time.Now().Unix()) + 5
+		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
 			SenderKey:         privKey0,
 			TargetAddress:     addr1,
 			Amount:            200,
+			Timestamp:         ts,
 			AddTimeLockForSec: 1,
 		})
 		require.NoError(t, err)
@@ -240,8 +244,32 @@ func TestBasics(t *testing.T) {
 
 		require.EqualValues(t, 200, u.Balance(addr1))
 
-		time.Sleep(4 * time.Second)
-		err = u.TransferTokens(priv1, addr0, 80)
+		err = u.DoTransfer(ledger.TransferTransactionParams{
+			SenderKey:         privKey0,
+			TargetAddress:     addr1,
+			Amount:            2000,
+			AddTimeLockForSec: 10,
+			Timestamp:         ts + 1,
+		})
 		require.NoError(t, err)
+
+		require.EqualValues(t, 2200, u.Balance(addr1))
+		err = u.DoTransfer(ledger.TransferTransactionParams{
+			SenderKey:     priv1,
+			TargetAddress: addr0,
+			Amount:        2000,
+			Timestamp:     ts + 2,
+		})
+		easyfl.RequireErrorWith(t, err, "constraint 'timeLock' failed")
+		require.EqualValues(t, 2200, u.Balance(addr1))
+
+		err = u.DoTransfer(ledger.TransferTransactionParams{
+			SenderKey:     priv1,
+			TargetAddress: addr0,
+			Amount:        2000,
+			Timestamp:     ts + 12,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 200, u.Balance(addr1))
 	})
 }

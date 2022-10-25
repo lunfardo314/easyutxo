@@ -145,3 +145,11 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 	})
 	return batch.Commit()
 }
+
+func (u *State) DoTransfer(par TransferTransactionParams, traceOption ...int) error {
+	txBytes, err := MakeTransferTransaction(u, par)
+	if err != nil {
+		return err
+	}
+	return u.AddTransaction(txBytes, traceOption...)
+}
