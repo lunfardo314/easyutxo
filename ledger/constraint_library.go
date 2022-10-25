@@ -42,7 +42,6 @@ func init() {
 	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
 	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txInputCommitmentBytes)")
-	easyfl.Extend("addrDataED25519FromPubKey", "blake2b($0)")
 
 	easyfl.Extend("selfOutputPath", "slice(@,0,2)")
 	easyfl.Extend("selfSiblingBlock", "@Array8(@Path(selfOutputPath), $0)")
@@ -115,6 +114,7 @@ const (
 	ConstraintTypeUnlockScript
 	ConstraintTypeMain
 	ConstraintTypeSigLockED25519
+	ConstraintTypeSigLockED25519WithExpire
 	ConstraintTypeSender
 	ConstraintTypeTimeLock
 )

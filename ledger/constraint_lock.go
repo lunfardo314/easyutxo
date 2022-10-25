@@ -20,7 +20,10 @@ type (
 )
 
 // LockAddressED25519 ED25519 address is a special type of Lock
-const LockAddressED25519 = LockType(ConstraintTypeSigLockED25519)
+const (
+	LockAddressED25519           = LockType(ConstraintTypeSigLockED25519)
+	LockAddressED25519WithExpire = LockType(ConstraintTypeSigLockED25519WithExpire)
+)
 
 func (at LockType) DataSize() int {
 	switch at {
@@ -85,38 +88,46 @@ func UnlockParamsBySignatureED25519(msg []byte, privKey ed25519.PrivateKey) []by
 
 const SigLockED25519ConstraintSource = `
 
+// ED25519 address constraint is 1-byte type and 32 bytes address, blake2b hash of the public key
 // ED25519 unlock parameters expected to be 96 bytes-long
 
-// takes ED25519 signature from unlock parameters 
-func selfSignatureED25519: slice(selfUnlockParameters, 0, 63) 
+// takes ED25519 signature from unlock parameters, first 64 bytes 
+func signatureED25519: slice($0, 0, 63) 
 
 // takes ED25519 public key from unlock parameters
-func selfPublicKeyED25519: slice(selfUnlockParameters, 64, 95)
+func publicKeyED25519: slice($0, 64, 95) // the rest 32 bytes is public key 
 
-// 'selfUnlockedWithSigED25519' specifies unlock constraint with the unlock block signature
+// 'unlockedWithSigED25519' specifies unlock constraint with the unlock params signature
 // the signature must be valid and hash of the public key must be equal to the provided address
-func selfUnlockedWithSigED25519: and(
-	equal(len8(selfUnlockParameters), 96),      // unlock block must be 96 bytes long
+
+// $0 = constraint data (address without type)
+// $1 = unlock parameters of 96 bytes long
+
+func unlockedWithSigED25519: and(
+	equal(len8($1), 96),         // unlock parameters must be 96 bytes long 
 	validSignatureED25519(
-		txEssenceBytes,                    // function 'txEssenceHash' returns transaction essence bytes 
-		selfSignatureED25519,              // first 64 bytes is signature
-		selfPublicKeyED25519               // the rest is public key
+		txEssenceBytes,          // function 'txEssenceHash' returns transaction essence bytes 
+		signatureED25519($1),    
+		publicKeyED25519($1)     
 	),
-	equal(
-		selfConstraintData,                    // address in the constraint data must be equal to the hash of the  
-		addrDataED25519FromPubKey(             // public key
-			selfPublicKeyED25519
-		)
-	)
+	equal($0, blake2b(publicKeyED25519($1)) )  
+			// address in the constraint data must be equal to the hash of the public key
 )
 
-// 'selfUnlockedWithReference'' specifies validation of the input unlock with the reference
-func selfUnlockedWithReference: and(
-	equal(len8(selfUnlockParameters), 1),                // unlock block must be 2 bytes long
-	lessThan(selfUnlockParameters, selfOutputIndex),     // unlock block must point to another input with 
-														 // strictly smaller index. This prevents reference cycles	
-	equal(selfConstraint, selfReferencedConstraint)      // the referenced constraint bytes must be equal to the
-														 // self constrain bytes
+// 'unlockedByReference'' specifies validation of the input unlock with the reference.
+// The referenced constraint must be exactly the same  but with strictly lesser index.
+// This prevents from cycles and forces some other unlock mechanism up in the list of outputs
+
+// $0 - constraint (with type byte)
+// $1 - unlock parameters 1-byte long
+// $2 - index 1-byte of the selfOutput
+// $3 - referenced constraint
+
+func unlockedByReference: and(
+	equal(len8($1), 1),         // unlock parameters must be 1 byte long
+	lessThan($1, $2),           // unlock parameter must point to another input with 
+							    // strictly smaller index. This prevents reference cycles	
+	equal($0, $3)               // the referenced constraint bytes must be equal to the self constraint bytes
 )
 
 // if it is 'produced' invocation context (constraint invoked in the input), only size of the address is checked
@@ -131,8 +142,8 @@ func sigLockED25519: or(
     and(
 		isConsumedBranch(@), 
 		or(                                    
-			selfUnlockedWithReference,    // if it is unlocked with reference, the signature is not checked
-			selfUnlockedWithSigED25519    // otherwise signature is checked
+			unlockedByReference(selfConstraint, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),   // if it is unlocked with reference, the signature is not checked
+			unlockedWithSigED25519(selfConstraintData, selfUnlockParameters)    // otherwise signature is checked
 		)
 	)
 )
