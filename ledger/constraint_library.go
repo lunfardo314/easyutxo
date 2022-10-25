@@ -74,10 +74,12 @@ func init() {
 	easyfl.MustExtendMany(MainConstraintSource)
 	easyfl.MustExtendMany(SigLockED25519ConstraintSource)
 	easyfl.MustExtendMany(SenderConstraintSource)
+	easyfl.MustExtendMany(TimeLockConstraintSource)
 
 	mustRegisterConstraint(ConstraintTypeMain, "mainConstraint")
 	mustRegisterConstraint(ConstraintTypeSigLockED25519, "sigLockED25519")
 	mustRegisterConstraint(ConstraintTypeSender, "senderValid")
+	mustRegisterConstraint(ConstraintTypeTimeLock, "timeLock")
 
 	easyfl.PrintLibraryStats()
 }
@@ -114,6 +116,7 @@ const (
 	ConstraintTypeMain
 	ConstraintTypeSigLockED25519
 	ConstraintTypeSender
+	ConstraintTypeTimeLock
 )
 
 func registerConstraint(invocationCode ConstraintType, source string) error {

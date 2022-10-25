@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -158,6 +159,7 @@ type MakeTransferTransactionParams struct {
 	AdjustToMinimum   bool
 	DescendingOutputs bool
 	AddSender         bool
+	AddTimeLockForSec uint32
 }
 
 func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionParams) ([]byte, error) {
@@ -174,6 +176,12 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 		outTentative := NewOutput(par.Amount, ts, par.TargetAddress)
 		if par.AddSender {
 			if _, err = outTentative.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
+				return nil, err
+			}
+		}
+		if par.AddTimeLockForSec > 0 {
+			tentativeTimeLock := easyfl.Concat(byte(ConstraintTypeTimeLock), make([]byte, 4))
+			if _, err = outTentative.PushConstraint(tentativeTimeLock); err != nil {
 				return nil, err
 			}
 		}
@@ -223,7 +231,19 @@ func MakeTransferTransaction(ledger StateAccess, par MakeTransferTransactionPara
 	}
 	out := NewOutput(amount, ts, par.TargetAddress)
 	if par.AddSender {
+		// add sender constraint
 		if _, err = out.PushConstraint(Constraint(SenderFromLock(sourceAddr, 0))); err != nil {
+			return nil, err
+		}
+	}
+	if par.AddTimeLockForSec > 0 {
+		// add time lock constraint
+		if par.AddTimeLockForSec > math.MaxUint32-ts {
+			return nil, fmt.Errorf("wrong timelock %d", par.AddTimeLockForSec)
+		}
+		var tl [4]byte
+		binary.BigEndian.PutUint32(tl[:], ts+par.AddTimeLockForSec)
+		if _, err = out.PushConstraint(easyfl.Concat(byte(ConstraintTypeTimeLock), tl[:])); err != nil {
 			return nil, err
 		}
 	}

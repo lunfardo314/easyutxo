@@ -3,6 +3,7 @@ package ledger_test
 import (
 	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
@@ -208,5 +209,39 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 1, len(outs))
 
 		require.EqualValues(t, addr1, outs[0].Output.Sender().Lock())
+	})
+	t.Run("time lock", func(t *testing.T) {
+		u := ledger.NewUTXODB(true)
+		priv, pub := u.OriginKeys()
+		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
+		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
+		t.Logf("origin address: %s", u.OriginAddress())
+
+		privKey0, _, addr0 := u.GenerateAddress(0)
+		const howMany = 100
+		err := u.TokensFromFaucet(addr0, howMany*50)
+		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+		require.EqualValues(t, u.Supply()-howMany*50, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, howMany*50, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+		priv1, _, addr1 := u.GenerateAddress(1)
+
+		txBytes, err := ledger.MakeTransferTransaction(u, ledger.MakeTransferTransactionParams{
+			SenderKey:         privKey0,
+			TargetAddress:     addr1,
+			Amount:            200,
+			AddTimeLockForSec: 1,
+		})
+		require.NoError(t, err)
+		t.Logf("tx with timelock len: %d", len(txBytes))
+		err = u.AddTransaction(txBytes, ledger.TraceOptionFailedConstraints)
+		require.NoError(t, err)
+
+		require.EqualValues(t, 200, u.Balance(addr1))
+
+		time.Sleep(4 * time.Second)
+		err = u.TransferTokens(priv1, addr0, 80)
+		require.NoError(t, err)
 	})
 }
