@@ -142,8 +142,10 @@ func sigLockED25519: or(
     and(
 		isConsumedBranch(@), 
 		or(                                    
-			unlockedByReference(selfConstraint, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),   // if it is unlocked with reference, the signature is not checked
-			unlockedWithSigED25519(selfConstraintData, selfUnlockParameters)    // otherwise signature is checked
+				// if it is unlocked with reference, the signature is not checked
+			unlockedByReference(selfConstraint, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),
+				// otherwise signature is checked
+			unlockedWithSigED25519(selfConstraintData, selfUnlockParameters)    
 		)
 	)
 )
