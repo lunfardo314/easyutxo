@@ -200,7 +200,7 @@ func calcLenPrefix(data [][]byte) (lenPrefixType, error) {
 		return 0, errors.New("too long data")
 	}
 	if len(data) == 0 {
-		return 0, nil
+		return emptyArrayPrefix, nil
 	}
 	var dl uint16
 	var t uint16

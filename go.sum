@@ -5,6 +5,12 @@ github.com/iotaledger/trie.go v0.0.0-20221017180736-eebf1ccb33e4 h1:uVEm48KV1OAy
 github.com/iotaledger/trie.go v0.0.0-20221017180736-eebf1ccb33e4/go.mod h1:PiH9j3MVFwSwF/5Ttcwgz1PatJYggmmGb4H3UZGueJo=
 github.com/lunfardo314/easyfl v0.0.0-20221025065751-ffddfa7801e4 h1:cA8xhM3Hl0V+XwHRt81sIvMQkCibiISV0gx7qkDYB9A=
 github.com/lunfardo314/easyfl v0.0.0-20221025065751-ffddfa7801e4/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
+github.com/lunfardo314/easyfl v0.0.0-20221026071451-10d391293af6 h1:VqdKv72MOiarwBnDt3BAGBnWBhPiD5XYjkBZH1SOZT4=
+github.com/lunfardo314/easyfl v0.0.0-20221026071451-10d391293af6/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
+github.com/lunfardo314/easyfl v0.0.0-20221026073720-de88687b248a h1:wq73N6OYiKGIUaTMUb4IikS+vIRQWWgCVW1QibgF0zc=
+github.com/lunfardo314/easyfl v0.0.0-20221026073720-de88687b248a/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
+github.com/lunfardo314/easyfl v0.0.0-20221026075424-1e4e458a2027 h1:BK8ZxyHXPmPa4MVyTaupCObjB1xJ4lb87iA/lFlu2Ko=
+github.com/lunfardo314/easyfl v0.0.0-20221026075424-1e4e458a2027/go.mod h1:1JSOOW2hpxBfv119SqPEcaIsOU8j+9B5nxUragD8qJM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

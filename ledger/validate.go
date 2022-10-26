@@ -247,3 +247,20 @@ func PathToString(path []byte) string {
 	}
 	return ret
 }
+
+func (v *ValidationContext) EvalConstraintAsArray(path lazyslice.TreePath) ([]byte, error) {
+	constraint := v.tree.BytesAtPath(path)
+	if len(constraint) == 0 || constraint[0] != 0 {
+		return nil, fmt.Errorf("array constraint must start from 0-byte")
+	}
+	arr := lazyslice.ArrayFromBytes(constraint[1:], 256)
+	if arr.NumElements() == 0 {
+		return nil, fmt.Errorf("can't evaluate empty array")
+	}
+	binCode := arr.At(0)
+	args := make([][]byte, arr.NumElements()-1)
+	for i := 1; i < arr.NumElements(); i++ {
+		args[i] = arr.At(i)
+	}
+	return easyfl.EvalFromBinary(v.dataContext(path), binCode, args...)
+}
