@@ -1,9 +1,6 @@
 package ledger
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -19,6 +16,7 @@ func init() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
+	easyfl.EmbedShort("validAmount", 1, evalValidAmount, true)
 	easyfl.Extend("#vbCost16", "u16/1")
 
 	// LazyArray
@@ -31,7 +29,7 @@ func init() {
 	easyfl.Extend("producedOutputPathByIndex", "concat(0x0000,$0)")
 	easyfl.Extend("consumedOutputByIndex", "@Path(concat(0x0100,$0))")
 	easyfl.Extend("producedOutputByIndex", "@Path(concat(0x0000,$0))")
-	easyfl.Extend("consumedLockByOutputIndex", "@Array8(consumedOutputByIndex($0),1)")
+	easyfl.Extend("consumedLockByOutputIndex", "@Array8(consumedOutputByIndex($0),2)")
 
 	// special transaction related
 
@@ -72,17 +70,17 @@ func init() {
 
 	//--------------------------- constraints ------------------------------------
 
-	easyfl.MustExtendMany(MainConstraintSource)
-	easyfl.MustExtendMany(SigLockED25519ConstraintSource)
+	easyfl.MustExtendMany(AmountConstraintSource)
+	easyfl.MustExtendMany(TimeStampConstraintSource)
+	easyfl.MustExtendMany(AddressED25519ConstraintSource)
 	easyfl.MustExtendMany(SenderConstraintSource)
 	easyfl.MustExtendMany(TimeLockConstraintSource)
 
-	mustRegisterConstraint(ConstraintTypeMain, "mainConstraint")
-	mustRegisterConstraint(ConstraintTypeSigLockED25519, "sigLockED25519")
-	mustRegisterConstraint(ConstraintTypeSender, "senderValid")
-	mustRegisterConstraint(ConstraintTypeTimeLock, "timeLock")
-
 	easyfl.PrintLibraryStats()
+
+	initAmountConstraint()
+	initTimestampConstraint()
+	initAddressED25519Constraint()
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
@@ -93,6 +91,19 @@ func evalAtPath(ctx *easyfl.CallParams) []byte {
 	return ctx.DataContext().(*DataContext).dataTree.BytesAtPath(ctx.Arg(0))
 }
 
+func evalValidAmount(ctx *easyfl.CallParams) []byte {
+	a0 := ctx.Arg(0)
+	if len(a0) != 8 {
+		return nil
+	}
+	for _, b := range a0 {
+		if b != 0 {
+			return []byte{0xff}
+		}
+	}
+	return nil
+}
+
 func evalAtArray8(ctx *easyfl.CallParams) []byte {
 	arr := lazyslice.ArrayFromBytes(ctx.Arg(0))
 	idx := ctx.Arg(1)
@@ -100,57 +111,4 @@ func evalAtArray8(ctx *easyfl.CallParams) []byte {
 		panic("evalAtArray8: 1-byte value expected")
 	}
 	return arr.At(int(idx[0]))
-}
-
-type constraintRecord struct {
-	name string
-	bin  []byte
-}
-
-var constraints = make(map[ConstraintType]*constraintRecord)
-
-type ConstraintType byte
-
-const (
-	ConstraintTypeInlineScript = ConstraintType(iota)
-	ConstraintTypeUnlockScript
-	ConstraintTypeMain
-	ConstraintTypeSigLockED25519
-	ConstraintTypeSigLockED25519WithExpire
-	ConstraintTypeSender
-	ConstraintTypeTimeLock
-)
-
-func registerConstraint(invocationCode ConstraintType, source string) error {
-	if invocationCode <= 1 {
-		return errors.New("invocation codes 0 and 1 are reserved")
-	}
-	if _, found := constraints[invocationCode]; found {
-		return fmt.Errorf("repeating invocation code %d: '%s'", invocationCode, source)
-	}
-	_, numParams, code, err := easyfl.CompileExpression(source)
-	if err != nil {
-		return err
-	}
-	if numParams != 0 {
-		return fmt.Errorf("formula parameters cannot be used in the constraint: '%s'", source)
-	}
-	constraints[invocationCode] = &constraintRecord{
-		name: source,
-		bin:  code,
-	}
-	fmt.Printf("constraint %d registered: '%s'\n", invocationCode, source)
-	return nil
-}
-
-func mustRegisterConstraint(invocationCode ConstraintType, source string) {
-	if err := registerConstraint(invocationCode, source); err != nil {
-		panic(err)
-	}
-}
-
-func mustGetConstraintBinary(idx ConstraintType) ([]byte, string) {
-	ret := constraints[idx]
-	easyfl.Assert(ret != nil, "can't find constraint at constraintID '%d'", idx)
-	return ret.bin, ret.name
 }

@@ -155,7 +155,7 @@ func (tx *Transaction) EssenceBytes() []byte {
 type TransferTransactionParams struct {
 	Timestamp         uint32 // takes time.Now() if 0
 	SenderKey         ed25519.PrivateKey
-	TargetAddress     Lock
+	TargetAddress     Constraint
 	Amount            uint64
 	AdjustToMinimum   bool
 	DescendingOutputs bool
@@ -165,7 +165,7 @@ type TransferTransactionParams struct {
 
 func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) ([]byte, error) {
 	sourcePubKey := par.SenderKey.Public().(ed25519.PublicKey)
-	sourceAddr := LockFromED25519PubKey(sourcePubKey)
+	sourceAddr := AddressED25519SigLockConstraint(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
@@ -179,11 +179,11 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 
 	if par.DescendingOutputs {
 		sort.Slice(outs, func(i, j int) bool {
-			return outs[i].Output.Amount > outs[j].Output.Amount
+			return outs[i].Output.Amount() > outs[j].Output.Amount()
 		})
 	} else {
 		sort.Slice(outs, func(i, j int) bool {
-			return outs[i].Output.Amount < outs[j].Output.Amount
+			return outs[i].Output.Amount() < outs[j].Output.Amount()
 		})
 	}
 	consumedOuts := outs[:0]
@@ -195,11 +195,11 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 			return nil, fmt.Errorf("exceeded max number of consumed outputs 256")
 		}
 		consumedOuts = append(consumedOuts, o)
-		if o.Output.Timestamp >= ts {
-			ts = o.Output.Timestamp + 1
+		if o.Output.Timestamp() >= ts {
+			ts = o.Output.Timestamp() + 1
 		}
 		numConsumedOutputs++
-		availableTokens += o.Output.Amount
+		availableTokens += o.Output.Amount()
 		if availableTokens >= amount {
 			break
 		}
@@ -207,7 +207,7 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 
 	if availableTokens < amount {
 		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
-			sourceAddr.String(), par.Amount, availableTokens)
+			SigLockToString(sourceAddr), par.Amount, availableTokens)
 	}
 	ctx := NewTransactionContext()
 	for _, o := range consumedOuts {
@@ -215,7 +215,11 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 			return nil, err
 		}
 	}
-	out := NewOutput(amount, ts, par.TargetAddress)
+	out := NewOutput()
+	out.SetAmount(amount)
+	out.SetTimestamp(ts)
+	out.PutLockConstraint(par.TargetAddress)
+
 	if par.AddSender {
 		// add sender constraint
 		if _, err = out.PushConstraint(NewSenderConstraint(sourceAddr, 0)); err != nil {
@@ -265,7 +269,7 @@ func AdjustedAmount(par *TransferTransactionParams) uint64 {
 
 	outTentative := NewOutput(par.Amount, ts, par.TargetAddress)
 	if par.AddSender {
-		_, err := outTentative.PushConstraint(Constraint(NewSenderConstraint(LockED25519Null(), 0)))
+		_, err := outTentative.PushConstraint(Constraint(NewSenderConstraint(AddressED25519SigLockNull(), 0)))
 		easyfl.AssertNoError(err)
 	}
 	if par.AddTimeLockForSec > 0 {

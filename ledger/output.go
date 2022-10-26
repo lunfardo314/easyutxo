@@ -1,7 +1,6 @@
 package ledger
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -22,7 +21,8 @@ import (
 const OutputIDLength = TransactionIDLength + 1
 
 const (
-	OutputBlockMain = byte(iota)
+	OutputBlockAmount = byte(iota)
+	OutputBlockTimestamp
 	OutputBlockLock
 	OutputNumMandatoryBlocks
 )
@@ -31,15 +31,7 @@ type (
 	OutputID [OutputIDLength]byte
 
 	Output struct {
-		// Mandatory constraints are:
-		// - #0 amount/timestamp - main constraint
-		// - #1 address constraint for indexing. May be nil, then it is not indexed
-		// - #2 sender constraint
-		Amount    uint64
-		Timestamp uint32
-		Lock      Lock
-		// other constraints are optional
-		OptionalConstraints []Constraint
+		arr *lazyslice.Array
 	}
 
 	Constraint []byte
@@ -69,16 +61,6 @@ func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
 	return
 }
 
-func NewOutput(amount uint64, timestamp uint32, address Lock) *Output {
-	ret := &Output{
-		Amount:              amount,
-		Timestamp:           timestamp,
-		Lock:                address,
-		OptionalConstraints: make([]Constraint, 0),
-	}
-	return ret
-}
-
 func (oid *OutputID) String() string {
 	txid := oid.TransactionID()
 	return fmt.Sprintf("[%d]%s", oid.Index(), txid.String())
@@ -97,136 +79,121 @@ func (oid *OutputID) Bytes() []byte {
 	return oid[:]
 }
 
+func NewOutput() *Output {
+	ret := &Output{
+		arr: lazyslice.EmptyArray(256),
+	}
+
+	return ret
+}
+
 func OutputFromBytes(data []byte) (*Output, error) {
-	arr := lazyslice.ArrayFromBytes(data, 256)
-	if arr.NumElements() < 2 {
-		return nil, fmt.Errorf("wrong data length")
+	ret := &Output{
+		arr: lazyslice.ArrayFromBytes(data, 256),
 	}
-	ret := NewOutput(0, 0, nil)
+	if ret.arr.NumElements() < 3 {
+		return nil, fmt.Errorf("at least 3 constraints expected")
+	}
 	var err error
-	ret.Amount, ret.Timestamp, err = MainConstraintFromBytes(arr.At(int(OutputBlockMain)))
-	if err != nil {
+	if _, err = AmountFromConstraint(ret.arr.At(int(OutputBlockAmount))); err != nil {
 		return nil, err
 	}
-	ret.Lock, err = LockFromBytes(arr.At(int(OutputBlockLock)))
-	if err != nil {
+	if _, err = TimestampFromConstraint(ret.arr.At(int(OutputBlockTimestamp))); err != nil {
 		return nil, err
 	}
-	for i := int(OutputNumMandatoryBlocks); i < arr.NumElements(); i++ {
-		d := arr.At(i)
-		if len(d) < 1 {
-			return nil, fmt.Errorf("wrong data length")
-		}
-		ret.OptionalConstraints = append(ret.OptionalConstraints, arr.At(i))
+
+	if _, err = LockFromBytes(ret.arr.At(int(OutputBlockLock))); err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
 
-func (o *Output) ToArray() *lazyslice.Array {
-	ret := lazyslice.EmptyArray(256)
-	var a [8]byte
-	binary.BigEndian.PutUint64(a[:], o.Amount)
-	ret.Push(o.mainConstraint()) // @ OutputBlockMain = 0
-	ret.Push(o.Lock)             // @ OutputBlockLock = 1
-	for _, c := range o.OptionalConstraints {
-		ret.Push(c)
-	}
+func (o *Output) SetAmount(amount uint64) {
+	o.arr.PutAtIdxGrow(OutputBlockAmount, AmountConstraint(amount))
+}
+
+func (o *Output) SetTimestamp(ts uint32) {
+	o.arr.PutAtIdxGrow(OutputBlockTimestamp, TimestampConstraint(ts))
+}
+
+func (o *Output) Amount() uint64 {
+	ret, err := AmountFromConstraint(o.arr.At(int(OutputBlockAmount)))
+	easyfl.AssertNoError(err)
 	return ret
 }
 
+func (o *Output) Timestamp() uint32 {
+	ret, err := TimestampFromConstraint(o.arr.At(int(OutputBlockTimestamp)))
+	easyfl.AssertNoError(err)
+	return ret
+}
+
+func (o *Output) PutLockConstraint(data []byte) {
+	o.PutConstraint(data, OutputBlockLock)
+}
+
+func (o *Output) AsArray() *lazyslice.Array {
+	return o.arr
+}
+
 func (o *Output) Bytes() []byte {
-	return o.ToArray().Bytes()
+	return o.arr.Bytes()
 }
 
 func (o *Output) PushConstraint(c Constraint) (byte, error) {
 	if o.NumConstraints() >= 256 {
 		return 0, fmt.Errorf("too many constraints")
 	}
-	o.OptionalConstraints = append(o.OptionalConstraints, c)
-	return byte(len(o.OptionalConstraints) + 1), nil
+	o.arr.Push(c)
+	return byte(o.arr.NumElements() - 1), nil
+}
+
+func (o *Output) PutConstraint(c Constraint, idx byte) {
+	o.arr.PutAtIdxGrow(idx, c)
 }
 
 func (o *Output) Constraint(idx byte) Constraint {
-	switch idx {
-	case 0:
-		return o.mainConstraint()
-	case 1:
-		return Constraint(o.Lock)
-	default:
-		return o.OptionalConstraints[idx]
-	}
-}
-
-const mainConstraintSize = 1 + 4 + 8
-
-func (o *Output) mainConstraint() Constraint {
-	var a [8]byte
-	var ts [4]byte
-	binary.BigEndian.PutUint64(a[:], o.Amount)
-	binary.BigEndian.PutUint32(ts[:], o.Timestamp)
-
-	ret := easyfl.Concat(byte(ConstraintTypeMain), ts[:], a[:])
-	easyfl.Assert(len(ret) == mainConstraintSize, "len(ret)==mainConstraintSize")
-	return ret
-}
-
-func (c Constraint) Type() ConstraintType {
-	return ConstraintType(c[0])
-}
-
-func (c Constraint) Data() []byte {
-	return c[1:]
-}
-
-func (c Constraint) Name() string {
-	_, name := mustGetConstraintBinary(ConstraintType(c[0]))
-	return name
+	return o.arr.At(int(idx))
 }
 
 func (o *Output) NumConstraints() int {
-	return len(o.OptionalConstraints) + 2
+	return o.arr.NumElements()
 }
 
 func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) bool) {
-	if !fun(OutputBlockMain, o.mainConstraint()) {
-		return
-	}
-	if !fun(OutputBlockLock, Constraint(o.Lock)) {
-		return
-	}
-	for idx, c := range o.OptionalConstraints {
-		if !fun(byte(idx+int(OutputNumMandatoryBlocks)), c) {
-			return
-		}
-	}
+	o.arr.ForEach(func(i int, data []byte) bool {
+		return fun(byte(i), Constraint(data))
+	})
 }
 
 func (o *Output) Sender() (Lock, bool) {
-	var ret Lock
-	found := false
-	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
-		if constraint.Type() == ConstraintTypeSender {
-			ret = Sender(constraint).Lock()
-			found = true
-			return false
-		}
-		return true
-	})
-	return ret, found
+	panic("not implemented")
+	//var ret Lock
+	//found := false
+	//o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+	//	if constraint.Type() == ConstraintTypeSender {
+	//		ret = Sender(constraint).Lock()
+	//		found = true
+	//		return false
+	//	}
+	//	return true
+	//})
+	//return ret, found
 }
 
 func (o *Output) TimeLock() (uint32, bool) {
-	var ret uint32
-	found := false
-	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
-		if constraint.Type() == ConstraintTypeTimeLock {
-			ret = binary.BigEndian.Uint32(constraint.Data())
-			found = true
-			return false
-		}
-		return true
-	})
-	return ret, found
+	panic("not implemented")
+	//var ret uint32
+	//found := false
+	//o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+	//	if constraint.Type() == ConstraintTypeTimeLock {
+	//		ret = binary.BigEndian.Uint32(constraint.Data())
+	//		found = true
+	//		return false
+	//	}
+	//	return true
+	//})
+	//return ret, found
 }
 
 //---------------------------------------------------------
@@ -244,8 +211,5 @@ func NewUnlockBlock() *UnlockParams {
 // PutUnlockParams puts data at index. If index is out of bounds, pushes empty elements to fill the gaps
 // Unlock params in the element 'idx' corresponds to the consumed output constraint at the same index
 func (u *UnlockParams) PutUnlockParams(data []byte, idx byte) {
-	for u.array.NumElements() <= int(idx) {
-		u.array.Push(nil)
-	}
-	u.array.PutAtIdx(idx, data)
+	u.array.PutAtIdxGrow(idx, data)
 }

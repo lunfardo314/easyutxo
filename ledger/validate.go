@@ -36,41 +36,17 @@ func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
 
 // checkConstraint checks the constraint at path. In-line and unlock scripts are ignored
 // for 'produces output' context
-func (v *ValidationContext) checkConstraint(constraintPath lazyslice.TreePath, isProducedContext bool) ([]byte, string, error) {
-	binScript, name, runYN := v.parseConstraintScript(constraintPath, isProducedContext)
-	if !runYN {
-		// inline and unlock scripts are ignored in 'produced output' context
-		return nil, name, nil
-	}
-	// it is either consumed output context or it is an embedded constraint
-	f, err := easyfl.ExpressionFromBinary(binScript)
-	if err != nil {
-		panic(err)
-	}
-	ctx := v.dataContext(constraintPath)
-	if ctx.Trace() {
-		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(constraintPath)))
-	}
+func (v *ValidationContext) checkConstraint(constraintPath lazyslice.TreePath) ([]byte, error) {
 	var ret []byte
-	err = common.CatchPanicOrError(func() error {
-		ret = easyfl.EvalExpression(ctx, f)
-		return nil
+	err := common.CatchPanicOrError(func() error {
+		var err1 error
+		ret, err1 = v.evalConstraint(constraintPath)
+		return err1
 	})
-	if ctx.Trace() {
-		if err != nil {
-			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: FAIL with '%v'",
-				name, PathToString(constraintPath), err))
-			ctx.(*easyfl.GlobalDataLog).PrintLog()
-		} else {
-			if len(ret) == 0 {
-				ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: FAIL", name, PathToString(constraintPath)))
-				ctx.(*easyfl.GlobalDataLog).PrintLog()
-			} else {
-				ctx.PutTrace(fmt.Sprintf("--- constraint '%s' %s: OK", name, PathToString(constraintPath)))
-			}
-		}
+	if err != nil {
+		return nil, err
 	}
-	return ret, name, err
+	return ret, err
 }
 
 func (v *ValidationContext) Validate() error {
@@ -105,19 +81,19 @@ func (v *ValidationContext) Validate() error {
 }
 
 func (v *ValidationContext) validateProducedOutputs() (uint64, error) {
-	return v.validateOutputs(Path(TransactionBranch, TxOutputBranch), true)
+	return v.validateOutputs(Path(TransactionBranch, TxOutputBranch))
 }
 
 func (v *ValidationContext) validateConsumedOutputs() (uint64, error) {
-	return v.validateOutputs(Path(ConsumedContextBranch, ConsumedContextOutputsBranch), false)
+	return v.validateOutputs(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
 }
 
-func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath, isProducedContext bool) (uint64, error) {
+func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, error) {
 	var err error
 	var sum uint64
 	var extraDepositWeight uint32
 	v.ForEachOutput(branch, func(out *Output, byteSize uint32, path lazyslice.TreePath) bool {
-		if extraDepositWeight, err = v.runOutput(out, path, isProducedContext); err != nil {
+		if extraDepositWeight, err = v.runOutput(out, path); err != nil {
 			return false
 		}
 		minDeposit := MinimumStorageDeposit(byteSize, extraDepositWeight)
@@ -140,12 +116,7 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath, isProduce
 }
 
 // runOutput checks constraints of the output one-by-one
-func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath, isProducedContext bool) (uint32, error) {
-	mainBlockBytes := out.Constraint(OutputBlockMain)
-	if len(mainBlockBytes) != mainConstraintSize || ConstraintType(mainBlockBytes[0]) != ConstraintTypeMain {
-		// we enforce presence of the main constraint, the rest is checked by it
-		return 0, fmt.Errorf("wrong main constraint")
-	}
+func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) (uint32, error) {
 	blockPath := easyfl.Concat(path, byte(0))
 	var err error
 	extraStorageDepositWeight := uint32(0)
@@ -155,7 +126,7 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath, isPr
 		var res []byte
 		var name string
 
-		res, name, err = v.checkConstraint(blockPath, isProducedContext)
+		res, err = v.checkConstraint(blockPath)
 		if err != nil {
 			err = fmt.Errorf("constraint '%s' failed err='%v'. Path: %s",
 				name, err, PathToString(blockPath))
@@ -248,19 +219,50 @@ func PathToString(path []byte) string {
 	return ret
 }
 
-func (v *ValidationContext) EvalConstraintAsArray(path lazyslice.TreePath) ([]byte, error) {
+func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, error) {
 	constraint := v.tree.BytesAtPath(path)
-	if len(constraint) == 0 || constraint[0] != 0 {
-		return nil, fmt.Errorf("array constraint must start from 0-byte")
+	if len(constraint) == 0 {
+		return nil, fmt.Errorf("constraint can't be empty")
 	}
-	arr := lazyslice.ArrayFromBytes(constraint[1:], 256)
-	if arr.NumElements() == 0 {
-		return nil, fmt.Errorf("can't evaluate empty array")
+	ctx := v.dataContext(path)
+	if ctx.Trace() {
+		ctx.PutTrace(fmt.Sprintf("--- check constraint at path %s", PathToString(path)))
 	}
-	binCode := arr.At(0)
-	args := make([][]byte, arr.NumElements()-1)
-	for i := 1; i < arr.NumElements(); i++ {
-		args[i] = arr.At(i)
+
+	var ret []byte
+	var err error
+
+	if constraint[0] != 0 {
+		// inline constraint. Binary code cannot start with 0-byte
+		ret, err = easyfl.EvalFromBinary(ctx, constraint[1:])
+	} else {
+		// array constraint
+		arr := lazyslice.ArrayFromBytes(constraint[1:], 256)
+		if arr.NumElements() == 0 {
+			err = fmt.Errorf("can't evaluate empty array")
+		} else {
+			binCode := arr.At(0)
+			args := make([][]byte, arr.NumElements()-1)
+			for i := 1; i < arr.NumElements(); i++ {
+				args[i] = arr.At(i)
+			}
+			ret, err = easyfl.EvalFromBinary(ctx, binCode, args...)
+		}
 	}
-	return easyfl.EvalFromBinary(v.dataContext(path), binCode, args...)
+
+	if ctx.Trace() {
+		if err != nil {
+			ctx.PutTrace(fmt.Sprintf("--- constraint at path %s: FAILED with '%v'", PathToString(path), err))
+			ctx.(*easyfl.GlobalDataLog).PrintLog()
+		} else {
+			if len(ret) == 0 {
+				ctx.PutTrace(fmt.Sprintf("--- constraint at path %s: FAILED", PathToString(path)))
+				ctx.(*easyfl.GlobalDataLog).PrintLog()
+			} else {
+				ctx.PutTrace(fmt.Sprintf("--- constraint at path %s: OK", PathToString(path)))
+			}
+		}
+	}
+
+	return ret, err
 }

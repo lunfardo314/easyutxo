@@ -1,12 +1,10 @@
 package ledger
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
-	"golang.org/x/crypto/blake2b"
 )
 
 // ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
@@ -83,31 +81,6 @@ const (
 	unlockScriptName = "(unlock script constraint)"
 	inlineScriptName = "(in-line script constraint)"
 )
-
-// parseConstraintScript return binary script, name for tracing and flag if it is tu be run (true) or ignored (false)
-func (v *ValidationContext) parseConstraintScript(invocationFullPath lazyslice.TreePath, isProducedContext bool) ([]byte, string, bool) {
-	invocation := v.tree.BytesAtPath(invocationFullPath)
-	easyfl.Assert(len(invocation) >= 1, "constraint can't be empty")
-	switch ConstraintType(invocation[0]) {
-	case ConstraintTypeUnlockScript:
-		if isProducedContext {
-			return nil, unlockScriptName, false
-		}
-		// unlock block must provide script which is pre-image of the hash
-		scriptBinary := v.unlockScriptBinary(invocationFullPath)
-		h := blake2b.Sum256(scriptBinary)
-		easyfl.Assert(bytes.Equal(h[:], invocation[1:]), "script does not match provided hash")
-		return invocation[1:], unlockScriptName, true
-
-	case ConstraintTypeInlineScript:
-		if isProducedContext {
-			return nil, inlineScriptName, false
-		}
-		return invocation[1:], inlineScriptName, true
-	}
-	script, name := mustGetConstraintBinary(ConstraintType(invocation[0]))
-	return script, name, true
-}
 
 // unlockScriptBinary finds script from unlock block
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {

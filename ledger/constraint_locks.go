@@ -1,10 +1,11 @@
 package ledger
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ed25519"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"math/rand"
 	"time"
 
@@ -13,64 +14,53 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-// Lock is normally an address with private key behind or an alias address
-type (
-	LockType byte
-	Lock     []byte
-)
-
-// LockAddressED25519 ED25519 address is a special type of Lock
-const (
-	LockAddressED25519           = LockType(ConstraintTypeSigLockED25519)
-	LockAddressED25519WithExpire = LockType(ConstraintTypeSigLockED25519WithExpire)
-)
-
-func (at LockType) DataSize() int {
-	switch at {
-	case LockAddressED25519:
-		return 32
-	}
-	panic("unknown address type")
-}
-
-func (at LockType) String() string {
-	switch at {
-	case LockAddressED25519:
-		return "LockAddressED25519"
-	}
-	return "unknown address type"
-}
-
-func LockFromBytes(data []byte) (Lock, error) {
-	if len(data) == 0 {
-		return nil, io.EOF
-	}
-	if len(data) != LockType(data[0]).DataSize()+1 {
-		return nil, fmt.Errorf("LockFromBytes: wrong data size")
-	}
-	return data, nil
-}
-
-func LockFromED25519PubKey(pubKey ed25519.PublicKey) Lock {
+func AddressED25519SigLockConstraint(pubKey ed25519.PublicKey) []byte {
 	d := blake2b.Sum256(pubKey)
-	return common.Concat(byte(LockAddressED25519), d[:])
+	src := fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(d[:]))
+	_, _, binCode, err := easyfl.CompileExpression(src)
+	easyfl.AssertNoError(err)
+	return binCode
 }
 
-func LockED25519Null() Lock {
+func AddressED25519SigLockNull() []byte {
 	var empty [32]byte
-	return common.Concat(byte(LockAddressED25519), empty[:])
+	src := fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(empty[:]))
+	_, _, binCode, err := easyfl.CompileExpression(src)
+	easyfl.AssertNoError(err)
+	return binCode
 }
 
-func (a Lock) Type() LockType {
-	return LockType(a[0])
+var (
+	addressED25519ConstraintPrefix []byte
+	addressED25519ConstraintLen    int
+)
+
+func initAddressED25519Constraint() {
+	prefix, err := easyfl.FunctionCodeBytesByName("addressED25519")
+	easyfl.AssertNoError(err)
+	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
+	template := AddressED25519SigLockNull()
+	addressED25519ConstraintLen = len(template)
+	lenConstraintPrefix := len(prefix) + 1
+	common.Assert(len(template) == len(prefix)+32, "len(template)==len(prefix)+32")
+	addressED25519ConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
 }
 
-func (a Lock) Bytes() []byte {
-	return a
+func IsAddressED25519Constraint(data []byte) bool {
+	if len(data) != addressED25519ConstraintLen {
+		return false
+	}
+	return bytes.HasPrefix(data, addressED25519ConstraintPrefix)
 }
 
-func (a Lock) String() string {
-	return fmt.Sprintf("%s(%s)", a.Type(), easyfl.Fmt(a[1:]))
+func SigLockToString(lock []byte) string {
+	switch {
+	case IsAddressED25519Constraint(lock):
+		return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(lock[len(addressED25519ConstraintPrefix):]))
+
+	default:
+		return fmt.Sprintf("unknownConstraint(%s)", hex.EncodeToString(lock))
+	}
 }
 
 func UnlockParamsByReference(ref byte) []byte {
@@ -86,7 +76,7 @@ func UnlockParamsBySignatureED25519(msg []byte, privKey ed25519.PrivateKey) []by
 	return easyfl.Concat(sig, []byte(pubKey))
 }
 
-const SigLockED25519ConstraintSource = `
+const AddressED25519ConstraintSource = `
 
 // ED25519 address constraint is 1-byte type and 32 bytes address, blake2b hash of the public key
 // ED25519 unlock parameters expected to be 96 bytes-long
@@ -110,7 +100,7 @@ func unlockedWithSigED25519: and(
 		signatureED25519($1),    
 		publicKeyED25519($1)     
 	),
-	equal($0, blake2b(publicKeyED25519($1)) )  
+	equal(tail($0,3), blake2b(publicKeyED25519($1)) )  
 			// address in the constraint data must be equal to the hash of the public key
 )
 
@@ -134,10 +124,11 @@ func unlockedByReference: and(
 // Otherwise the first will check first condition if it is unlocked by reference, otherwise checks unlocking signature
 // Second condition not evaluated if the first is true 
 
-func sigLockED25519: or(
+// $0 - ED25519 address, 32 byte blake2b hash of the public key
+func addressED25519: or(
 	and(
 		isProducedBranch(@), 
-		equal( len8(selfConstraintData), 32) 
+		equal(len8($0), 32) 
 	),
     and(
 		isConsumedBranch(@), 
@@ -145,7 +136,7 @@ func sigLockED25519: or(
 				// if it is unlocked with reference, the signature is not checked
 			unlockedByReference(selfConstraint, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),
 				// otherwise signature is checked
-			unlockedWithSigED25519(selfConstraintData, selfUnlockParameters)    
+			unlockedWithSigED25519($0, selfUnlockParameters)    
 		)
 	)
 )

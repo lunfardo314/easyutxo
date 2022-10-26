@@ -1,69 +1,101 @@
 package ledger
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/iotaledger/trie.go/common"
+	"github.com/lunfardo314/easyfl"
 )
 
-func MainConstraintFromBytes(data []byte) (uint64, uint32, error) {
-	if len(data) != 1+4+8 {
-		return 0, 0, fmt.Errorf("wrong data length")
-	}
-	if ConstraintType(data[0]) != ConstraintTypeMain {
-		return 0, 0, fmt.Errorf("main constraint code expected")
-	}
-	ts := binary.BigEndian.Uint32(data[1:5])
-	amount := binary.BigEndian.Uint64(data[5:])
-	return amount, ts, nil
-}
-
-// MainConstraintSource is always in the #0 block of the output. It checks validity of the timestamp and amount
-// The constraint is:
-// - byte 0 - constraint code 2
-// - bytes 1-4 timestamp bytes, big-endian Unix seconds
-// - bytes 5-12 amount bytes, big-endian uint64
-const MainConstraintSource = `
-
-// mandatory blocks in each output
-func mainConstraintBlockIndex: 0
-func lockConstraintBlockIndex: 1
-func senderConstraintBlockIndex: 2
-
-// amount is valid if it is 8 bytes-long and not all 0
-func amountValid: and(
-	equal(len8($0),8),
-	not(isZero($0))
-)
-
-// timestamp is valid if:
-// - for consumed output - must be strongly less than the transaction timestamp
-// - for produced output - must be equal to the transaction timestamp
-func timestampValid: or(
-	and( isProducedBranch(@), equal($0, txTimestampBytes) ),
-	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) )
-)
-
-func amountBytes: tail(selfConstraintData,4)
-func timestampBytes: slice(selfConstraintData,0,3)
-
-// constrain valid if both timestamp and amount are valid 
-func amountAndTimestampValid : and(
-	timestampValid(timestampBytes),
-	amountValid(amountBytes)
-)
-
-// checks if all mandatory constraints are not nil
-// should not check presence of the main constraint itself
-func mandatoryConstraintsPresent: selfSiblingBlock(lockConstraintBlockIndex)
-
+const AmountConstraintSource = `
 func storageDepositEnough: greaterOrEqualThan(
-	amountBytes,
+	$0,
 	concat(u32/0, mul16_32(#vbCost16,len16(selfOutputBytes)))
 )
 
-func mainConstraint : and(
-	mandatoryConstraintsPresent,
-	amountAndTimestampValid,
-	storageDepositEnough
+// $0 - amount uint64 big-endian
+func amount: or(
+	isConsumedBranch(@),               // not checked in consumed branch
+	and(
+		isProducedBranch(@),           // checked in produced branch
+		equal(len8($0),8),             // length must be 8
+		storageDepositEnough($0)       // must satisfy minimum storage deposit requirements
+	)
 )
 `
+
+const TimeStampConstraintSource = `
+// $0 - 4 bytes Unix seconds big-endian 
+func timestamp: or(
+	and( isProducedBranch(@), equal($0, txTimestampBytes) ),
+	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) )	
+)
+`
+
+func AmountConstraint(amount uint64) []byte {
+	src := fmt.Sprintf("amount(u64/%d)", amount)
+	_, _, binCode, err := easyfl.CompileExpression(src)
+	easyfl.AssertNoError(err)
+	return binCode
+}
+
+var (
+	amountConstraintPrefix []byte
+	amountConstraintLen    int
+)
+
+func initAmountConstraint() {
+	prefix, err := easyfl.FunctionCodeBytesByName("amount")
+	easyfl.AssertNoError(err)
+	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
+	template := AmountConstraint(0)
+	amountConstraintLen = len(template)
+	lenConstraintPrefix := len(prefix) + 1
+	common.Assert(len(template) == len(prefix)+1+8, "len(template)==len(prefix)+1+8")
+	amountConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+}
+
+func AmountFromConstraint(data []byte) (uint64, error) {
+	if len(data) != amountConstraintLen {
+		return 0, fmt.Errorf("AmountFromConstraint:: wrong data length")
+	}
+	if !bytes.HasPrefix(data, amountConstraintPrefix) {
+		return 0, fmt.Errorf("AmountFromConstraint:: not an amount constraint")
+	}
+	return binary.BigEndian.Uint64(data[len(amountConstraintPrefix):]), nil
+}
+
+func TimestampConstraint(unixSec uint32) []byte {
+	src := fmt.Sprintf("timestamp(u32/%d)", unixSec)
+	_, _, binCode, err := easyfl.CompileExpression(src)
+	easyfl.AssertNoError(err)
+	return binCode
+}
+
+var (
+	timestampConstraintPrefix []byte
+	timestampConstraintLen    int
+)
+
+func initTimestampConstraint() {
+	prefix, err := easyfl.FunctionCodeBytesByName("timestamp")
+	easyfl.AssertNoError(err)
+	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
+	template := TimestampConstraint(0)
+	timestampConstraintLen = len(template)
+	lenConstraintPrefix := len(prefix) + 1
+	common.Assert(len(template) == len(prefix)+1+4, "len(template)==len(prefix)+1+4")
+	timestampConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+}
+
+func TimestampFromConstraint(data []byte) (uint32, error) {
+	if len(data) != timestampConstraintLen {
+		return 0, fmt.Errorf("TimestampFromConstraint:: wrong data length")
+	}
+	if !bytes.HasPrefix(data, timestampConstraintPrefix) {
+		return 0, fmt.Errorf("TimestampFromConstraint:: not a timestamp constraint")
+	}
+	return binary.BigEndian.Uint32(data[len(timestampConstraintPrefix):]), nil
+}

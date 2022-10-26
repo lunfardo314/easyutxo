@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lunfardo314/easyfl"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +19,7 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := NewOutput(0, 0, LockED25519Null())
+		out := NewOutput(0, 0, AddressED25519SigLockNull())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -35,7 +36,7 @@ func TestOutput(t *testing.T) {
 		require.EqualValues(t, out.Lock, outBack.Lock)
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := NewOutput(1337, uint32(time.Now().Unix()), LockED25519Null())
+		out := NewOutput(1337, uint32(time.Now().Unix()), AddressED25519SigLockNull())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -76,5 +77,21 @@ func TestConstructTx(t *testing.T) {
 
 		txbytes := ctx.Transaction.Bytes()
 		t.Logf("tx %d bytes", len(txbytes))
+	})
+}
+
+func TestConstraintAmount(t *testing.T) {
+	t.Run("base", func(t *testing.T) {
+		src := "validAmount(u64/1)"
+		res, err := easyfl.EvalFromSource(easyfl.NewGlobalDataTracePrint(nil), src)
+		require.NoError(t, err)
+		require.True(t, len(res) > 0)
+	})
+	t.Run("code", func(t *testing.T) {
+		src := "validAmount(u64/1)"
+		_, numArgs, binCode, err := easyfl.CompileExpression(src)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, numArgs)
+		t.Logf("%s: bin code: %s", src, easyfl.Fmt(binCode))
 	})
 }
