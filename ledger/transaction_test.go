@@ -1,7 +1,6 @@
 package ledger_test
 
 import (
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -64,9 +63,9 @@ func TestBasics(t *testing.T) {
 	t.Run("utxodb 1", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
-		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
-		t.Logf("origin address: %s", u.OriginAddress())
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
 
 		_, _, addr := u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr, 100)
@@ -79,9 +78,9 @@ func TestBasics(t *testing.T) {
 	t.Run("utxodb 2", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
-		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
-		t.Logf("origin address: %s", u.OriginAddress())
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
 
 		privKey, _, addr := u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr, 100)
@@ -103,9 +102,9 @@ func TestBasics(t *testing.T) {
 	t.Run("utxodb 3 compress outputs", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
-		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
-		t.Logf("origin address: %s", u.OriginAddress())
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
 
 		privKey, _, addr := u.GenerateAddress(0)
 		const howMany = 256
@@ -142,9 +141,9 @@ func TestBasics(t *testing.T) {
 	t.Run("utxodb too many inputs", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
-		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
-		t.Logf("origin address: %s", u.OriginAddress())
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
 
 		privKey, _, addr := u.GenerateAddress(0)
 		const howMany = 500
@@ -168,9 +167,9 @@ func TestBasics(t *testing.T) {
 	t.Run("utxodb fan out outputs", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
-		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
-		t.Logf("origin address: %s", u.OriginAddress())
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
 
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		const howMany = 100
@@ -216,9 +215,9 @@ func TestBasics(t *testing.T) {
 	t.Run("time lock", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", hex.EncodeToString(priv))
-		t.Logf("orig pub key: %s", hex.EncodeToString(pub))
-		t.Logf("origin address: %s", u.OriginAddress())
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
 
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr0, 10000)

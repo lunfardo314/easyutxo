@@ -36,13 +36,14 @@ var (
 )
 
 func initAddressED25519Constraint() {
-	prefix, err := easyfl.FunctionCodeBytesByName("addressED25519")
+	prefix, err := easyfl.FunctionCallPrefixByName("addressED25519", 1)
 	easyfl.AssertNoError(err)
 	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
 	template := AddressED25519SigLockNull()
+	common.Assert(bytes.HasPrefix(template, prefix), "bytes.HasPrefix(%s, %s)", easyfl.Fmt(template), easyfl.Fmt(prefix))
 	addressED25519ConstraintLen = len(template)
 	lenConstraintPrefix := len(prefix) + 1
-	common.Assert(len(template) == len(prefix)+32, "len(template)==len(prefix)+32")
+	common.Assert(len(template) == lenConstraintPrefix+32, "len(template)==len(prefix)+32")
 	addressED25519ConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
 }
 

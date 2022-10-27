@@ -23,13 +23,13 @@ var (
 )
 
 func initSenderConstraint() {
-	prefix, err := easyfl.FunctionCodeBytesByName("sender")
+	prefix, err := easyfl.FunctionCallPrefixByName("sender", 2)
 	easyfl.AssertNoError(err)
 	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
-	template := SenderConstraint(AddressED25519SigLockNull(), 0)
-	lenConstraintPrefix := len(prefix) + 1
-	common.Assert(len(template) == len(prefix)+1+8, "len(template)==len(prefix)+1+8")
-	senderConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+	addr := AddressED25519SigLockNull()
+	template := []byte(SenderConstraint(addr, 0))
+	common.Assert(len(template) == len(prefix)+1+len(addr)+1+1, "len(template) == len(prefix) + 1 + len(addr)+1+1")
+	senderConstraintPrefix = easyfl.Concat(template[:len(prefix)+1])
 }
 
 // SenderFromConstraint extracts sender address ($0) from the sender script

@@ -107,7 +107,7 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	}
 
 	lock := ret.arr.At(int(OutputBlockLock))
-	if IsKnownLock(lock) {
+	if !IsKnownLock(lock) {
 		return nil, fmt.Errorf("wrong or unsupported type of lock: %s", easyfl.Fmt(lock))
 	}
 	return ret, nil

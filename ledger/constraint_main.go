@@ -47,7 +47,7 @@ var (
 )
 
 func initAmountConstraint() {
-	prefix, err := easyfl.FunctionCodeBytesByName("amount")
+	prefix, err := easyfl.FunctionCallPrefixByName("amount", 1)
 	easyfl.AssertNoError(err)
 	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
 	template := AmountConstraint(0)
@@ -80,7 +80,7 @@ var (
 )
 
 func initTimestampConstraint() {
-	prefix, err := easyfl.FunctionCodeBytesByName("timestamp")
+	prefix, err := easyfl.FunctionCallPrefixByName("timestamp", 1)
 	easyfl.AssertNoError(err)
 	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
 	template := TimestampConstraint(0)

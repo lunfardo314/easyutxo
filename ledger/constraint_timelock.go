@@ -1,8 +1,11 @@
 package ledger
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 )
 
@@ -11,6 +14,37 @@ func TimeLockConstraint(ts uint32) Constraint {
 	_, _, binCode, err := easyfl.CompileExpression(src)
 	easyfl.AssertNoError(err)
 	return binCode
+}
+
+var (
+	timeLockConstraintPrefix []byte
+	timeLockConstraintLen    int
+)
+
+func initTimeLockConstraint() {
+	prefix, err := easyfl.FunctionCallPrefixByName("timeLock", 1)
+	easyfl.AssertNoError(err)
+	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
+	template := TimeLockConstraint(0)
+	timeLockConstraintLen = len(template)
+	lenConstraintPrefix := len(prefix) + 1
+	common.Assert(len(template) == len(prefix)+1+8, "len(template)==len(prefix)+1+8")
+	timeLockConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+}
+
+// TimeLockFromConstraint extracts sender address ($0) from the sender script
+func TimeLockFromConstraint(data []byte) (uint32, error) {
+	if !bytes.HasPrefix(data, timeLockConstraintPrefix) {
+		return 0, fmt.Errorf("TimeLockFromConstraint:: not a sender constraint")
+	}
+	if len(data) < len(timeLockConstraintPrefix)+1 {
+		return 0, fmt.Errorf("TimeLockFromConstraint:: wrong data len")
+	}
+	timeLockBytes, success, err := easyfl.ParseInlineDataPrefix(data[len(senderConstraintPrefix):])
+	if err != nil || !success || len(timeLockBytes) != 4 {
+		return 0, fmt.Errorf("failed to parse time lock bytes")
+	}
+	return binary.BigEndian.Uint32(timeLockBytes), nil
 }
 
 const TimeLockConstraintSource = `

@@ -235,7 +235,7 @@ func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, err
 
 	if constraint[0] != 0 {
 		// inline constraint. Binary code cannot start with 0-byte
-		ret, err = easyfl.EvalFromBinary(ctx, constraint[1:])
+		ret, err = easyfl.EvalFromBinary(ctx, constraint)
 	} else {
 		// array constraint
 		arr := lazyslice.ArrayFromBytes(constraint[1:], 256)
