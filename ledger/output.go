@@ -87,6 +87,10 @@ func NewOutput() *Output {
 	return ret
 }
 
+func OutputBasic(amount uint64, ts uint32, addr []byte) *Output {
+	return NewOutput().WithAmount(amount).WithTimestamp(ts).WithLockConstraint(addr)
+}
+
 func OutputFromBytes(data []byte) (*Output, error) {
 	ret := &Output{
 		arr: lazyslice.ArrayFromBytes(data, 256),
@@ -102,18 +106,21 @@ func OutputFromBytes(data []byte) (*Output, error) {
 		return nil, err
 	}
 
-	if _, err = LockFromBytes(ret.arr.At(int(OutputBlockLock))); err != nil {
-		return nil, err
+	lock := ret.arr.At(int(OutputBlockLock))
+	if IsKnownLock(lock) {
+		return nil, fmt.Errorf("wrong or unsupported type of lock: %s", easyfl.Fmt(lock))
 	}
 	return ret, nil
 }
 
-func (o *Output) SetAmount(amount uint64) {
+func (o *Output) WithAmount(amount uint64) *Output {
 	o.arr.PutAtIdxGrow(OutputBlockAmount, AmountConstraint(amount))
+	return o
 }
 
-func (o *Output) SetTimestamp(ts uint32) {
+func (o *Output) WithTimestamp(ts uint32) *Output {
 	o.arr.PutAtIdxGrow(OutputBlockTimestamp, TimestampConstraint(ts))
+	return o
 }
 
 func (o *Output) Amount() uint64 {
@@ -128,8 +135,9 @@ func (o *Output) Timestamp() uint32 {
 	return ret
 }
 
-func (o *Output) PutLockConstraint(data []byte) {
+func (o *Output) WithLockConstraint(data []byte) *Output {
 	o.PutConstraint(data, OutputBlockLock)
+	return o
 }
 
 func (o *Output) AsArray() *lazyslice.Array {
@@ -166,19 +174,29 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 	})
 }
 
-func (o *Output) Sender() (Lock, bool) {
-	panic("not implemented")
-	//var ret Lock
-	//found := false
-	//o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
-	//	if constraint.Type() == ConstraintTypeSender {
-	//		ret = Sender(constraint).Lock()
-	//		found = true
-	//		return false
-	//	}
-	//	return true
-	//})
-	//return ret, found
+// Sender looks for sender constraint in the output and parses out sender address
+func (o *Output) Sender() ([]byte, bool) {
+	var ret []byte
+	var found bool
+	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
+			return true
+		}
+		var err error
+		if ret, err = SenderFromConstraint(constraint); err == nil {
+			found = true
+			return false
+		}
+		return false
+	})
+	if found {
+		return ret, true
+	}
+	return nil, false
+}
+
+func (o *Output) Lock() []byte {
+	return o.arr.At(int(OutputBlockLock))
 }
 
 func (o *Output) TimeLock() (uint32, bool) {

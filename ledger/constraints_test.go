@@ -19,24 +19,24 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := NewOutput(0, 0, AddressED25519SigLockNull())
+		out := OutputBasic(0, 0, AddressED25519SigLockNull())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := NewOutput(0, 0, LockFromED25519PubKey(pubKey))
+		out := OutputBasic(0, 0, AddressED25519SigLockConstraint(pubKey))
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		require.EqualValues(t, ConstraintTypeSigLockED25519, outBack.Lock[0])
+		require.True(t, IsAddressED25519Constraint(outBack.Lock()))
 		require.EqualValues(t, out.Lock, outBack.Lock)
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := NewOutput(1337, uint32(time.Now().Unix()), AddressED25519SigLockNull())
+		out := OutputBasic(1337, uint32(time.Now().Unix()), AddressED25519SigLockNull())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -55,7 +55,7 @@ func TestConstructTx(t *testing.T) {
 
 	t.Run("1", func(t *testing.T) {
 		glb := NewTransactionContext()
-		idx, err := glb.ConsumeOutput(NewOutput(0, 0, nil), DummyOutputID())
+		idx, err := glb.ConsumeOutput(OutputBasic(0, 0, nil), DummyOutputID())
 		require.NoError(t, err)
 		require.EqualValues(t, 0, idx)
 	})
@@ -63,7 +63,7 @@ func TestConstructTx(t *testing.T) {
 		ctx := NewTransactionContext()
 		t.Logf("transaction bytes 1: %d", len(ctx.Transaction.Bytes()))
 
-		out := NewOutput(1337, uint32(time.Now().Unix()), LockFromED25519PubKey(pubKey))
+		out := OutputBasic(1337, uint32(time.Now().Unix()), AddressED25519SigLockConstraint(pubKey))
 		dummyOid := DummyOutputID()
 		idx, err := ctx.ConsumeOutput(out, dummyOid)
 		require.NoError(t, err)

@@ -53,6 +53,14 @@ func IsAddressED25519Constraint(data []byte) bool {
 	return bytes.HasPrefix(data, addressED25519ConstraintPrefix)
 }
 
+func IsKnownLock(data []byte) bool {
+	switch {
+	case IsAddressED25519Constraint(data):
+		return true
+	}
+	return false
+}
+
 func SigLockToString(lock []byte) string {
 	switch {
 	case IsAddressED25519Constraint(lock):

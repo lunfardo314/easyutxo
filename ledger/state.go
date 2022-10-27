@@ -14,7 +14,7 @@ import (
 type StateAccess interface {
 	GetUTXO(id *OutputID) ([]byte, bool)
 	// GetUTXOsForAddress order non-deterministic
-	GetUTXOsForAddress(addr Lock) ([]*OutputWithID, error)
+	GetUTXOsForAddress(addr []byte) ([]*OutputWithID, error)
 }
 
 type KVStore interface {
@@ -38,7 +38,7 @@ func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSu
 	out, oid := genesisOutput(genesisPublicKey, initialSupply, uint32(time.Now().Unix()))
 	batch := store.BatchedWriter()
 	batch.Set(common.Concat(PartitionUTXO, oid[:]), out.Bytes())
-	batch.Set(common.Concat(PartitionAccounts, out.Lock, oid[:]), []byte{0xff})
+	batch.Set(common.Concat(PartitionAccounts, out.Lock(), oid[:]), []byte{0xff})
 	if err := batch.Commit(); err != nil {
 		panic(err)
 	}
@@ -55,8 +55,8 @@ func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply ui
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	genesisLock := LockFromED25519PubKey(genesisPublicKey)
-	out := NewOutput(initialSupply, ts, genesisLock)
+	genesisLock := AddressED25519SigLockConstraint(genesisPublicKey)
+	out := NewOutput().WithAmount(initialSupply).WithTimestamp(ts).WithLockConstraint(genesisLock)
 	// genesis OutputID is all-0
 	return out, OutputID{}
 }
@@ -83,7 +83,7 @@ func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-func (u *State) GetUTXOsForAddress(addr Lock) ([]*OutputWithID, error) {
+func (u *State) GetUTXOsForAddress(addr []byte) ([]*OutputWithID, error) {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
 
@@ -125,7 +125,7 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 
 		if len(u.store.Get(consumedKey)) == 0 {
 			// only can happen if two threads are reading/writing to the same account. Not a normal situation
-			err = fmt.Errorf("reace condition while deleting output from address %s", consumed.Lock)
+			err = fmt.Errorf("reace condition while deleting output from address %s", easyfl.Fmt(consumed.Lock()))
 			return false
 		}
 		batch.Set(consumedKey, nil)

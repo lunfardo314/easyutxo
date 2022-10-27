@@ -97,16 +97,17 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 			return false
 		}
 		minDeposit := MinimumStorageDeposit(byteSize, extraDepositWeight)
-		if out.Amount < minDeposit {
+		amount := out.Amount()
+		if amount < minDeposit {
 			err = fmt.Errorf("not enough storage deposit in output %s. Minimum %d, got %d",
-				PathToString(path), minDeposit, out.Amount)
+				PathToString(path), minDeposit, out.Amount())
 			return false
 		}
-		if out.Amount > math.MaxUint64-sum {
+		if amount > math.MaxUint64-sum {
 			err = fmt.Errorf("validateOutputs @ path %s: uint64 arithmetic overflow", PathToString(path))
 			return false
 		}
-		sum += out.Amount
+		sum += amount
 		return true
 	})
 	if err != nil {

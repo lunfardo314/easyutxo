@@ -20,7 +20,7 @@ func init() {
 	easyfl.Extend("#vbCost16", "u16/1")
 
 	// LazyArray
-	// @Array8 interprets $0 as serialized LazyArray. Takes the $1 element of it. $1 is expected 1-byte
+	// @Array8 interprets $0 as serialized LazyArray with max 256 elements. Takes the $1 element of it. $1 is expected 1-byte
 	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
 
 	easyfl.Extend("isConsumedBranch", "equal(slice($0,0,1), 0x0100)")
@@ -81,6 +81,7 @@ func init() {
 	initAmountConstraint()
 	initTimestampConstraint()
 	initAddressED25519Constraint()
+	initSenderConstraint()
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
