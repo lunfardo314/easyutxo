@@ -129,7 +129,7 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 			return false
 		}
 		batch.Set(consumedKey, nil)
-		batch.Set(common.Concat(PartitionAccounts, consumed.Lock, o[:]), nil)
+		batch.Set(common.Concat(PartitionAccounts, consumed.Lock(), o[:]), nil)
 		return true
 	})
 	if err != nil {
@@ -140,7 +140,7 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 	ctx.ForEachOutput(Path(TransactionBranch, TxOutputBranch), func(o *Output, _ uint32, outputPath lazyslice.TreePath) bool {
 		id := NewOutputID(txID, outputPath[2])
 		batch.Set(common.Concat(PartitionUTXO, id[:]), o.Bytes())
-		batch.Set(common.Concat(PartitionAccounts, o.Lock, id[:]), []byte{0xff})
+		batch.Set(common.Concat(PartitionAccounts, o.Lock(), id[:]), []byte{0xff})
 		return true
 	})
 	return batch.Commit()

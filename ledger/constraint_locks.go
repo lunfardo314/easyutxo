@@ -1,7 +1,6 @@
 package ledger
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/ed25519"
 	"encoding/hex"
@@ -30,46 +29,41 @@ func AddressED25519SigLockNull() []byte {
 	return binCode
 }
 
-var (
-	addressED25519ConstraintPrefix []byte
-	addressED25519ConstraintLen    int
-)
-
 func initAddressED25519Constraint() {
-	prefix, err := easyfl.FunctionCallPrefixByName("addressED25519", 1)
+	example := AddressED25519SigLockNull()
+	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
-	template := AddressED25519SigLockNull()
-	common.Assert(bytes.HasPrefix(template, prefix), "bytes.HasPrefix(%s, %s)", easyfl.Fmt(template), easyfl.Fmt(prefix))
-	addressED25519ConstraintLen = len(template)
-	lenConstraintPrefix := len(prefix) + 1
-	common.Assert(len(template) == lenConstraintPrefix+32, "len(template)==len(prefix)+32")
-	addressED25519ConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+	common.Assert(len(args[0]) == 32, "len(args[0]) == 32")
+	registerConstraint("addressED25519", prefix)
 }
 
-func IsAddressED25519Constraint(data []byte) bool {
-	if len(data) != addressED25519ConstraintLen {
-		return false
+func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
+	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+	if err != nil {
+		return nil, false
 	}
-	return bytes.HasPrefix(data, addressED25519ConstraintPrefix)
+	name, found := ConstraintNameByPrefix(prefix)
+	if !found || name != "addressED25519" {
+		return nil, false
+	}
+	if len(args[0]) != 32 {
+		return nil, false
+	}
+	return args[0], true
 }
 
 func IsKnownLock(data []byte) bool {
-	switch {
-	case IsAddressED25519Constraint(data):
+	if _, ok := ParseAddressED25519Constraint(data); ok {
 		return true
 	}
 	return false
 }
 
 func SigLockToString(lock []byte) string {
-	switch {
-	case IsAddressED25519Constraint(lock):
-		return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(lock[len(addressED25519ConstraintPrefix):]))
-
-	default:
-		return fmt.Sprintf("unknownConstraint(%s)", hex.EncodeToString(lock))
+	if addr, ok := ParseAddressED25519Constraint(lock); ok {
+		return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(addr))
 	}
+	return fmt.Sprintf("unknownConstraint(%s)", hex.EncodeToString(lock))
 }
 
 func UnlockParamsByReference(ref byte) []byte {
@@ -99,7 +93,7 @@ func publicKeyED25519: slice($0, 64, 95) // the rest 32 bytes is public key
 // 'unlockedWithSigED25519' specifies unlock constraint with the unlock params signature
 // the signature must be valid and hash of the public key must be equal to the provided address
 
-// $0 = constraint data (address without type)
+// $0 = constraint data (address data)
 // $1 = unlock parameters of 96 bytes long
 
 func unlockedWithSigED25519: and(
@@ -109,7 +103,7 @@ func unlockedWithSigED25519: and(
 		signatureED25519($1),    
 		publicKeyED25519($1)     
 	),
-	equal(tail($0,3), blake2b(publicKeyED25519($1)) )  
+	equal($0, blake2b(publicKeyED25519($1)) )  
 			// address in the constraint data must be equal to the hash of the public key
 )
 

@@ -150,7 +150,7 @@ func TestBasics(t *testing.T) {
 
 		total := uint64(0)
 		numOuts := 0
-		for i := uint64(50); i <= howMany; i++ {
+		for i := uint64(100); i <= howMany; i++ {
 			err := u.TokensFromFaucet(addr, i)
 			require.NoError(t, err)
 			total += i
@@ -259,7 +259,7 @@ func TestBasics(t *testing.T) {
 			Amount:        2000,
 			Timestamp:     ts + 2,
 		})
-		easyfl.RequireErrorWith(t, err, "constraint 'timeLock' failed")
+		easyfl.RequireErrorWith(t, err, "constraint '' failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
 		err = u.DoTransfer(ledger.TransferTransactionParams{

@@ -36,17 +36,18 @@ func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
 
 // checkConstraint checks the constraint at path. In-line and unlock scripts are ignored
 // for 'produces output' context
-func (v *ValidationContext) checkConstraint(constraintPath lazyslice.TreePath) ([]byte, error) {
+func (v *ValidationContext) checkConstraint(constraintPath lazyslice.TreePath) ([]byte, string, error) {
 	var ret []byte
+	var name string
 	err := common.CatchPanicOrError(func() error {
 		var err1 error
-		ret, err1 = v.evalConstraint(constraintPath)
+		ret, name, err1 = v.evalConstraint(constraintPath)
 		return err1
 	})
 	if err != nil {
-		return nil, err
+		return nil, name, err
 	}
-	return ret, err
+	return ret, name, nil
 }
 
 func (v *ValidationContext) Validate() error {
@@ -127,14 +128,14 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) (uin
 		var res []byte
 		var name string
 
-		res, err = v.checkConstraint(blockPath)
+		res, name, err = v.checkConstraint(blockPath)
 		if err != nil {
-			err = fmt.Errorf("constraint '%s' failed err='%v'. Path: %s",
+			err = fmt.Errorf("constraint '%s' failed with error '%v'. Path: %s",
 				name, err, PathToString(blockPath))
 			return false
 		}
 		if len(res) == 0 {
-			err = fmt.Errorf("constraint '%s' failed'. Path: %s",
+			err = fmt.Errorf("constraint '%s' failed. Path: %s",
 				name, PathToString(blockPath))
 			return false
 		}
@@ -220,18 +221,44 @@ func PathToString(path []byte) string {
 	return ret
 }
 
-func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, error) {
+func constraintNameByBinary(binCode []byte) (string, error) {
+	prefix, err := easyfl.ParseCallPrefixFromBinary(binCode)
+	if err != nil {
+		return "", err
+	}
+	name, found := ConstraintNameByPrefix(prefix)
+	if !found {
+		return "", fmt.Errorf("not found constraint with prefix %s", easyfl.Fmt(prefix))
+	}
+	return name, nil
+}
+
+func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, string, error) {
 	constraint := v.tree.BytesAtPath(path)
 	if len(constraint) == 0 {
-		return nil, fmt.Errorf("constraint can't be empty")
+		return nil, "", fmt.Errorf("constraint can't be empty")
+	}
+	var name string
+	var err error
+	if constraint[0] != 0 {
+		name, err = constraintNameByBinary(constraint)
+		if err != nil {
+			prefix, err := easyfl.ParseCallPrefixFromBinary(constraint)
+			if err != nil {
+				name = fmt.Sprintf("with code %s", easyfl.Fmt(constraint))
+			} else {
+				name = fmt.Sprintf("with prefix %s", easyfl.Fmt(prefix))
+			}
+		}
+	} else {
+		name = "array constraint"
 	}
 	ctx := v.dataContext(path)
 	if ctx.Trace() {
-		ctx.PutTrace(fmt.Sprintf("--- check constraint at path %s", PathToString(path)))
+		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(path)))
 	}
 
 	var ret []byte
-	var err error
 
 	if constraint[0] != 0 {
 		// inline constraint. Binary code cannot start with 0-byte
@@ -253,17 +280,17 @@ func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, err
 
 	if ctx.Trace() {
 		if err != nil {
-			ctx.PutTrace(fmt.Sprintf("--- constraint at path %s: FAILED with '%v'", PathToString(path), err))
+			ctx.PutTrace(fmt.Sprintf("--- constraint '%s' at path %s: FAILED with '%v'", name, PathToString(path), err))
 			ctx.(*easyfl.GlobalDataLog).PrintLog()
 		} else {
 			if len(ret) == 0 {
-				ctx.PutTrace(fmt.Sprintf("--- constraint at path %s: FAILED", PathToString(path)))
+				ctx.PutTrace(fmt.Sprintf("--- constraint '%s' at path %s: FAILED", name, PathToString(path)))
 				ctx.(*easyfl.GlobalDataLog).PrintLog()
 			} else {
-				ctx.PutTrace(fmt.Sprintf("--- constraint at path %s: OK", PathToString(path)))
+				ctx.PutTrace(fmt.Sprintf("--- constraint '%s' at path %s: OK", name, PathToString(path)))
 			}
 		}
 	}
 
-	return ret, err
+	return ret, name, err
 }

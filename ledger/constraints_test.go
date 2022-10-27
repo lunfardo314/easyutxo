@@ -32,8 +32,9 @@ func TestOutput(t *testing.T) {
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		require.True(t, IsAddressED25519Constraint(outBack.Lock()))
-		require.EqualValues(t, out.Lock, outBack.Lock)
+		_, ok := ParseAddressED25519Constraint(outBack.Lock())
+		require.True(t, ok)
+		require.EqualValues(t, out.Lock(), outBack.Lock())
 	})
 	t.Run("tokens", func(t *testing.T) {
 		out := OutputBasic(1337, uint32(time.Now().Unix()), AddressED25519SigLockNull())
@@ -42,7 +43,7 @@ func TestOutput(t *testing.T) {
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		tokensBack := outBack.Amount
+		tokensBack := outBack.Amount()
 		require.EqualValues(t, 1337, tokensBack)
 	})
 }

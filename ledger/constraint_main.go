@@ -41,30 +41,27 @@ func AmountConstraint(amount uint64) []byte {
 	return binCode
 }
 
-var (
-	amountConstraintPrefix []byte
-	amountConstraintLen    int
-)
-
 func initAmountConstraint() {
-	prefix, err := easyfl.FunctionCallPrefixByName("amount", 1)
+	example := AmountConstraint(1337)
+	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
-	template := AmountConstraint(0)
-	amountConstraintLen = len(template)
-	lenConstraintPrefix := len(prefix) + 1
-	common.Assert(len(template) == len(prefix)+1+8, "len(template)==len(prefix)+1+8")
-	amountConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+	common.Assert(len(args[0]) == 8 && binary.BigEndian.Uint64(args[0]) == 1337, "len(args)==8 && binary.BigEndian.Uint64(args[0])==1337")
+	registerConstraint("amount", prefix)
 }
 
 func AmountFromConstraint(data []byte) (uint64, error) {
-	if len(data) != amountConstraintLen {
+	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+	if err != nil {
+		return 0, err
+	}
+	prefix1 := constraintPrefixByName["amount"]
+	if !bytes.Equal(prefix, prefix1) {
+		return 0, fmt.Errorf("AmountFromConstraint:: not an 'amount' constraint")
+	}
+	if len(args[0]) != 8 {
 		return 0, fmt.Errorf("AmountFromConstraint:: wrong data length")
 	}
-	if !bytes.HasPrefix(data, amountConstraintPrefix) {
-		return 0, fmt.Errorf("AmountFromConstraint:: not an amount constraint")
-	}
-	return binary.BigEndian.Uint64(data[len(amountConstraintPrefix):]), nil
+	return binary.BigEndian.Uint64(args[0]), nil
 }
 
 func TimestampConstraint(unixSec uint32) []byte {
@@ -74,28 +71,25 @@ func TimestampConstraint(unixSec uint32) []byte {
 	return binCode
 }
 
-var (
-	timestampConstraintPrefix []byte
-	timestampConstraintLen    int
-)
-
 func initTimestampConstraint() {
-	prefix, err := easyfl.FunctionCallPrefixByName("timestamp", 1)
+	example := TimestampConstraint(1337)
+	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(0 < len(prefix) && len(prefix) <= 2, "0<len(prefix) && len(prefix)<=2")
-	template := TimestampConstraint(0)
-	timestampConstraintLen = len(template)
-	lenConstraintPrefix := len(prefix) + 1
-	common.Assert(len(template) == len(prefix)+1+4, "len(template)==len(prefix)+1+4")
-	timestampConstraintPrefix = easyfl.Concat(template[:lenConstraintPrefix])
+	common.Assert(len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337")
+	registerConstraint("timestamp", prefix)
 }
 
 func TimestampFromConstraint(data []byte) (uint32, error) {
-	if len(data) != timestampConstraintLen {
+	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+	if err != nil {
+		return 0, err
+	}
+	prefix1 := constraintPrefixByName["timestamp"]
+	if !bytes.Equal(prefix, prefix1) {
+		return 0, fmt.Errorf("TimestampFromConstraint:: not an 'amount' constraint")
+	}
+	if len(args[0]) != 4 {
 		return 0, fmt.Errorf("TimestampFromConstraint:: wrong data length")
 	}
-	if !bytes.HasPrefix(data, timestampConstraintPrefix) {
-		return 0, fmt.Errorf("TimestampFromConstraint:: not a timestamp constraint")
-	}
-	return binary.BigEndian.Uint32(data[len(timestampConstraintPrefix):]), nil
+	return binary.BigEndian.Uint32(args[0]), nil
 }

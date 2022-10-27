@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -82,6 +83,33 @@ func init() {
 	initTimestampConstraint()
 	initAddressED25519Constraint()
 	initSenderConstraint()
+}
+
+var (
+	constraintNameByPrefix = make(map[string]string)
+	constraintPrefixByName = make(map[string][]byte)
+)
+
+func registerConstraint(name string, prefix []byte) {
+	if _, already := constraintPrefixByName[name]; already {
+		common.Assert(!already, "repeating constraint name '%s'", name)
+	}
+	if _, already := constraintNameByPrefix[string(prefix)]; already {
+		common.Assert(!already, "repeating constraint prefix %s with name '%s'", easyfl.Fmt(prefix), name)
+	}
+	common.Assert(0 < len(prefix) && len(prefix) <= 2, "wrong constraint prefix %s, name: %s", easyfl.Fmt(prefix), name)
+	constraintNameByPrefix[string(prefix)] = name
+	constraintPrefixByName[name] = prefix
+}
+
+func ConstraintNameByPrefix(prefix []byte) (string, bool) {
+	ret, found := constraintNameByPrefix[string(prefix)]
+	return ret, found
+}
+
+func ConstraintPrefixByName(name string) ([]byte, bool) {
+	ret, found := constraintPrefixByName[name]
+	return ret, found
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
