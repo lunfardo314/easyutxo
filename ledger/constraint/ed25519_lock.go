@@ -14,26 +14,31 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func AddressED25519SigLock(pubKey ed25519.PublicKey) []byte {
-	d := blake2b.Sum256(pubKey)
-	src := fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(d[:]))
-	_, _, binCode, err := easyfl.CompileExpression(src)
-	easyfl.AssertNoError(err)
-	return binCode
+func AddressED25519LockSourceFromAddressData(addr []byte) string {
+	return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(addr))
 }
 
-func AddressED25519SigLockNull() []byte {
-	var empty [32]byte
-	src := fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(empty[:]))
-	_, _, binCode, err := easyfl.CompileExpression(src)
-	easyfl.AssertNoError(err)
-	return binCode
+func AddressED25519LockSourceFromPublicKey(pubKey ed25519.PublicKey) string {
+	h := blake2b.Sum256(pubKey)
+	return AddressED25519LockSourceFromAddressData(h[:])
+}
+
+func AddressED25519LockBin(pubKey ed25519.PublicKey) []byte {
+	return mustBinFromSource(AddressED25519LockSourceFromPublicKey(pubKey))
+}
+
+func AddressED25519LockNullSource() string {
+	return AddressED25519LockSourceFromAddressData(make([]byte, 32))
+}
+
+func AddressED25519LockNullBin() []byte {
+	return mustBinFromSource(AddressED25519LockNullSource())
 }
 
 func initAddressED25519Constraint() {
 	easyfl.MustExtendMany(AddressED25519ConstraintSource)
 
-	example := AddressED25519SigLockNull()
+	example := AddressED25519LockNullBin()
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
 	common.Assert(len(args[0]) == 32, "len(args[0]) == 32")

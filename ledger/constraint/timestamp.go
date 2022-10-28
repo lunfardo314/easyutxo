@@ -9,7 +9,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 )
 
-const TimeStampConstraintSource = `
+const timestampSource = `
 // $0 - 4 bytes Unix seconds big-endian 
 func timestamp: or(
 	and( isProducedBranch(@), equal($0, txTimestampBytes) ),
@@ -17,17 +17,18 @@ func timestamp: or(
 )
 `
 
-func Timestamp(unixSec uint32) []byte {
-	src := fmt.Sprintf("timestamp(u32/%d)", unixSec)
-	_, _, binCode, err := easyfl.CompileExpression(src)
-	easyfl.AssertNoError(err)
-	return binCode
+func TimestampConstraintSource(unixSec uint32) string {
+	return fmt.Sprintf("timestamp(u32/%d)", unixSec)
+}
+
+func TimestampConstraintBin(unixSec uint32) []byte {
+	return mustBinFromSource(TimestampConstraintSource(unixSec))
 }
 
 func initTimestampConstraint() {
-	easyfl.MustExtendMany(TimeStampConstraintSource)
+	easyfl.MustExtendMany(timestampSource)
 
-	example := Timestamp(1337)
+	example := TimestampConstraintBin(1337)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
 	common.Assert(len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337")

@@ -45,7 +45,7 @@ func NewUTXODB(trace ...bool) *UTXODB {
 		supply:           supplyForTesting,
 		originPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
 		originPublicKey:  originPubKey,
-		originAddress:    constraint.AddressED25519SigLock(originPubKey),
+		originAddress:    constraint.AddressED25519LockBin(originPubKey),
 		trace:            len(trace) > 0 && trace[0],
 	}
 	return ret
@@ -90,7 +90,7 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	seed := blake2b.Sum256(common.Concat([]byte(deterministicSeed), u16[:]))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	addr := constraint.AddressED25519SigLock(pub)
+	addr := constraint.AddressED25519LockBin(pub)
 	return priv, pub, addr
 }
 

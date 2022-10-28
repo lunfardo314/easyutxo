@@ -2,7 +2,6 @@ package ledger_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
@@ -10,56 +9,6 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	t.Run("empty tx", func(t *testing.T) {
-		ctx := ledger.NewTransactionContext()
-		t.Logf("empty ctx size: %d", len(ctx.Transaction.Bytes()))
-		require.EqualValues(t, 0, ctx.NumInputs())
-		require.EqualValues(t, 0, ctx.NumOutputs())
-	})
-	//t.Run("tx structure", func(t *testing.T) {
-	//	state := ledger.NewLedgerStateInMemory(nil, 100)
-	//	tx := ledger.NewTransaction()
-	//	require.EqualValues(t, 0, tx.NumInputs())
-	//	require.EqualValues(t, 0, tx.NumOutputs())
-	//
-	//	v, err := ledger.ValidationContextFromTransaction(tx.Bytes(), state)
-	//	require.NoError(t, err)
-	//	txid := tx.ID()
-	//	require.EqualValues(t, txid, v.TransactionID())
-	//
-	//	inputIDs := v.MustEval("txInputIDsBytes", nil)
-	//	v2 := tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputIDsBranch))
-	//	require.EqualValues(t, inputIDs, v2)
-	//
-	//	outputs := v.MustEval("txOutputsBytes", nil)
-	//	v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxOutputBranch))
-	//	require.EqualValues(t, outputs, v2)
-	//
-	//	ts := v.MustEval("txTimestampBytes", nil)
-	//	v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxTimestamp))
-	//	require.True(t, easyutxo.EmptySlices(ts, v2))
-	//
-	//	inpComm := v.MustEval("txInputCommitmentBytes", nil)
-	//	v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxInputCommitment))
-	//	require.True(t, easyutxo.EmptySlices(inpComm, v2))
-	//
-	//	lib := v.MustEval("txLocalLibBytes", nil)
-	//	v2 = tx.Tree().BytesAtPath(ledger.Path(ledger.TxLocalLibraryBranch))
-	//	require.True(t, bytes.Equal(lib, v2))
-	//
-	//	essence := v.MustEval("txEssenceBytes", nil)
-	//	v2 = easyutxo.Concat(inputIDs, outputs, ts, inpComm, lib)
-	//	require.True(t, bytes.Equal(essence, v2))
-	//
-	//})
-	//t.Run("input commitment", func(t *testing.T) {
-	//	ctx := ledger.NewValidationContext()
-	//	ctx.AddInputCommitment()
-	//	ic := ctx.InputCommitment()
-	//	ic1 := ctx.Tree().BytesAtPath(ledger.Path(ledger.TransactionBranch, ledger.TxInputCommitment))
-	//	require.EqualValues(t, ic, ic1)
-	//	t.Logf("input commitment: %s", hex.EncodeToString(ic))
-	//})
 	t.Run("utxodb 1", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
@@ -211,123 +160,5 @@ func TestBasics(t *testing.T) {
 		snd, ok := outs[0].Output.Sender()
 		require.True(t, ok)
 		require.EqualValues(t, addr1, snd)
-	})
-	t.Run("time lock 1", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
-		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
-		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
-		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
-
-		privKey0, _, addr0 := u.GenerateAddress(0)
-		err := u.TokensFromFaucet(addr0, 10000)
-		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, 10000, u.Balance(addr0))
-		require.EqualValues(t, 1, u.NumUTXOs(addr0))
-
-		priv1, _, addr1 := u.GenerateAddress(1)
-
-		ts := uint32(time.Now().Unix()) + 5
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            200,
-			Timestamp:         ts,
-			AddTimeLockForSec: 1,
-		})
-		require.NoError(t, err)
-		t.Logf("tx with timelock len: %d", len(txBytes))
-		err = u.AddTransaction(txBytes, ledger.TraceOptionFailedConstraints)
-		require.NoError(t, err)
-
-		require.EqualValues(t, 200, u.Balance(addr1))
-
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            2000,
-			AddTimeLockForSec: 10,
-			Timestamp:         ts + 1,
-		})
-		require.NoError(t, err)
-
-		require.EqualValues(t, 2200, u.Balance(addr1))
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 2,
-		})
-		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
-		require.EqualValues(t, 2200, u.Balance(addr1))
-
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 12,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 200, u.Balance(addr1))
-	})
-	t.Run("time lock 2", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
-		priv, pub := u.OriginKeys()
-		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
-		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
-		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
-
-		privKey0, _, addr0 := u.GenerateAddress(0)
-		err := u.TokensFromFaucet(addr0, 10000)
-		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, 10000, u.Balance(addr0))
-		require.EqualValues(t, 1, u.NumUTXOs(addr0))
-
-		priv1, _, addr1 := u.GenerateAddress(1)
-
-		ts := uint32(time.Now().Unix()) + 5
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            200,
-			Timestamp:         ts,
-			AddTimeLockForSec: 1,
-		})
-		require.NoError(t, err)
-		t.Logf("tx with timelock len: %d", len(txBytes))
-		err = u.AddTransaction(txBytes, ledger.TraceOptionFailedConstraints)
-		require.NoError(t, err)
-
-		require.EqualValues(t, 200, u.Balance(addr1))
-
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            2000,
-			AddTimeLockForSec: 10,
-			Timestamp:         ts + 1,
-		})
-		require.NoError(t, err)
-
-		require.EqualValues(t, 2200, u.Balance(addr1))
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 2,
-		})
-		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
-		require.EqualValues(t, 2200, u.Balance(addr1))
-
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 12,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 200, u.Balance(addr1))
 	})
 }

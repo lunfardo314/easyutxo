@@ -156,7 +156,7 @@ func (tx *Transaction) EssenceBytes() []byte {
 type TransferTransactionParams struct {
 	Timestamp         uint32 // takes time.Now() if 0
 	SenderKey         ed25519.PrivateKey
-	TargetAddress     Constraint
+	TargetAddress     []byte
 	Amount            uint64
 	AdjustToMinimum   bool
 	DescendingOutputs bool
@@ -166,7 +166,7 @@ type TransferTransactionParams struct {
 
 func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) ([]byte, error) {
 	sourcePubKey := par.SenderKey.Public().(ed25519.PublicKey)
-	sourceAddr := constraint.AddressED25519SigLock(sourcePubKey)
+	sourceAddr := constraint.AddressED25519LockBin(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 
 	if par.AddSender {
 		// add sender constraint
-		if _, err = out.PushConstraint(constraint.Sender(sourceAddr, 0)); err != nil {
+		if _, err = out.PushConstraint(constraint.SenderConstraintBin(sourceAddr, 0)); err != nil {
 			return nil, err
 		}
 	}
@@ -232,7 +232,7 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 		if par.AddTimeLockForSec > math.MaxUint32-ts {
 			return nil, fmt.Errorf("wrong timelock delta %d", par.AddTimeLockForSec)
 		}
-		if _, err = out.PushConstraint(constraint.Timelock(ts + par.AddTimeLockForSec)); err != nil {
+		if _, err = out.PushConstraint(constraint.TimelockConstraintBin(ts + par.AddTimeLockForSec)); err != nil {
 			return nil, err
 		}
 	}
@@ -276,11 +276,11 @@ func AdjustedAmount(par *TransferTransactionParams) uint64 {
 	outTentative.WithTimestamp(ts)
 	outTentative.WithLockConstraint(par.TargetAddress)
 	if par.AddSender {
-		_, err := outTentative.PushConstraint(constraint.Sender(constraint.AddressED25519SigLockNull(), 0))
+		_, err := outTentative.PushConstraint(constraint.SenderConstraintBin(constraint.AddressED25519LockNullBin(), 0))
 		easyfl.AssertNoError(err)
 	}
 	if par.AddTimeLockForSec > 0 {
-		_, err := outTentative.PushConstraint(constraint.Timelock(par.AddTimeLockForSec))
+		_, err := outTentative.PushConstraint(constraint.TimelockConstraintBin(par.AddTimeLockForSec))
 		easyfl.AssertNoError(err)
 	}
 	minimumDeposit := MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)

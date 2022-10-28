@@ -124,7 +124,7 @@ func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) (uin
 	var err error
 	extraStorageDepositWeight := uint32(0)
 
-	out.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+	out.ForEachConstraint(func(idx byte, _ []byte) bool {
 		blockPath[len(blockPath)-1] = idx
 		var res []byte
 		var name string

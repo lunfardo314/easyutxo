@@ -17,7 +17,6 @@ func init() {
 	// context access
 	easyfl.EmbedShort("@", 0, evalPath, true)
 	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
-	easyfl.EmbedShort("validAmount", 1, evalValidAmount, true)
 	easyfl.Extend("#vbCost16", "u16/1")
 
 	// LazyArray
@@ -75,6 +74,7 @@ func init() {
 	initAddressED25519Constraint()
 	initTimelockConstraint()
 	initSenderConstraint()
+	initDeadlineLockConstraint()
 
 	easyfl.PrintLibraryStats()
 }
@@ -106,25 +106,18 @@ func PrefixByName(name string) ([]byte, bool) {
 	return ret, found
 }
 
+func mustBinFromSource(src string) []byte {
+	_, _, binCode, err := easyfl.CompileExpression(src)
+	easyfl.AssertNoError(err)
+	return binCode
+}
+
 func evalPath(ctx *easyfl.CallParams) []byte {
 	return ctx.DataContext().(*DataContext).Path
 }
 
 func evalAtPath(ctx *easyfl.CallParams) []byte {
 	return ctx.DataContext().(*DataContext).DataTree.BytesAtPath(ctx.Arg(0))
-}
-
-func evalValidAmount(ctx *easyfl.CallParams) []byte {
-	a0 := ctx.Arg(0)
-	if len(a0) != 8 {
-		return nil
-	}
-	for _, b := range a0 {
-		if b != 0 {
-			return []byte{0xff}
-		}
-	}
-	return nil
 }
 
 func evalAtArray8(ctx *easyfl.CallParams) []byte {

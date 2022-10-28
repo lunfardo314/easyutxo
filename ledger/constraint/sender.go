@@ -11,18 +11,19 @@ import (
 
 // TODO take sender from unlock block or only accept senders from known types of locks
 
-func Sender(lock []byte, referencedInput byte) []byte {
-	src := fmt.Sprintf("sender(0x%s, %d)", hex.EncodeToString(lock), referencedInput)
-	_, _, binCode, err := easyfl.CompileExpression(src)
-	easyfl.AssertNoError(err)
-	return binCode
+func SenderConstraintSource(lock []byte, referencedInput byte) string {
+	return fmt.Sprintf("sender(0x%s, %d)", hex.EncodeToString(lock), referencedInput)
+}
+
+func SenderConstraintBin(lock []byte, referencedInput byte) []byte {
+	return mustBinFromSource(SenderConstraintSource(lock, referencedInput))
 }
 
 func initSenderConstraint() {
-	easyfl.MustExtendMany(SenderConstraintSource)
+	easyfl.MustExtendMany(senderSource)
 
-	addr := AddressED25519SigLockNull()
-	example := Sender(addr, 0)
+	addr := AddressED25519LockNullBin()
+	example := SenderConstraintBin(addr, 0)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 2)
 	easyfl.AssertNoError(err)
 	common.Assert(bytes.Equal(args[0], addr), "bytes.Equal(args[0], addr)")
@@ -43,7 +44,7 @@ func SenderFromConstraint(data []byte) ([]byte, error) {
 	return args[0], nil
 }
 
-const SenderConstraintSource = `
+const senderSource = `
 
 // $0 - lock constraint which is sender
 // $1 - referenced consumed output index

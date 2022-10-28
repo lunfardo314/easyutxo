@@ -35,8 +35,6 @@ type (
 		arr *lazyslice.Array
 	}
 
-	Constraint []byte
-
 	OutputWithID struct {
 		ID     OutputID
 		Output *Output
@@ -47,10 +45,6 @@ func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
 	copy(ret[:TransactionIDLength], id[:])
 	ret[TransactionIDLength] = idx
 	return
-}
-
-func DummyOutputID() OutputID {
-	return NewOutputID(TransactionID{}, 0)
 }
 
 func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
@@ -115,12 +109,12 @@ func OutputFromBytes(data []byte) (*Output, error) {
 }
 
 func (o *Output) WithAmount(amount uint64) *Output {
-	o.arr.PutAtIdxGrow(OutputBlockAmount, constraint.Amount(amount))
+	o.arr.PutAtIdxGrow(OutputBlockAmount, constraint.AmountConstraintBin(amount))
 	return o
 }
 
 func (o *Output) WithTimestamp(ts uint32) *Output {
-	o.arr.PutAtIdxGrow(OutputBlockTimestamp, constraint.Timestamp(ts))
+	o.arr.PutAtIdxGrow(OutputBlockTimestamp, constraint.TimestampConstraintBin(ts))
 	return o
 }
 
@@ -149,7 +143,7 @@ func (o *Output) Bytes() []byte {
 	return o.arr.Bytes()
 }
 
-func (o *Output) PushConstraint(c Constraint) (byte, error) {
+func (o *Output) PushConstraint(c []byte) (byte, error) {
 	if o.NumConstraints() >= 256 {
 		return 0, fmt.Errorf("too many constraints")
 	}
@@ -157,11 +151,11 @@ func (o *Output) PushConstraint(c Constraint) (byte, error) {
 	return byte(o.arr.NumElements() - 1), nil
 }
 
-func (o *Output) PutConstraint(c Constraint, idx byte) {
+func (o *Output) PutConstraint(c []byte, idx byte) {
 	o.arr.PutAtIdxGrow(idx, c)
 }
 
-func (o *Output) Constraint(idx byte) Constraint {
+func (o *Output) Constraint(idx byte) []byte {
 	return o.arr.At(int(idx))
 }
 
@@ -169,9 +163,9 @@ func (o *Output) NumConstraints() int {
 	return o.arr.NumElements()
 }
 
-func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) bool) {
+func (o *Output) ForEachConstraint(fun func(idx byte, constr []byte) bool) {
 	o.arr.ForEach(func(i int, data []byte) bool {
-		return fun(byte(i), Constraint(data))
+		return fun(byte(i), data)
 	})
 }
 
@@ -179,7 +173,7 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 func (o *Output) Sender() ([]byte, bool) {
 	var ret []byte
 	var found bool
-	o.ForEachConstraint(func(idx byte, constr Constraint) bool {
+	o.ForEachConstraint(func(idx byte, constr []byte) bool {
 		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
 			return true
 		}
@@ -203,12 +197,12 @@ func (o *Output) Lock() []byte {
 func (o *Output) TimeLock() (uint32, bool) {
 	var ret uint32
 	var found bool
-	o.ForEachConstraint(func(idx byte, constr Constraint) bool {
+	o.ForEachConstraint(func(idx byte, constr []byte) bool {
 		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
 			return true
 		}
 		var err error
-		if ret, err = constraint.TimelockFromConstraint(constr); err == nil {
+		if ret, err = constraint.TimelockFromBin(constr); err == nil {
 			found = true
 			return false
 		}

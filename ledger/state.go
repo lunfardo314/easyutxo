@@ -56,7 +56,7 @@ func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply ui
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	genesisLock := constraint.AddressED25519SigLock(genesisPublicKey)
+	genesisLock := constraint.AddressED25519LockBin(genesisPublicKey)
 	out := NewOutput().WithAmount(initialSupply).WithTimestamp(ts).WithLockConstraint(genesisLock)
 	// genesis OutputID is all-0
 	return out, OutputID{}

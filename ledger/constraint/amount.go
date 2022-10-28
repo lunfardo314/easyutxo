@@ -9,7 +9,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 )
 
-const AmountConstraintSource = `
+const amountSource = `
 func storageDepositEnough: greaterOrEqualThan(
 	$0,
 	concat(u32/0, mul16_32(#vbCost16,len16(selfOutputBytes)))
@@ -26,17 +26,18 @@ func amount: or(
 )
 `
 
-func Amount(amount uint64) []byte {
-	src := fmt.Sprintf("amount(u64/%d)", amount)
-	_, _, binCode, err := easyfl.CompileExpression(src)
-	easyfl.AssertNoError(err)
-	return binCode
+func AmountConstraintSource(amount uint64) string {
+	return fmt.Sprintf("amount(u64/%d)", amount)
+}
+
+func AmountConstraintBin(amount uint64) []byte {
+	return mustBinFromSource(AmountConstraintSource(amount))
 }
 
 func initAmountConstraint() {
-	easyfl.MustExtendMany(AmountConstraintSource)
+	easyfl.MustExtendMany(amountSource)
 
-	example := Amount(1337)
+	example := AmountConstraintBin(1337)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
 	common.Assert(len(args[0]) == 8 && binary.BigEndian.Uint64(args[0]) == 1337, "len(args)==8 && binary.BigEndian.Uint64(args[0])==1337")
