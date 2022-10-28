@@ -6,6 +6,7 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 )
 
 // Output is a LazyArray with constraint invocations
@@ -99,38 +100,38 @@ func OutputFromBytes(data []byte) (*Output, error) {
 		return nil, fmt.Errorf("at least 3 constraints expected")
 	}
 	var err error
-	if _, err = AmountFromConstraint(ret.arr.At(int(OutputBlockAmount))); err != nil {
+	if _, err = constraint.AmountFromConstraint(ret.arr.At(int(OutputBlockAmount))); err != nil {
 		return nil, err
 	}
-	if _, err = TimestampFromConstraint(ret.arr.At(int(OutputBlockTimestamp))); err != nil {
+	if _, err = constraint.TimestampFromConstraint(ret.arr.At(int(OutputBlockTimestamp))); err != nil {
 		return nil, err
 	}
 
 	lock := ret.arr.At(int(OutputBlockLock))
-	if !IsKnownLock(lock) {
+	if !constraint.IsKnownLock(lock) {
 		return nil, fmt.Errorf("wrong or unsupported type of lock: %s", easyfl.Fmt(lock))
 	}
 	return ret, nil
 }
 
 func (o *Output) WithAmount(amount uint64) *Output {
-	o.arr.PutAtIdxGrow(OutputBlockAmount, AmountConstraint(amount))
+	o.arr.PutAtIdxGrow(OutputBlockAmount, constraint.Amount(amount))
 	return o
 }
 
 func (o *Output) WithTimestamp(ts uint32) *Output {
-	o.arr.PutAtIdxGrow(OutputBlockTimestamp, TimestampConstraint(ts))
+	o.arr.PutAtIdxGrow(OutputBlockTimestamp, constraint.Timestamp(ts))
 	return o
 }
 
 func (o *Output) Amount() uint64 {
-	ret, err := AmountFromConstraint(o.arr.At(int(OutputBlockAmount)))
+	ret, err := constraint.AmountFromConstraint(o.arr.At(int(OutputBlockAmount)))
 	easyfl.AssertNoError(err)
 	return ret
 }
 
 func (o *Output) Timestamp() uint32 {
-	ret, err := TimestampFromConstraint(o.arr.At(int(OutputBlockTimestamp)))
+	ret, err := constraint.TimestampFromConstraint(o.arr.At(int(OutputBlockTimestamp)))
 	easyfl.AssertNoError(err)
 	return ret
 }
@@ -178,12 +179,12 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constraint Constraint) boo
 func (o *Output) Sender() ([]byte, bool) {
 	var ret []byte
 	var found bool
-	o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
+	o.ForEachConstraint(func(idx byte, constr Constraint) bool {
 		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
 			return true
 		}
 		var err error
-		if ret, err = SenderFromConstraint(constraint); err == nil {
+		if ret, err = constraint.SenderFromConstraint(constr); err == nil {
 			found = true
 			return false
 		}
@@ -200,18 +201,23 @@ func (o *Output) Lock() []byte {
 }
 
 func (o *Output) TimeLock() (uint32, bool) {
-	panic("not implemented")
-	//var ret uint32
-	//found := false
-	//o.ForEachConstraint(func(idx byte, constraint Constraint) bool {
-	//	if constraint.Type() == ConstraintTypeTimeLock {
-	//		ret = binary.BigEndian.Uint32(constraint.Data())
-	//		found = true
-	//		return false
-	//	}
-	//	return true
-	//})
-	//return ret, found
+	var ret uint32
+	var found bool
+	o.ForEachConstraint(func(idx byte, constr Constraint) bool {
+		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
+			return true
+		}
+		var err error
+		if ret, err = constraint.TimelockFromConstraint(constr); err == nil {
+			found = true
+			return false
+		}
+		return false
+	})
+	if found {
+		return ret, true
+	}
+	return 0, false
 }
 
 //---------------------------------------------------------

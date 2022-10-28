@@ -1,6 +1,7 @@
-package ledger
+package constraint
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ed25519"
 	"encoding/hex"
@@ -13,7 +14,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func AddressED25519SigLockConstraint(pubKey ed25519.PublicKey) []byte {
+func AddressED25519SigLock(pubKey ed25519.PublicKey) []byte {
 	d := blake2b.Sum256(pubKey)
 	src := fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(d[:]))
 	_, _, binCode, err := easyfl.CompileExpression(src)
@@ -42,32 +43,15 @@ func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
 	if err != nil {
 		return nil, false
 	}
-	name, found := ConstraintNameByPrefix(prefix)
-	if !found || name != "addressED25519" {
+	prefix1, ok := PrefixByName("addressED25519")
+	common.Assert(ok, "no addressED25519")
+	if !bytes.Equal(prefix, prefix1) {
 		return nil, false
 	}
 	if len(args[0]) != 32 {
 		return nil, false
 	}
 	return args[0], true
-}
-
-func IsKnownLock(data []byte) bool {
-	if _, ok := ParseAddressED25519Constraint(data); ok {
-		return true
-	}
-	return false
-}
-
-func SigLockToString(lock []byte) string {
-	if addr, ok := ParseAddressED25519Constraint(lock); ok {
-		return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(addr))
-	}
-	return fmt.Sprintf("unknownConstraint(%s)", hex.EncodeToString(lock))
-}
-
-func UnlockParamsByReference(ref byte) []byte {
-	return []byte{ref}
 }
 
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))

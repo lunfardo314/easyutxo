@@ -173,19 +173,19 @@ func TestBasics(t *testing.T) {
 
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		const howMany = 100
-		err := u.TokensFromFaucet(addr0, howMany*50)
+		err := u.TokensFromFaucet(addr0, howMany*100)
 		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-howMany*50, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, howMany*50, u.Balance(addr0))
+		require.EqualValues(t, u.Supply()-howMany*100, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, howMany*100, int(u.Balance(addr0)))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
 		privKey1, _, addr1 := u.GenerateAddress(1)
 
 		for i := 0; i < howMany; i++ {
-			err = u.TransferTokens(privKey0, addr1, 50)
+			err = u.TransferTokens(privKey0, addr1, 100)
 			require.NoError(t, err)
 		}
-		require.EqualValues(t, howMany*50, int(u.Balance(addr1)))
+		require.EqualValues(t, howMany*100, int(u.Balance(addr1)))
 		require.EqualValues(t, howMany, u.NumUTXOs(addr1))
 		require.EqualValues(t, 0, u.Balance(addr0))
 		require.EqualValues(t, 0, u.NumUTXOs(addr0))
@@ -198,8 +198,8 @@ func TestBasics(t *testing.T) {
 			require.False(t, ok)
 		}
 
-		err = u.TransferTokens(privKey1, addr0, howMany*50, true)
-		require.EqualValues(t, howMany*50, u.Balance(addr0))
+		err = u.TransferTokens(privKey1, addr0, howMany*100, true)
+		require.EqualValues(t, howMany*100, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 		require.EqualValues(t, 0, u.Balance(addr1))
 		require.EqualValues(t, 0, u.NumUTXOs(addr1))
@@ -212,7 +212,7 @@ func TestBasics(t *testing.T) {
 		require.True(t, ok)
 		require.EqualValues(t, addr1, snd)
 	})
-	t.Run("time lock", func(t *testing.T) {
+	t.Run("time lock 1", func(t *testing.T) {
 		u := ledger.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
@@ -259,7 +259,66 @@ func TestBasics(t *testing.T) {
 			Amount:        2000,
 			Timestamp:     ts + 2,
 		})
-		easyfl.RequireErrorWith(t, err, "constraint '' failed")
+		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
+		require.EqualValues(t, 2200, u.Balance(addr1))
+
+		err = u.DoTransfer(ledger.TransferTransactionParams{
+			SenderKey:     priv1,
+			TargetAddress: addr0,
+			Amount:        2000,
+			Timestamp:     ts + 12,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 200, u.Balance(addr1))
+	})
+	t.Run("time lock 2", func(t *testing.T) {
+		u := ledger.NewUTXODB(true)
+		priv, pub := u.OriginKeys()
+		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
+		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
+		t.Logf("origin address: %s", easyfl.Fmt(u.OriginAddress()))
+
+		privKey0, _, addr0 := u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+		priv1, _, addr1 := u.GenerateAddress(1)
+
+		ts := uint32(time.Now().Unix()) + 5
+		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
+			SenderKey:         privKey0,
+			TargetAddress:     addr1,
+			Amount:            200,
+			Timestamp:         ts,
+			AddTimeLockForSec: 1,
+		})
+		require.NoError(t, err)
+		t.Logf("tx with timelock len: %d", len(txBytes))
+		err = u.AddTransaction(txBytes, ledger.TraceOptionFailedConstraints)
+		require.NoError(t, err)
+
+		require.EqualValues(t, 200, u.Balance(addr1))
+
+		err = u.DoTransfer(ledger.TransferTransactionParams{
+			SenderKey:         privKey0,
+			TargetAddress:     addr1,
+			Amount:            2000,
+			AddTimeLockForSec: 10,
+			Timestamp:         ts + 1,
+		})
+		require.NoError(t, err)
+
+		require.EqualValues(t, 2200, u.Balance(addr1))
+		err = u.DoTransfer(ledger.TransferTransactionParams{
+			SenderKey:     priv1,
+			TargetAddress: addr0,
+			Amount:        2000,
+			Timestamp:     ts + 2,
+		})
+		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
 		err = u.DoTransfer(ledger.TransferTransactionParams{

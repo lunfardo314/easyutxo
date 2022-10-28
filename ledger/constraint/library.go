@@ -1,4 +1,4 @@
-package ledger
+package constraint
 
 import (
 	"github.com/iotaledger/trie.go/common"
@@ -7,8 +7,8 @@ import (
 )
 
 type DataContext struct {
-	dataTree       *lazyslice.Tree
-	invocationPath lazyslice.TreePath
+	DataTree *lazyslice.Tree
+	Path     lazyslice.TreePath
 }
 
 func init() {
@@ -82,6 +82,7 @@ func init() {
 	initAmountConstraint()
 	initTimestampConstraint()
 	initAddressED25519Constraint()
+	initTimelockConstraint()
 	initSenderConstraint()
 }
 
@@ -102,22 +103,22 @@ func registerConstraint(name string, prefix []byte) {
 	constraintPrefixByName[name] = prefix
 }
 
-func ConstraintNameByPrefix(prefix []byte) (string, bool) {
+func NameByPrefix(prefix []byte) (string, bool) {
 	ret, found := constraintNameByPrefix[string(prefix)]
 	return ret, found
 }
 
-func ConstraintPrefixByName(name string) ([]byte, bool) {
+func PrefixByName(name string) ([]byte, bool) {
 	ret, found := constraintPrefixByName[name]
 	return ret, found
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
-	return ctx.DataContext().(*DataContext).invocationPath
+	return ctx.DataContext().(*DataContext).Path
 }
 
 func evalAtPath(ctx *easyfl.CallParams) []byte {
-	return ctx.DataContext().(*DataContext).dataTree.BytesAtPath(ctx.Arg(0))
+	return ctx.DataContext().(*DataContext).DataTree.BytesAtPath(ctx.Arg(0))
 }
 
 func evalValidAmount(ctx *easyfl.CallParams) []byte {

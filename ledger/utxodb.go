@@ -8,13 +8,14 @@ import (
 
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"golang.org/x/crypto/blake2b"
 )
 
-// UTXODB is a ledger.State with faucet
+// UTXODB is a ledger.FinalState with faucet
 
 type UTXODB struct {
-	State
+	FinalState
 	supply           uint64
 	originPrivateKey ed25519.PrivateKey
 	originPublicKey  ed25519.PublicKey
@@ -31,20 +32,20 @@ const (
 )
 
 func NewUTXODB(trace ...bool) *UTXODB {
-	originPrivKeyBin, err := hex.DecodeString(originPrivateKey)
+	originPrivateKeyBin, err := hex.DecodeString(originPrivateKey)
 	if err != nil {
 		panic(err)
 	}
-	originPubKey := ed25519.PrivateKey(originPrivKeyBin).Public().(ed25519.PublicKey)
+	originPubKey := ed25519.PrivateKey(originPrivateKeyBin).Public().(ed25519.PublicKey)
 	if err != nil {
 		panic(err)
 	}
 	ret := &UTXODB{
-		State:            *NewLedgerStateInMemory(originPubKey, supplyForTesting),
+		FinalState:       *NewLedgerStateInMemory(originPubKey, supplyForTesting),
 		supply:           supplyForTesting,
-		originPrivateKey: ed25519.PrivateKey(originPrivKeyBin),
+		originPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
 		originPublicKey:  originPubKey,
-		originAddress:    AddressED25519SigLockConstraint(originPubKey),
+		originAddress:    constraint.AddressED25519SigLock(originPubKey),
 		trace:            len(trace) > 0 && trace[0],
 	}
 	return ret
@@ -89,7 +90,7 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	seed := blake2b.Sum256(common.Concat([]byte(deterministicSeed), u16[:]))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	addr := AddressED25519SigLockConstraint(pub)
+	addr := constraint.AddressED25519SigLock(pub)
 	return priv, pub, addr
 }
 

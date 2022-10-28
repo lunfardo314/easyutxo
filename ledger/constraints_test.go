@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,25 +20,25 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := OutputBasic(0, 0, AddressED25519SigLockNull())
+		out := OutputBasic(0, 0, constraint.AddressED25519SigLockNull())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := OutputBasic(0, 0, AddressED25519SigLockConstraint(pubKey))
+		out := OutputBasic(0, 0, constraint.AddressED25519SigLock(pubKey))
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		_, ok := ParseAddressED25519Constraint(outBack.Lock())
+		_, ok := constraint.ParseAddressED25519Constraint(outBack.Lock())
 		require.True(t, ok)
 		require.EqualValues(t, out.Lock(), outBack.Lock())
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := OutputBasic(1337, uint32(time.Now().Unix()), AddressED25519SigLockNull())
+		out := OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519SigLockNull())
 		outBack, err := OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -64,7 +65,7 @@ func TestConstructTx(t *testing.T) {
 		ctx := NewTransactionContext()
 		t.Logf("transaction bytes 1: %d", len(ctx.Transaction.Bytes()))
 
-		out := OutputBasic(1337, uint32(time.Now().Unix()), AddressED25519SigLockConstraint(pubKey))
+		out := OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519SigLock(pubKey))
 		dummyOid := DummyOutputID()
 		idx, err := ctx.ConsumeOutput(out, dummyOid)
 		require.NoError(t, err)

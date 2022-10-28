@@ -9,25 +9,26 @@ import (
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"golang.org/x/crypto/blake2b"
 )
 
 func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
 	switch v.traceOption {
 	case TraceOptionNone:
-		return easyfl.NewGlobalDataNoTrace(&DataContext{
-			dataTree:       v.tree,
-			invocationPath: path,
+		return easyfl.NewGlobalDataNoTrace(&constraint.DataContext{
+			DataTree: v.tree,
+			Path:     path,
 		})
 	case TraceOptionAll:
-		return easyfl.NewGlobalDataTracePrint(&DataContext{
-			dataTree:       v.tree,
-			invocationPath: path,
+		return easyfl.NewGlobalDataTracePrint(&constraint.DataContext{
+			DataTree: v.tree,
+			Path:     path,
 		})
 	case TraceOptionFailedConstraints:
-		return easyfl.NewGlobalDataLog(&DataContext{
-			dataTree:       v.tree,
-			invocationPath: path,
+		return easyfl.NewGlobalDataLog(&constraint.DataContext{
+			DataTree: v.tree,
+			Path:     path,
 		})
 	default:
 		panic("wrong trace option")
@@ -226,7 +227,7 @@ func constraintNameByBinary(binCode []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	name, found := ConstraintNameByPrefix(prefix)
+	name, found := constraint.NameByPrefix(prefix)
 	if !found {
 		return "", fmt.Errorf("not found constraint with prefix %s", easyfl.Fmt(prefix))
 	}

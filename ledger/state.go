@@ -9,6 +9,7 @@ import (
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 )
 
 type StateAccess interface {
@@ -23,8 +24,8 @@ type KVStore interface {
 	common.Traversable
 }
 
-// State is a ledger state
-type State struct {
+// FinalState is a ledger state
+type FinalState struct {
 	mutex *sync.RWMutex
 	store KVStore
 }
@@ -34,7 +35,7 @@ const (
 	PartitionAccounts
 )
 
-func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *State {
+func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *FinalState {
 	out, oid := genesisOutput(genesisPublicKey, initialSupply, uint32(time.Now().Unix()))
 	batch := store.BatchedWriter()
 	batch.Set(common.Concat(PartitionUTXO, oid[:]), out.Bytes())
@@ -42,26 +43,26 @@ func NewLedgerState(store KVStore, genesisPublicKey ed25519.PublicKey, initialSu
 	if err := batch.Commit(); err != nil {
 		panic(err)
 	}
-	return &State{
+	return &FinalState{
 		mutex: &sync.RWMutex{},
 		store: store,
 	}
 }
 
 // NewLedgerStateInMemory mostly for testing
-func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply uint64) *State {
+func NewLedgerStateInMemory(genesisPublicKey ed25519.PublicKey, initialSupply uint64) *FinalState {
 	return NewLedgerState(common.NewInMemoryKVStore(), genesisPublicKey, initialSupply)
 }
 
 func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) (*Output, OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	genesisLock := AddressED25519SigLockConstraint(genesisPublicKey)
+	genesisLock := constraint.AddressED25519SigLock(genesisPublicKey)
 	out := NewOutput().WithAmount(initialSupply).WithTimestamp(ts).WithLockConstraint(genesisLock)
 	// genesis OutputID is all-0
 	return out, OutputID{}
 }
 
-func (u *State) AddTransaction(txBytes []byte, traceOption ...int) error {
+func (u *FinalState) AddTransaction(txBytes []byte, traceOption ...int) error {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
 
@@ -75,7 +76,7 @@ func (u *State) AddTransaction(txBytes []byte, traceOption ...int) error {
 	return u.updateLedger(ctx)
 }
 
-func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
+func (u *FinalState) GetUTXO(id *OutputID) ([]byte, bool) {
 	ret := u.store.Get(common.Concat(PartitionUTXO, id.Bytes()))
 	if len(ret) == 0 {
 		return nil, false
@@ -83,7 +84,7 @@ func (u *State) GetUTXO(id *OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-func (u *State) GetUTXOsForAddress(addr []byte) ([]*OutputWithID, error) {
+func (u *FinalState) GetUTXOsForAddress(addr []byte) ([]*OutputWithID, error) {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
 
@@ -115,7 +116,7 @@ func (u *State) GetUTXOsForAddress(addr []byte) ([]*OutputWithID, error) {
 	return ret, err
 }
 
-func (u *State) updateLedger(ctx *ValidationContext) error {
+func (u *FinalState) updateLedger(ctx *ValidationContext) error {
 	batch := u.store.BatchedWriter()
 	var err error
 	// delete consumed outputs from the ledger and from accounts
@@ -146,7 +147,7 @@ func (u *State) updateLedger(ctx *ValidationContext) error {
 	return batch.Commit()
 }
 
-func (u *State) DoTransfer(par TransferTransactionParams, traceOption ...int) error {
+func (u *FinalState) DoTransfer(par TransferTransactionParams, traceOption ...int) error {
 	txBytes, err := MakeTransferTransaction(u, par)
 	if err != nil {
 		return err

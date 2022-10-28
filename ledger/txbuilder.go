@@ -10,6 +10,7 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -165,7 +166,7 @@ type TransferTransactionParams struct {
 
 func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) ([]byte, error) {
 	sourcePubKey := par.SenderKey.Public().(ed25519.PublicKey)
-	sourceAddr := AddressED25519SigLockConstraint(sourcePubKey)
+	sourceAddr := constraint.AddressED25519SigLock(sourcePubKey)
 	outs, err := ledger.GetUTXOsForAddress(sourceAddr)
 	if err != nil {
 		return nil, err
@@ -207,7 +208,7 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 
 	if availableTokens < amount {
 		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
-			SigLockToString(sourceAddr), par.Amount, availableTokens)
+			constraint.SigLockToString(sourceAddr), par.Amount, availableTokens)
 	}
 	ctx := NewTransactionContext()
 	for _, o := range consumedOuts {
@@ -222,7 +223,7 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 
 	if par.AddSender {
 		// add sender constraint
-		if _, err = out.PushConstraint(SenderConstraint(sourceAddr, 0)); err != nil {
+		if _, err = out.PushConstraint(constraint.Sender(sourceAddr, 0)); err != nil {
 			return nil, err
 		}
 	}
@@ -231,7 +232,7 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 		if par.AddTimeLockForSec > math.MaxUint32-ts {
 			return nil, fmt.Errorf("wrong timelock delta %d", par.AddTimeLockForSec)
 		}
-		if _, err = out.PushConstraint(TimeLockConstraint(ts + par.AddTimeLockForSec)); err != nil {
+		if _, err = out.PushConstraint(constraint.Timelock(ts + par.AddTimeLockForSec)); err != nil {
 			return nil, err
 		}
 	}
@@ -250,10 +251,10 @@ func MakeTransferTransaction(ledger StateAccess, par TransferTransactionParams) 
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
-	unlockDataRef := UnlockParamsByReference(0)
+	unlockDataRef := constraint.UnlockParamsByReference(0)
 	for i := range consumedOuts {
 		if i == 0 {
-			unlockData := UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderKey)
+			unlockData := constraint.UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderKey)
 			ctx.UnlockBlock(0).PutUnlockParams(unlockData, OutputBlockLock)
 			continue
 		}
@@ -275,11 +276,11 @@ func AdjustedAmount(par *TransferTransactionParams) uint64 {
 	outTentative.WithTimestamp(ts)
 	outTentative.WithLockConstraint(par.TargetAddress)
 	if par.AddSender {
-		_, err := outTentative.PushConstraint(SenderConstraint(AddressED25519SigLockNull(), 0))
+		_, err := outTentative.PushConstraint(constraint.Sender(constraint.AddressED25519SigLockNull(), 0))
 		easyfl.AssertNoError(err)
 	}
 	if par.AddTimeLockForSec > 0 {
-		_, err := outTentative.PushConstraint(TimeLockConstraint(par.AddTimeLockForSec))
+		_, err := outTentative.PushConstraint(constraint.Timelock(par.AddTimeLockForSec))
 		easyfl.AssertNoError(err)
 	}
 	minimumDeposit := MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
