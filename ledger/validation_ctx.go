@@ -150,3 +150,13 @@ func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *OutputID) boo
 		return true
 	}, Path(TransactionBranch, TxInputIDsBranch))
 }
+
+func (v *ValidationContext) ForEachProducedOutput(fun func(out *Output, byteSize uint32, idx byte) bool) {
+	v.ForEachOutput([]byte{TransactionBranch, TxOutputBranch}, func(out *Output, byteSize uint32, path lazyslice.TreePath) bool {
+		return !fun(out, byteSize, path[len(path)-1])
+	})
+}
+
+func (v *ValidationContext) NumProducedOutputs() byte {
+	return byte(v.tree.NumElements([]byte{TransactionBranch, TxOutputBranch}))
+}

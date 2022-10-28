@@ -6,7 +6,10 @@ import (
 )
 
 func IsKnownLock(data []byte) bool {
-	if _, ok := ParseAddressED25519Constraint(data); ok {
+	switch {
+	case IsAddressED25519Constraint(data):
+		return true
+	case IsDeadlineLock(data):
 		return true
 	}
 	return false

@@ -147,10 +147,15 @@ func (u *FinalState) updateLedger(ctx *ValidationContext) error {
 	return batch.Commit()
 }
 
-func (u *FinalState) DoTransfer(par *ED25519TransferInputs, traceOption ...int) error {
+func (u *FinalState) DoTransferTx(par *ED25519TransferInputs, traceOption ...int) ([]byte, error) {
 	txBytes, err := MakeTransferTransaction(par)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return u.AddTransaction(txBytes, traceOption...)
+	return txBytes, u.AddTransaction(txBytes, traceOption...)
+}
+
+func (u *FinalState) DoTransfer(par *ED25519TransferInputs, traceOption ...int) error {
+	_, err := u.DoTransferTx(par, traceOption...)
+	return err
 }

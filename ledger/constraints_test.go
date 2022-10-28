@@ -171,3 +171,41 @@ func TestTimelock(t *testing.T) {
 		require.EqualValues(t, 200, u.Balance(addr1))
 	})
 }
+
+func TestDeadlineLock(t *testing.T) {
+	u := ledger.NewUTXODB(true)
+	privKey0, pubKey0, addr0 := u.GenerateAddress(0)
+	err := u.TokensFromFaucet(addr0, 10000)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+	privKey1, pubKey1, addr1 := u.GenerateAddress(1)
+	require.EqualValues(t, 0, u.Balance(addr1))
+	require.EqualValues(t, 0, u.NumUTXOs(addr1))
+	privKey1 = privKey1
+
+	ts := uint32(time.Now().Unix())
+
+	par, err := ledger.MakeED25519TransferInputs(privKey0, u)
+	require.NoError(t, err)
+	deadlineLock := constraint.DeadlineLock(
+		ts+10,
+		constraint.AddressED25519LockSourceFromPublicKey(pubKey1),
+		constraint.AddressED25519LockSourceFromPublicKey(pubKey0),
+	)
+	t.Logf("deadline lock: %d bytes", len(deadlineLock))
+	txBytes, err := u.DoTransferTx(par.
+		WithAmount(2000).
+		WithTargetLock(deadlineLock).
+		WithTimestamp(ts),
+	)
+	require.NoError(t, err)
+	require.EqualValues(t, 10000-2000, u.Balance(addr0))
+	t.Logf("tx ith deadline lock: %d bytes", len(txBytes))
+	ctx, err := ledger.ValidationContextFromTransaction(txBytes, u)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, ctx.NumProducedOutputs())
+}

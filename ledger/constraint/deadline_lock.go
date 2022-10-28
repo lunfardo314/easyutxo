@@ -1,6 +1,7 @@
 package constraint
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/iotaledger/trie.go/common"
@@ -22,6 +23,18 @@ func initDeadlineLockConstraint() {
 	prefix, err := easyfl.ParseCallPrefixFromBinary(example)
 	common.AssertNoError(err)
 	registerConstraint("deadlineLock", prefix)
+}
+
+func IsDeadlineLock(data []byte) bool {
+	prefix, err := easyfl.ParseCallPrefixFromBinary(data)
+	if err != nil {
+		return false
+	}
+	prefix1, ok := PrefixByName("deadlineLock")
+	if !ok {
+		return false
+	}
+	return bytes.Equal(prefix, prefix1)
 }
 
 const deadlineLockSource = `

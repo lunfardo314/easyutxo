@@ -61,6 +61,11 @@ func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
 	return args[0], true
 }
 
+func IsAddressED25519Constraint(data []byte) bool {
+	_, ok := ParseAddressED25519Constraint(data)
+	return ok
+}
+
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func UnlockParamsBySignatureED25519(msg []byte, privKey ed25519.PrivateKey) []byte {
