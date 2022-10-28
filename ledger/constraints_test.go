@@ -63,13 +63,14 @@ func TestTimelock(t *testing.T) {
 		priv1, _, addr1 := u.GenerateAddress(1)
 
 		ts := uint32(time.Now().Unix()) + 5
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            200,
-			Timestamp:         ts,
-			AddTimeLockForSec: 1,
-		})
+		par, err := ledger.MakeED25519TransferInputs(privKey0, u)
+		require.NoError(t, err)
+		par.WithAmount(200).
+			WithTargetLock(addr1).
+			WithTimestamp(ts).
+			WithConstraint(constraint.TimelockConstraintBin(ts + 1))
+		txBytes, err := ledger.MakeTransferTransaction(par)
+
 		require.NoError(t, err)
 		t.Logf("tx with timelock len: %d", len(txBytes))
 		err = u.AddTransaction(txBytes, ledger.TraceOptionFailedConstraints)
@@ -77,31 +78,35 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 200, u.Balance(addr1))
 
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            2000,
-			AddTimeLockForSec: 10,
-			Timestamp:         ts + 1,
-		})
+		par, err = ledger.MakeED25519TransferInputs(privKey0, u)
+		require.NoError(t, err)
+		par.WithAmount(2000).
+			WithTargetLock(addr1).
+			WithTimestamp(ts + 1).
+			WithConstraint(constraint.TimelockConstraintBin(ts + 1 + 10))
+		err = u.DoTransfer(par)
 		require.NoError(t, err)
 
 		require.EqualValues(t, 2200, u.Balance(addr1))
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 2,
-		})
+
+		par, err = ledger.MakeED25519TransferInputs(priv1, u)
+		require.NoError(t, err)
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithTimestamp(ts + 2),
+		)
+
 		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 12,
-		})
+		par, err = ledger.MakeED25519TransferInputs(priv1, u)
+		require.NoError(t, err)
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithTimestamp(ts + 12),
+		)
 		require.NoError(t, err)
 		require.EqualValues(t, 200, u.Balance(addr1))
 	})
@@ -118,13 +123,14 @@ func TestTimelock(t *testing.T) {
 		priv1, _, addr1 := u.GenerateAddress(1)
 
 		ts := uint32(time.Now().Unix()) + 5
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            200,
-			Timestamp:         ts,
-			AddTimeLockForSec: 1,
-		})
+		par, err := ledger.MakeED25519TransferInputs(privKey0, u)
+		require.NoError(t, err)
+		txBytes, err := ledger.MakeTransferTransaction(par.
+			WithAmount(200).
+			WithTargetLock(addr1).
+			WithTimestamp(ts).
+			WithConstraint(constraint.TimelockConstraintBin(ts + 1)),
+		)
 		require.NoError(t, err)
 		t.Logf("tx with timelock len: %d", len(txBytes))
 		err = u.AddTransaction(txBytes, ledger.TraceOptionFailedConstraints)
@@ -132,33 +138,36 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 200, u.Balance(addr1))
 
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:         privKey0,
-			TargetAddress:     addr1,
-			Amount:            2000,
-			AddTimeLockForSec: 10,
-			Timestamp:         ts + 1,
-		})
+		par, err = ledger.MakeED25519TransferInputs(privKey0, u)
+		require.NoError(t, err)
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr1).
+			WithTimestamp(ts + 1).
+			WithConstraint(constraint.TimelockConstraintBin(ts + 1 + 10)),
+		)
 		require.NoError(t, err)
 
 		require.EqualValues(t, 2200, u.Balance(addr1))
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 2,
-		})
+
+		par, err = ledger.MakeED25519TransferInputs(priv1, u)
+		require.NoError(t, err)
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithTimestamp(ts + 2),
+		)
 		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		err = u.DoTransfer(ledger.TransferTransactionParams{
-			SenderKey:     priv1,
-			TargetAddress: addr0,
-			Amount:        2000,
-			Timestamp:     ts + 12,
-		})
+		par, err = ledger.MakeED25519TransferInputs(priv1, u)
+		require.NoError(t, err)
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithTimestamp(ts + 12),
+		)
 		require.NoError(t, err)
 		require.EqualValues(t, 200, u.Balance(addr1))
 	})
-
 }

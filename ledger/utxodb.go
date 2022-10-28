@@ -68,11 +68,14 @@ func (u *UTXODB) TokensFromFaucet(addr []byte, howMany ...uint64) error {
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	txBytes, err := MakeTransferTransaction(u, TransferTransactionParams{
-		SenderKey:     u.originPrivateKey,
-		TargetAddress: addr,
-		Amount:        amount,
-	})
+	par, err := MakeED25519TransferInputs(u.originPrivateKey, u)
+	if err != nil {
+		return err
+	}
+	txBytes, err := MakeTransferTransaction(par.
+		WithAmount(amount, true).
+		WithTargetLock(addr),
+	)
 	if err != nil {
 		return fmt.Errorf("UTXODB faucet: %v", err)
 	}
@@ -94,13 +97,16 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	return priv, pub, addr
 }
 
-func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetAddress []byte, amount uint64, addSender ...bool) error {
-	txBytes, err := MakeTransferTransaction(u, TransferTransactionParams{
-		SenderKey:     privKey,
-		TargetAddress: targetAddress,
-		Amount:        amount,
-		AddSender:     len(addSender) > 0 && addSender[0],
-	})
+func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock []byte, amount uint64, addSender ...bool) error {
+	par, err := MakeED25519TransferInputs(privKey, u)
+	if err != nil {
+		return err
+	}
+	par.WithAmount(amount).WithTargetLock(targetLock)
+	if len(addSender) > 0 && addSender[0] {
+		par.WithConstraint(constraint.SenderConstraintBin(par.SenderAddress, 0))
+	}
+	txBytes, err := MakeTransferTransaction(par)
 	if err != nil {
 		return err
 	}

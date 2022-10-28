@@ -72,11 +72,12 @@ func TestBasics(t *testing.T) {
 			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 
-		txBytes, err := ledger.MakeTransferTransaction(u, ledger.TransferTransactionParams{
-			SenderKey:     privKey,
-			TargetAddress: addr,
-			Amount:        u.Balance(addr),
-		})
+		par, err := ledger.MakeED25519TransferInputs(privKey, u)
+		require.NoError(t, err)
+		txBytes, err := ledger.MakeTransferTransaction(par.
+			WithAmount(u.Balance(addr)).
+			WithTargetLock(addr),
+		)
 		require.NoError(t, err)
 		t.Logf("tx size = %d bytes", len(txBytes))
 
