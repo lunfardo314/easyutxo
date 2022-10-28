@@ -34,6 +34,8 @@ func Amount(amount uint64) []byte {
 }
 
 func initAmountConstraint() {
+	easyfl.MustExtendMany(AmountConstraintSource)
+
 	example := Amount(1337)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)

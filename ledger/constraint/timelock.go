@@ -17,6 +17,8 @@ func Timelock(ts uint32) []byte {
 }
 
 func initTimelockConstraint() {
+	easyfl.MustExtendMany(TimeLockConstraintSource)
+
 	example := Timelock(1337)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)

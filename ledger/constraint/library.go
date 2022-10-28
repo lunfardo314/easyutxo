@@ -69,21 +69,14 @@ func init() {
 	// constraint referenced by the referenced path
 	easyfl.Extend("selfReferencedConstraint", "@Path(selfReferencedPath)")
 
-	//--------------------------- constraints ------------------------------------
-
-	easyfl.MustExtendMany(AmountConstraintSource)
-	easyfl.MustExtendMany(TimeStampConstraintSource)
-	easyfl.MustExtendMany(AddressED25519ConstraintSource)
-	easyfl.MustExtendMany(SenderConstraintSource)
-	easyfl.MustExtendMany(TimeLockConstraintSource)
-
-	easyfl.PrintLibraryStats()
-
+	// init constraints
 	initAmountConstraint()
 	initTimestampConstraint()
 	initAddressED25519Constraint()
 	initTimelockConstraint()
 	initSenderConstraint()
+
+	easyfl.PrintLibraryStats()
 }
 
 var (

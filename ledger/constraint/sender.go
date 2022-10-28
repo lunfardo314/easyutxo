@@ -19,6 +19,8 @@ func Sender(lock []byte, referencedInput byte) []byte {
 }
 
 func initSenderConstraint() {
+	easyfl.MustExtendMany(SenderConstraintSource)
+
 	addr := AddressED25519SigLockNull()
 	example := Sender(addr, 0)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 2)

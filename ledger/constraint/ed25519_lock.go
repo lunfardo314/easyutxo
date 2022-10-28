@@ -31,6 +31,8 @@ func AddressED25519SigLockNull() []byte {
 }
 
 func initAddressED25519Constraint() {
+	easyfl.MustExtendMany(AddressED25519ConstraintSource)
+
 	example := AddressED25519SigLockNull()
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)

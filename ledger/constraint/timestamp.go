@@ -25,6 +25,8 @@ func Timestamp(unixSec uint32) []byte {
 }
 
 func initTimestampConstraint() {
+	easyfl.MustExtendMany(TimeStampConstraintSource)
+
 	example := Timestamp(1337)
 	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
 	easyfl.AssertNoError(err)
