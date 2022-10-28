@@ -222,38 +222,28 @@ func PathToString(path []byte) string {
 	return ret
 }
 
-func constraintNameByBinary(binCode []byte) (string, error) {
+func constraintName(binCode []byte) string {
+	if binCode[0] == 0 {
+		return "array_constraint"
+	}
 	prefix, err := easyfl.ParseCallPrefixFromBinary(binCode)
 	if err != nil {
-		return "", err
+		return fmt.Sprintf("unknown_constraint(%s)", easyfl.Fmt(binCode))
 	}
 	name, found := constraint.NameByPrefix(prefix)
-	if !found {
-		return "", fmt.Errorf("not found constraint with prefix %s", easyfl.Fmt(prefix))
+	if found {
+		return name
 	}
-	return name, nil
+	return fmt.Sprintf("constraint_call_prefix(%s)", easyfl.Fmt(prefix))
 }
 
 func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, string, error) {
-	constraint := v.tree.BytesAtPath(path)
-	if len(constraint) == 0 {
+	constr := v.tree.BytesAtPath(path)
+	if len(constr) == 0 {
 		return nil, "", fmt.Errorf("constraint can't be empty")
 	}
-	var name string
 	var err error
-	if constraint[0] != 0 {
-		name, err = constraintNameByBinary(constraint)
-		if err != nil {
-			prefix, err := easyfl.ParseCallPrefixFromBinary(constraint)
-			if err != nil {
-				name = fmt.Sprintf("with code %s", easyfl.Fmt(constraint))
-			} else {
-				name = fmt.Sprintf("with prefix %s", easyfl.Fmt(prefix))
-			}
-		}
-	} else {
-		name = "array constraint"
-	}
+	name := constraintName(constr)
 	ctx := v.dataContext(path)
 	if ctx.Trace() {
 		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(path)))
@@ -261,12 +251,12 @@ func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, str
 
 	var ret []byte
 
-	if constraint[0] != 0 {
+	if constr[0] != 0 {
 		// inline constraint. Binary code cannot start with 0-byte
-		ret, err = easyfl.EvalFromBinary(ctx, constraint)
+		ret, err = easyfl.EvalFromBinary(ctx, constr)
 	} else {
 		// array constraint
-		arr := lazyslice.ArrayFromBytes(constraint[1:], 256)
+		arr := lazyslice.ArrayFromBytes(constr[1:], 256)
 		if arr.NumElements() == 0 {
 			err = fmt.Errorf("can't evaluate empty array")
 		} else {
