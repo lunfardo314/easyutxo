@@ -25,37 +25,57 @@ func amount: or(
 )
 `
 
-func AmountConstraintSource(amount uint64) string {
-	return fmt.Sprintf("amount(u64/%d)", amount)
+const (
+	amountName     = "amount"
+	amountTemplate = amountName + "(u64/%d)"
+)
+
+type Amount uint64
+
+func (a Amount) Name() string {
+	return amountName
 }
 
-func AmountConstraintBin(amount uint64) []byte {
-	return mustBinFromSource(AmountConstraintSource(amount))
+func (a Amount) source() string {
+	return fmt.Sprintf(amountTemplate, uint64(a))
+}
+
+func (a Amount) Bytes() []byte {
+	return mustBinFromSource(a.source())
+}
+
+func (a Amount) String() string {
+	return fmt.Sprintf("%s(%d)", amountName, uint64(a))
+}
+
+func NewAmount(a uint64) Amount {
+	return Amount(a)
 }
 
 func initAmountConstraint() {
 	easyfl.MustExtendMany(amountSource)
-
 	// sanity check
-	example := AmountConstraintBin(1337)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
+	example := NewAmount(1337)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	amountBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(sym == "amount" && len(amountBin) == 8 && binary.BigEndian.Uint64(amountBin) == 1337, "'amount' consistency check failed")
-	registerConstraint("amount", prefix)
+	common.Assert(sym == amountName && len(amountBin) == 8 && binary.BigEndian.Uint64(amountBin) == 1337, "'amount' consistency check failed")
+	registerConstraint(amountName, prefix, func(data []byte) (Constraint, error) {
+		return AmountFromBytes(data)
+	})
 }
 
-func AmountFromConstraint(data []byte) (uint64, bool) {
+func AmountFromBytes(data []byte) (Amount, error) {
 	sym, _, args, err := easyfl.ParseBinaryOneLevel(data)
 	if err != nil {
-		return 0, false
+		return 0, err
 	}
-	if sym != "amount" {
-		return 0, false
+	if sym != amountName {
+		return 0, fmt.Errorf("not an 'amount' constraint")
 	}
 	amountBin := easyfl.StripDataPrefix(args[0])
 	if len(amountBin) != 8 {
-		return 0, false
+		return 0, fmt.Errorf("wrong data length")
 	}
-	return binary.BigEndian.Uint64(easyfl.StripDataPrefix(amountBin)), true
+	return Amount(binary.BigEndian.Uint64(amountBin)), nil
 }

@@ -16,33 +16,55 @@ func timestamp: or(
 )
 `
 
-func TimestampConstraintSource(unixSec uint32) string {
-	return fmt.Sprintf("timestamp(u32/%d)", unixSec)
+const (
+	timestampName     = "timestamp"
+	timestampTemplate = timestampName + "(u32/%d)"
+)
+
+type Timestamp uint32
+
+func (t Timestamp) Name() string {
+	return timestampName
 }
 
-func TimestampConstraintBin(unixSec uint32) []byte {
-	return mustBinFromSource(TimestampConstraintSource(unixSec))
+func (t Timestamp) source() string {
+	return fmt.Sprintf("timestamp(u32/%d)", uint32(t))
+}
+
+func (t Timestamp) Bytes() []byte {
+	return mustBinFromSource(t.source())
+}
+
+func (t Timestamp) String() string {
+	return fmt.Sprintf(timestampTemplate, uint32(t))
+}
+
+func NewTimestamp(unixSec uint32) Timestamp {
+	return Timestamp(unixSec)
+}
+
+func TimestampFromBytes(data []byte) (Timestamp, error) {
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	if err != nil {
+		return 0, err
+	}
+	tsBin := easyfl.StripDataPrefix(args[0])
+	if sym != timestampName || len(tsBin) != 4 {
+		return 0, fmt.Errorf("can't parse timestamp constraint")
+	}
+	return Timestamp(binary.BigEndian.Uint32(tsBin)), nil
 }
 
 func initTimestampConstraint() {
 	easyfl.MustExtendMany(timestampSource)
 
-	example := TimestampConstraintBin(1337)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
+	example := NewTimestamp(1337)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	tsBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(sym == "timestamp" && len(tsBin) == 4 && binary.BigEndian.Uint32(tsBin) == 1337, "'timestamp' consistency check failed")
-	registerConstraint("timestamp", prefix)
-}
+	common.Assert(sym == timestampName && len(tsBin) == 4 && binary.BigEndian.Uint32(tsBin) == 1337, "'timestamp' consistency check failed")
 
-func TimestampFromConstraint(data []byte) (uint32, bool) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
-	if err != nil {
-		return 0, false
-	}
-	tsBin := easyfl.StripDataPrefix(args[0])
-	if sym != "timestamp" || len(tsBin) != 4 {
-		return 0, false
-	}
-	return binary.BigEndian.Uint32(tsBin), true
+	registerConstraint(timestampName, prefix, func(data []byte) (Constraint, error) {
+		return TimestampFromBytes(data)
+	})
 }

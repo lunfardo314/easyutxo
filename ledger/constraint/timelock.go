@@ -23,36 +23,56 @@ func timelock: or(
 	) 
 )
 `
+const (
+	timelockName     = "timelock"
+	timelockTemplate = timelockName + "(u32/%d)"
+)
 
-func TimelockConstraintSource(ts uint32) string {
-	return fmt.Sprintf("timelock(u32/%d)", ts)
+type Timelock uint32
+
+func NewTimelock(unixSec uint32) Timelock {
+	return Timelock(unixSec)
 }
 
-func TimelockConstraintBin(ts uint32) []byte {
-	return mustBinFromSource(TimelockConstraintSource(ts))
+func (t Timelock) Name() string {
+	return timelockName
+}
+
+func (t Timelock) Bytes() []byte {
+	return mustBinFromSource(t.source())
+}
+
+func (t Timelock) String() string {
+	return fmt.Sprintf("%s(%d)", timelockName, uint32(t))
+}
+
+func (t Timelock) source() string {
+	return fmt.Sprintf(timelockTemplate, t)
+}
+
+func TimelockFromBytes(data []byte) (Timelock, error) {
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	if err != nil {
+		return 0, err
+	}
+	if sym != timelockName {
+		return 0, fmt.Errorf("not a timelock constraint")
+	}
+	tlBin := easyfl.StripDataPrefix(args[0])
+	common.Assert(len(tlBin) == 4, "can't parse timelock")
+	return Timelock(binary.BigEndian.Uint32(tlBin)), nil
 }
 
 func initTimelockConstraint() {
 	easyfl.MustExtendMany(timelockSource)
 
-	example := TimelockConstraintBin(1337)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
+	example := NewTimelock(1337)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	tlBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(sym == "timelock" && len(tlBin) == 4 && binary.BigEndian.Uint32(tlBin) == 1337, "inconsistency in 'timelock'")
-	registerConstraint("timelock", prefix)
-}
+	common.Assert(sym == timelockName && len(tlBin) == 4 && binary.BigEndian.Uint32(tlBin) == 1337, "inconsistency in 'timelock'")
 
-// TimelockFromBin extracts timelock ($0) from the timelock script
-func TimelockFromBin(data []byte) (uint32, bool) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
-	if err != nil {
-		return 0, false
-	}
-	if sym != "timelock" {
-		return 0, false
-	}
-	tlBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(len(tlBin) == 4, "inconsistency in 'timelock'")
-	return binary.BigEndian.Uint32(tlBin), true
+	registerConstraint(timelockName, prefix, func(data []byte) (Constraint, error) {
+		return TimestampFromBytes(data)
+	})
 }

@@ -155,10 +155,10 @@ func (tx *transaction) EssenceBytes() []byte {
 type ED25519TransferInputs struct {
 	SenderPrivateKey ed25519.PrivateKey
 	SenderPublicKey  ed25519.PublicKey
-	SenderAddress    []byte
+	SenderAddress    constraint.AddressED25519
 	Outputs          []*OutputWithID
 	Timestamp        uint32 // takes time.Now() if 0
-	Lock             []byte
+	Lock             constraint.Lock
 	Amount           uint64
 	AdjustToMinimum  bool
 	AddConstraints   [][]byte
@@ -166,7 +166,7 @@ type ED25519TransferInputs struct {
 
 func MakeED25519TransferInputs(senderKey ed25519.PrivateKey, state StateAccess, desc ...bool) (*ED25519TransferInputs, error) {
 	sourcePubKey := senderKey.Public().(ed25519.PublicKey)
-	sourceAddr := constraint.AddressED25519LockBin(sourcePubKey)
+	sourceAddr := constraint.AddressED25519FromPublicKey(sourcePubKey)
 	ret := &ED25519TransferInputs{
 		SenderPrivateKey: senderKey,
 		SenderPublicKey:  sourcePubKey,
@@ -200,8 +200,8 @@ func (t *ED25519TransferInputs) WithTimestamp(ts uint32) *ED25519TransferInputs 
 	return t
 }
 
-func (t *ED25519TransferInputs) WithTargetLock(lock []byte) *ED25519TransferInputs {
-	t.Lock = easyfl.Concat(lock)
+func (t *ED25519TransferInputs) WithTargetLock(lock constraint.Lock) *ED25519TransferInputs {
+	t.Lock = lock
 	return t
 }
 
@@ -211,8 +211,8 @@ func (t *ED25519TransferInputs) WithAmount(amount uint64, adjustToMinimum ...boo
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraint(constr []byte) *ED25519TransferInputs {
-	t.AddConstraints = append(t.AddConstraints, constr)
+func (t *ED25519TransferInputs) WithConstraint(constr constraint.Constraint) *ED25519TransferInputs {
+	t.AddConstraints = append(t.AddConstraints, constr.Bytes())
 	return t
 }
 
@@ -266,7 +266,7 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 
 	if availableTokens < amount {
 		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
-			constraint.SigLockToString(par.SenderAddress), par.Amount, availableTokens)
+			par.SenderAddress.String(), par.Amount, availableTokens)
 	}
 	ctx := NewTransactionBuilder()
 	for _, o := range consumedOuts {

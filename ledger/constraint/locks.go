@@ -1,25 +1,27 @@
 package constraint
 
 import (
-	"encoding/hex"
 	"fmt"
+
+	"github.com/lunfardo314/easyfl"
 )
 
-func IsKnownLock(data []byte) bool {
-	switch {
-	case IsAddressED25519Constraint(data):
-		return true
-	case IsDeadlineLock(data):
-		return true
+func LockFromBytes(data []byte) (Lock, error) {
+	prefix, err := easyfl.ParseCallPrefixFromBinary(data)
+	if err != nil {
+		return nil, err
 	}
-	return false
-}
-
-func SigLockToString(lock []byte) string {
-	if addr, ok := ParseAddressED25519Constraint(lock); ok {
-		return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(addr))
+	name, ok := NameByPrefix(prefix)
+	if !ok {
+		return nil, fmt.Errorf("unknown constraint with prefix '%s'", easyfl.Fmt(prefix))
 	}
-	return fmt.Sprintf("unknownConstraint(%s)", hex.EncodeToString(lock))
+	switch name {
+	case addressED25519Name:
+		return AddressED25519FromBytes(data)
+	case deadlineLockName:
+		return DeadlineLockFromBytes(data)
+	}
+	return nil, fmt.Errorf("not a lock constraint '%s'", name)
 }
 
 func UnlockParamsByReference(ref byte) []byte {

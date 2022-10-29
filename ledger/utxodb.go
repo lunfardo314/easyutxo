@@ -45,7 +45,7 @@ func NewUTXODB(trace ...bool) *UTXODB {
 		supply:           supplyForTesting,
 		originPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
 		originPublicKey:  originPubKey,
-		originAddress:    constraint.AddressED25519LockBin(originPubKey),
+		originAddress:    constraint.AddressED25519FromPublicKey(originPubKey),
 		trace:            len(trace) > 0 && trace[0],
 	}
 	return ret
@@ -63,7 +63,7 @@ func (u *UTXODB) OriginAddress() []byte {
 	return u.originAddress
 }
 
-func (u *UTXODB) TokensFromFaucet(addr []byte, howMany ...uint64) error {
+func (u *UTXODB) TokensFromFaucet(addr constraint.AddressED25519, howMany ...uint64) error {
 	amount := TokensFromFaucetDefault
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
@@ -87,25 +87,25 @@ func (u *UTXODB) TokensFromFaucet(addr []byte, howMany ...uint64) error {
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, []byte) {
+func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, constraint.AddressED25519) {
 	var u16 [2]byte
 	binary.BigEndian.PutUint16(u16[:], n)
 	seed := blake2b.Sum256(common.Concat([]byte(deterministicSeed), u16[:]))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	addr := constraint.AddressED25519LockBin(pub)
+	addr := constraint.AddressED25519FromPublicKey(pub)
 	return priv, pub, addr
 }
 
-func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock []byte, amount uint64, addSender ...bool) error {
+func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constraint.Lock, amount uint64) error {
 	par, err := MakeED25519TransferInputs(privKey, u)
 	if err != nil {
 		return err
 	}
 	par.WithAmount(amount).WithTargetLock(targetLock)
-	if len(addSender) > 0 && addSender[0] {
-		par.WithConstraint(constraint.SenderConstraintBin(par.SenderAddress, 0))
-	}
+	//if len(addSender) > 0 && addSender[0] {
+	//	par.WithConstraint(constraint.SenderConstraintBin(par.SenderAddress, 0))
+	//}
 	txBytes, err := MakeTransferTransaction(par)
 	if err != nil {
 		return err

@@ -1,7 +1,6 @@
 package constraint
 
 import (
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 )
@@ -73,43 +72,10 @@ func init() {
 	initTimestampConstraint()
 	initAddressED25519Constraint()
 	initTimelockConstraint()
-	initSenderConstraint()
+	//initSenderConstraint()
 	initDeadlineLockConstraint()
 
 	easyfl.PrintLibraryStats()
-}
-
-var (
-	constraintNameByPrefix = make(map[string]string)
-	constraintPrefixByName = make(map[string][]byte)
-)
-
-func registerConstraint(name string, prefix []byte) {
-	if _, already := constraintPrefixByName[name]; already {
-		common.Assert(!already, "repeating constraint name '%s'", name)
-	}
-	if _, already := constraintNameByPrefix[string(prefix)]; already {
-		common.Assert(!already, "repeating constraint prefix %s with name '%s'", easyfl.Fmt(prefix), name)
-	}
-	common.Assert(0 < len(prefix) && len(prefix) <= 2, "wrong constraint prefix %s, name: %s", easyfl.Fmt(prefix), name)
-	constraintNameByPrefix[string(prefix)] = name
-	constraintPrefixByName[name] = prefix
-}
-
-func NameByPrefix(prefix []byte) (string, bool) {
-	ret, found := constraintNameByPrefix[string(prefix)]
-	return ret, found
-}
-
-func PrefixByName(name string) ([]byte, bool) {
-	ret, found := constraintPrefixByName[name]
-	return ret, found
-}
-
-func mustBinFromSource(src string) []byte {
-	_, _, binCode, err := easyfl.CompileExpression(src)
-	easyfl.AssertNoError(err)
-	return binCode
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {

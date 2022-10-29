@@ -21,25 +21,25 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := ledger.OutputBasic(0, 0, constraint.AddressED25519LockNullBin())
+		out := ledger.OutputBasic(0, 0, constraint.AddressED25519Null())
 		outBack, err := ledger.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := ledger.OutputBasic(0, 0, constraint.AddressED25519LockBin(pubKey))
+		out := ledger.OutputBasic(0, 0, constraint.AddressED25519FromPublicKey(pubKey))
 		outBack, err := ledger.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		_, ok := constraint.ParseAddressED25519Constraint(outBack.Lock())
-		require.True(t, ok)
+		_, err = constraint.AddressED25519FromBytes(outBack.Lock())
+		require.NoError(t, err)
 		require.EqualValues(t, out.Lock(), outBack.Lock())
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := ledger.OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519LockNullBin())
+		out := ledger.OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519Null())
 		outBack, err := ledger.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -68,7 +68,7 @@ func TestTimelock(t *testing.T) {
 		par.WithAmount(200).
 			WithTargetLock(addr1).
 			WithTimestamp(ts).
-			WithConstraint(constraint.TimelockConstraintBin(ts + 1))
+			WithConstraint(constraint.NewTimelock(ts + 1))
 		txBytes, err := ledger.MakeTransferTransaction(par)
 
 		require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestTimelock(t *testing.T) {
 		par.WithAmount(2000).
 			WithTargetLock(addr1).
 			WithTimestamp(ts + 1).
-			WithConstraint(constraint.TimelockConstraintBin(ts + 1 + 10))
+			WithConstraint(constraint.NewTimelock(ts + 1 + 10))
 		err = u.DoTransfer(par)
 		require.NoError(t, err)
 
@@ -129,7 +129,7 @@ func TestTimelock(t *testing.T) {
 			WithAmount(200).
 			WithTargetLock(addr1).
 			WithTimestamp(ts).
-			WithConstraint(constraint.TimelockConstraintBin(ts + 1)),
+			WithConstraint(constraint.NewTimelock(ts + 1)),
 		)
 		require.NoError(t, err)
 		t.Logf("tx with timelock len: %d", len(txBytes))
@@ -144,7 +144,7 @@ func TestTimelock(t *testing.T) {
 			WithAmount(2000).
 			WithTargetLock(addr1).
 			WithTimestamp(ts + 1).
-			WithConstraint(constraint.TimelockConstraintBin(ts + 1 + 10)),
+			WithConstraint(constraint.NewTimelock(ts + 1 + 10)),
 		)
 		require.NoError(t, err)
 
@@ -191,12 +191,12 @@ func TestDeadlineLock(t *testing.T) {
 
 	par, err := ledger.MakeED25519TransferInputs(privKey0, u)
 	require.NoError(t, err)
-	deadlineLock := constraint.DeadlineLock(
+	deadlineLock := constraint.NewDeadlineLock(
 		ts+10,
-		constraint.AddressED25519LockSourceFromPublicKey(pubKey1),
-		constraint.AddressED25519LockSourceFromPublicKey(pubKey0),
+		constraint.AddressED25519FromPublicKey(pubKey1),
+		constraint.AddressED25519FromPublicKey(pubKey0),
 	)
-	t.Logf("deadline lock: %d bytes", len(deadlineLock))
+	t.Logf("deadline lock: %d bytes", len(deadlineLock.Bytes()))
 	txBytes, err := u.DoTransferTx(par.
 		WithAmount(2000).
 		WithTargetLock(deadlineLock).

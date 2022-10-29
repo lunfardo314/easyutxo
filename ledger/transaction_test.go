@@ -143,12 +143,12 @@ func TestBasics(t *testing.T) {
 		outs, err := u.GetUTXOsForAddress(addr1)
 		require.NoError(t, err)
 		require.EqualValues(t, howMany, len(outs))
-		for _, o := range outs {
-			_, ok := o.Output.Sender()
-			require.False(t, ok)
-		}
+		//for _, o := range outs {
+		//	_, ok := o.Output.Sender()
+		//	require.False(t, ok)
+		//}
 
-		err = u.TransferTokens(privKey1, addr0, howMany*100, true)
+		err = u.TransferTokens(privKey1, addr0, howMany*100)
 		require.EqualValues(t, howMany*100, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 		require.EqualValues(t, 0, u.Balance(addr1))
@@ -158,8 +158,8 @@ func TestBasics(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outs))
 
-		snd, ok := outs[0].Output.Sender()
-		require.True(t, ok)
-		require.EqualValues(t, addr1, snd)
+		//snd, ok := outs[0].Output.Sender()
+		//require.True(t, ok)
+		//require.EqualValues(t, addr1, snd)
 	})
 }

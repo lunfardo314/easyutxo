@@ -82,8 +82,8 @@ func NewOutput() *Output {
 	return ret
 }
 
-func OutputBasic(amount uint64, ts uint32, addr []byte) *Output {
-	return NewOutput().WithAmount(amount).WithTimestamp(ts).WithLockConstraint(addr)
+func OutputBasic(amount uint64, ts uint32, lock constraint.Lock) *Output {
+	return NewOutput().WithAmount(amount).WithTimestamp(ts).WithLockConstraint(lock)
 }
 
 func OutputFromBytes(data []byte) (*Output, error) {
@@ -93,44 +93,42 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if ret.arr.NumElements() < 3 {
 		return nil, fmt.Errorf("at least 3 constraints expected")
 	}
-	if _, ok := constraint.AmountFromConstraint(ret.arr.At(int(OutputBlockAmount))); !ok {
-		return nil, fmt.Errorf("can't parse amount")
+	if _, err := constraint.AmountFromBytes(ret.arr.At(int(OutputBlockAmount))); err != nil {
+		return nil, err
 	}
-	if _, ok := constraint.TimestampFromConstraint(ret.arr.At(int(OutputBlockTimestamp))); !ok {
-		return nil, fmt.Errorf("can't parse timestamp")
+	if _, err := constraint.TimestampFromBytes(ret.arr.At(int(OutputBlockTimestamp))); err != nil {
+		return nil, err
 	}
-
-	lock := ret.arr.At(int(OutputBlockLock))
-	if !constraint.IsKnownLock(lock) {
-		return nil, fmt.Errorf("wrong or unsupported type of lock: %s", easyfl.Fmt(lock))
+	if _, err := constraint.LockFromBytes(ret.arr.At(int(OutputBlockLock))); err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
 
 func (o *Output) WithAmount(amount uint64) *Output {
-	o.arr.PutAtIdxGrow(OutputBlockAmount, constraint.AmountConstraintBin(amount))
+	o.arr.PutAtIdxGrow(OutputBlockAmount, constraint.NewAmount(amount).Bytes())
 	return o
 }
 
 func (o *Output) WithTimestamp(ts uint32) *Output {
-	o.arr.PutAtIdxGrow(OutputBlockTimestamp, constraint.TimestampConstraintBin(ts))
+	o.arr.PutAtIdxGrow(OutputBlockTimestamp, constraint.NewTimestamp(ts).Bytes())
 	return o
 }
 
 func (o *Output) Amount() uint64 {
-	ret, ok := constraint.AmountFromConstraint(o.arr.At(int(OutputBlockAmount)))
-	easyfl.Assert(ok, "can't parse amount")
-	return ret
+	ret, err := constraint.AmountFromBytes(o.arr.At(int(OutputBlockAmount)))
+	easyfl.AssertNoError(err)
+	return uint64(ret)
 }
 
 func (o *Output) Timestamp() uint32 {
-	ret, ok := constraint.TimestampFromConstraint(o.arr.At(int(OutputBlockTimestamp)))
-	easyfl.Assert(ok, "can't parse timestamp")
-	return ret
+	ret, err := constraint.TimestampFromBytes(o.arr.At(int(OutputBlockTimestamp)))
+	easyfl.AssertNoError(err)
+	return uint32(ret)
 }
 
-func (o *Output) WithLockConstraint(data []byte) *Output {
-	o.PutConstraint(data, OutputBlockLock)
+func (o *Output) WithLockConstraint(lock constraint.Lock) *Output {
+	o.PutConstraint(lock.Bytes(), OutputBlockLock)
 	return o
 }
 
@@ -169,44 +167,47 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constr []byte) bool) {
 }
 
 // Sender looks for sender constraint in the output and parses out sender address
-func (o *Output) Sender() ([]byte, bool) {
-	var ret []byte
-	var found bool
-	o.ForEachConstraint(func(idx byte, constr []byte) bool {
-		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
-			return true
-		}
-		ret, found = constraint.SenderFromConstraint(constr)
-		if found {
-			return false
-		}
-		return true
-	})
-	if found {
-		return ret, true
-	}
-	return nil, false
-}
+//func (o *Output) Sender() ([]byte, bool) {
+//	var ret []byte
+//	var found bool
+//	o.ForEachConstraint(func(idx byte, constr []byte) bool {
+//		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
+//			return true
+//		}
+//		ret, found = constraint.SenderFromConstraint(constr)
+//		if found {
+//			return false
+//		}
+//		return true
+//	})
+//	if found {
+//		return ret, true
+//	}
+//	return nil, false
+//}
 
 func (o *Output) Lock() []byte {
 	return o.arr.At(int(OutputBlockLock))
 }
 
 func (o *Output) TimeLock() (uint32, bool) {
-	var ret uint32
-	var found bool
+	var ret constraint.Timelock
+	var err error
+	found := false
 	o.ForEachConstraint(func(idx byte, constr []byte) bool {
 		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
 			return true
 		}
-		ret, found = constraint.TimelockFromBin(constr)
-		if found {
+		ret, err = constraint.TimelockFromBytes(constr)
+		if err == nil {
+			// TODO optimize parsing
+			found = true
 			return false
 		}
 		return true
 	})
 	if found {
-		return ret, true
+		return uint32(ret), true
 	}
 	return 0, false
 }

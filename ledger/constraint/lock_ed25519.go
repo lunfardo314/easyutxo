@@ -8,61 +8,75 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"golang.org/x/crypto/blake2b"
 )
 
-func AddressED25519LockSourceFromAddressData(addr []byte) string {
-	return fmt.Sprintf("addressED25519(0x%s)", hex.EncodeToString(addr))
+type AddressED25519 []byte
+
+const (
+	addressED25519Name     = "addressED25519"
+	addressED25519Template = addressED25519Name + "(0x%s)"
+)
+
+func AddressED25519FromBytes(data []byte) (AddressED25519, error) {
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	if err != nil {
+		return nil, err
+	}
+	if sym != addressED25519Name {
+		return nil, fmt.Errorf("not an AddressED25519")
+	}
+	addrBin := easyfl.StripDataPrefix(args[0])
+	if len(addrBin) != 32 {
+		return nil, fmt.Errorf("wrong data length")
+	}
+	return addrBin, nil
 }
 
-func AddressED25519LockSourceFromPublicKey(pubKey ed25519.PublicKey) string {
+func AddressED25519FromPublicKey(pubKey ed25519.PublicKey) AddressED25519 {
 	h := blake2b.Sum256(pubKey)
-	return AddressED25519LockSourceFromAddressData(h[:])
+	return h[:]
 }
 
-func AddressED25519LockBin(pubKey ed25519.PublicKey) []byte {
-	return mustBinFromSource(AddressED25519LockSourceFromPublicKey(pubKey))
+func AddressED25519Null() AddressED25519 {
+	return make([]byte, 32)
 }
 
-func AddressED25519LockNullSource() string {
-	return AddressED25519LockSourceFromAddressData(make([]byte, 32))
+func (a AddressED25519) source() string {
+	return fmt.Sprintf(addressED25519Template, hex.EncodeToString(a))
 }
 
-func AddressED25519LockNullBin() []byte {
-	return mustBinFromSource(AddressED25519LockNullSource())
+func (a AddressED25519) Bytes() []byte {
+	return mustBinFromSource(a.source())
+}
+
+func (a AddressED25519) IndexableTags() [][]byte {
+	return [][]byte{a.Bytes()}
+}
+
+func (a AddressED25519) Name() string {
+	return addressED25519Name
+}
+
+func (a AddressED25519) String() string {
+	return a.source()
 }
 
 func initAddressED25519Constraint() {
 	easyfl.MustExtendMany(AddressED25519ConstraintSource)
 
-	example := AddressED25519LockNullBin()
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
+	example := AddressED25519Null()
+	addrBack, err := AddressED25519FromBytes(example.Bytes())
 	easyfl.AssertNoError(err)
-	addrBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(sym == "addressED25519" && len(addrBin) == 32, "inconsistent 'addressED25519'")
-	registerConstraint("addressED25519", prefix)
-}
+	easyfl.Assert(EqualConstraints(addrBack, AddressED25519Null()), "inconsistency "+addressED25519Name)
 
-func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
-	if err != nil {
-		return nil, false
-	}
-	if sym != "addressED25519" {
-		return nil, false
-	}
-	addrBin := easyfl.StripDataPrefix(args[0])
-	if len(addrBin) != 32 {
-		return nil, false
-	}
-	return addrBin, true
-}
+	prefix, err := easyfl.ParseCallPrefixFromBinary(example.Bytes())
+	easyfl.AssertNoError(err)
 
-func IsAddressED25519Constraint(data []byte) bool {
-	_, ok := ParseAddressED25519Constraint(data)
-	return ok
+	registerConstraint(addressED25519Name, prefix, func(data []byte) (Constraint, error) {
+		return AddressED25519FromBytes(data)
+	})
 }
 
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
