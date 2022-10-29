@@ -20,7 +20,7 @@ func initDeadlineLockConstraint() {
 	easyfl.MustExtendMany(deadlineLockSource)
 
 	example := DeadlineLock(1337, AddressED25519LockNullSource(), AddressED25519LockNullSource())
-	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 3)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 3)
 	easyfl.AssertNoError(err)
 	easyfl.Assert(sym == "deadlineLock", "inconsistency in 'deadlineLock' 1")
 	easyfl.Assert(len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "inconsistency in 'deadlineLock' 2")
@@ -30,16 +30,17 @@ func initDeadlineLockConstraint() {
 	registerConstraint("deadlineLock", prefix)
 }
 
+func ParseDeadlineLock(data []byte) (uint32, []byte, []byte, bool) {
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 3)
+	if err != nil || sym != "deadlineLock" || len(args[0]) != 4 {
+		return 0, nil, nil, false
+	}
+	return binary.BigEndian.Uint32(args[0]), args[1], args[2], true
+}
+
 func IsDeadlineLock(data []byte) bool {
-	prefix, err := easyfl.ParseCallPrefixFromBinary(data)
-	if err != nil {
-		return false
-	}
-	prefix1, ok := PrefixByName("deadlineLock")
-	if !ok {
-		return false
-	}
-	return bytes.Equal(prefix, prefix1)
+	_, _, _, ok := ParseDeadlineLock(data)
+	return ok
 }
 
 const deadlineLockSource = `

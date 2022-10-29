@@ -28,14 +28,14 @@ func initTimestampConstraint() {
 	easyfl.MustExtendMany(timestampSource)
 
 	example := TimestampConstraintBin(1337)
-	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 1)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
 	common.Assert(sym == "timestamp" && len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "'timestamp' consistency check failed")
 	registerConstraint("timestamp", prefix)
 }
 
 func TimestampFromConstraint(data []byte) (uint32, bool) {
-	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
 	if err != nil {
 		return 0, false
 	}

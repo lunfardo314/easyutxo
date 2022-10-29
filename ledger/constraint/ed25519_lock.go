@@ -38,14 +38,14 @@ func initAddressED25519Constraint() {
 	easyfl.MustExtendMany(AddressED25519ConstraintSource)
 
 	example := AddressED25519LockNullBin()
-	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 1)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
 	common.Assert(sym == "addressED25519" && len(args[0]) == 32, "inconsistent 'addressED25519'")
 	registerConstraint("addressED25519", prefix)
 }
 
 func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
-	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
 	if err != nil {
 		return nil, false
 	}

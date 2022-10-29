@@ -24,7 +24,7 @@ func initSenderConstraint() {
 
 	addr := AddressED25519LockNullBin()
 	example := SenderConstraintBin(addr, 0)
-	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 2)
+	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 2)
 	easyfl.AssertNoError(err)
 	common.Assert(sym == "sender" && bytes.Equal(args[0], addr), "inconsistency in 'sender'")
 	registerConstraint("sender", prefix)
@@ -32,7 +32,7 @@ func initSenderConstraint() {
 
 // SenderFromConstraint extracts sender address ($0) from the sender script
 func SenderFromConstraint(data []byte) ([]byte, bool) {
-	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data, 2)
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 2)
 	if err != nil {
 		return nil, false
 	}
