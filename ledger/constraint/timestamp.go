@@ -30,7 +30,8 @@ func initTimestampConstraint() {
 	example := TimestampConstraintBin(1337)
 	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(sym == "timestamp" && len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "'timestamp' consistency check failed")
+	tsBin := easyfl.StripDataPrefix(args[0])
+	common.Assert(sym == "timestamp" && len(tsBin) == 4 && binary.BigEndian.Uint32(tsBin) == 1337, "'timestamp' consistency check failed")
 	registerConstraint("timestamp", prefix)
 }
 
@@ -39,8 +40,9 @@ func TimestampFromConstraint(data []byte) (uint32, bool) {
 	if err != nil {
 		return 0, false
 	}
-	if sym != "timestamp" || len(args[0]) != 4 {
+	tsBin := easyfl.StripDataPrefix(args[0])
+	if sym != "timestamp" || len(tsBin) != 4 {
 		return 0, false
 	}
-	return binary.BigEndian.Uint32(args[0]), true
+	return binary.BigEndian.Uint32(tsBin), true
 }

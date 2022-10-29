@@ -40,7 +40,8 @@ func initAddressED25519Constraint() {
 	example := AddressED25519LockNullBin()
 	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(sym == "addressED25519" && len(args[0]) == 32, "inconsistent 'addressED25519'")
+	addrBin := easyfl.StripDataPrefix(args[0])
+	common.Assert(sym == "addressED25519" && len(addrBin) == 32, "inconsistent 'addressED25519'")
 	registerConstraint("addressED25519", prefix)
 }
 
@@ -52,10 +53,11 @@ func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
 	if sym != "addressED25519" {
 		return nil, false
 	}
-	if len(args[0]) != 32 {
+	addrBin := easyfl.StripDataPrefix(args[0])
+	if len(addrBin) != 32 {
 		return nil, false
 	}
-	return args[0], true
+	return addrBin, true
 }
 
 func IsAddressED25519Constraint(data []byte) bool {

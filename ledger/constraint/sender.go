@@ -26,7 +26,7 @@ func initSenderConstraint() {
 	example := SenderConstraintBin(addr, 0)
 	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 2)
 	easyfl.AssertNoError(err)
-	common.Assert(sym == "sender" && bytes.Equal(args[0], addr), "inconsistency in 'sender'")
+	common.Assert(sym == "sender" && bytes.Equal(easyfl.StripDataPrefix(args[0]), addr), "inconsistency in 'sender'")
 	registerConstraint("sender", prefix)
 }
 
@@ -39,7 +39,7 @@ func SenderFromConstraint(data []byte) ([]byte, bool) {
 	if sym != "sender" {
 		return nil, false
 	}
-	return args[0], true
+	return easyfl.StripDataPrefix(args[0]), true
 }
 
 const senderSource = `

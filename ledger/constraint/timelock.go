@@ -38,7 +38,8 @@ func initTimelockConstraint() {
 	example := TimelockConstraintBin(1337)
 	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(sym == "timelock" && len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "inconsistency in 'timelock'")
+	tlBin := easyfl.StripDataPrefix(args[0])
+	common.Assert(sym == "timelock" && len(tlBin) == 4 && binary.BigEndian.Uint32(tlBin) == 1337, "inconsistency in 'timelock'")
 	registerConstraint("timelock", prefix)
 }
 
@@ -51,6 +52,7 @@ func TimelockFromBin(data []byte) (uint32, bool) {
 	if sym != "timelock" {
 		return 0, false
 	}
-	common.Assert(len(args[0]) == 4, "inconsistency in 'timelock'")
-	return binary.BigEndian.Uint32(args[0]), true
+	tlBin := easyfl.StripDataPrefix(args[0])
+	common.Assert(len(tlBin) == 4, "inconsistency in 'timelock'")
+	return binary.BigEndian.Uint32(tlBin), true
 }

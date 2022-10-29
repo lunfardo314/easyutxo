@@ -40,7 +40,8 @@ func initAmountConstraint() {
 	example := AmountConstraintBin(1337)
 	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(sym == "amount" && len(args[0]) == 8 && binary.BigEndian.Uint64(args[0]) == 1337, "'amount' consistency check failed")
+	amountBin := easyfl.StripDataPrefix(args[0])
+	common.Assert(sym == "amount" && len(amountBin) == 8 && binary.BigEndian.Uint64(amountBin) == 1337, "'amount' consistency check failed")
 	registerConstraint("amount", prefix)
 }
 
@@ -52,8 +53,9 @@ func AmountFromConstraint(data []byte) (uint64, bool) {
 	if sym != "amount" {
 		return 0, false
 	}
-	if len(args[0]) != 8 {
+	amountBin := easyfl.StripDataPrefix(args[0])
+	if len(amountBin) != 8 {
 		return 0, false
 	}
-	return binary.BigEndian.Uint64(args[0]), true
+	return binary.BigEndian.Uint64(easyfl.StripDataPrefix(amountBin)), true
 }
