@@ -1,7 +1,6 @@
 package constraint
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -37,25 +36,21 @@ func initTimelockConstraint() {
 	easyfl.MustExtendMany(timelockSource)
 
 	example := TimelockConstraintBin(1337)
-	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
+	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337")
+	common.Assert(sym == "timelock" && len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "inconsistency in 'timelock'")
 	registerConstraint("timelock", prefix)
 }
 
 // TimelockFromBin extracts timelock ($0) from the timelock script
-func TimelockFromBin(data []byte) (uint32, error) {
-	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+func TimelockFromBin(data []byte) (uint32, bool) {
+	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data, 1)
 	if err != nil {
-		return 0, err
+		return 0, false
 	}
-	prefix1, ok := PrefixByName("timelock")
-	common.Assert(ok, "no timelock")
-	if !bytes.Equal(prefix, prefix1) {
-		return 0, fmt.Errorf("TimelockFromBin:: not a 'timelock' constraint")
+	if sym != "timelock" {
+		return 0, false
 	}
-	if len(args[0]) != 4 {
-		return 0, fmt.Errorf("TimelockFromBin:: wrong data length")
-	}
-	return binary.BigEndian.Uint32(args[0]), nil
+	common.Assert(len(args[0]) == 4, "inconsistency in 'timelock'")
+	return binary.BigEndian.Uint32(args[0]), true
 }

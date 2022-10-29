@@ -2,9 +2,9 @@ package constraint
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 )
 
@@ -20,8 +20,13 @@ func initDeadlineLockConstraint() {
 	easyfl.MustExtendMany(deadlineLockSource)
 
 	example := DeadlineLock(1337, AddressED25519LockNullSource(), AddressED25519LockNullSource())
-	prefix, err := easyfl.ParseCallPrefixFromBinary(example)
-	common.AssertNoError(err)
+	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 3)
+	easyfl.AssertNoError(err)
+	easyfl.Assert(sym == "deadlineLock", "inconsistency in 'deadlineLock' 1")
+	easyfl.Assert(len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "inconsistency in 'deadlineLock' 2")
+	easyfl.Assert(bytes.Equal(args[1], AddressED25519LockNullBin()), "inconsistency in 'deadlineLock' 3")
+	easyfl.Assert(bytes.Equal(args[2], AddressED25519LockNullBin()), "inconsistency in 'deadlineLock' 4")
+
 	registerConstraint("deadlineLock", prefix)
 }
 

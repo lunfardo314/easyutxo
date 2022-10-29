@@ -1,7 +1,6 @@
 package constraint
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/ed25519"
 	"encoding/hex"
@@ -39,20 +38,18 @@ func initAddressED25519Constraint() {
 	easyfl.MustExtendMany(AddressED25519ConstraintSource)
 
 	example := AddressED25519LockNullBin()
-	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
+	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(len(args[0]) == 32, "len(args[0]) == 32")
+	common.Assert(sym == "addressED25519" && len(args[0]) == 32, "inconsistent 'addressED25519'")
 	registerConstraint("addressED25519", prefix)
 }
 
 func ParseAddressED25519Constraint(data []byte) ([]byte, bool) {
-	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data, 1)
 	if err != nil {
 		return nil, false
 	}
-	prefix1, ok := PrefixByName("addressED25519")
-	common.Assert(ok, "no addressED25519")
-	if !bytes.Equal(prefix, prefix1) {
+	if sym != "addressED25519" {
 		return nil, false
 	}
 	if len(args[0]) != 32 {

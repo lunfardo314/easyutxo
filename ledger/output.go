@@ -93,12 +93,11 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if ret.arr.NumElements() < 3 {
 		return nil, fmt.Errorf("at least 3 constraints expected")
 	}
-	var err error
-	if _, err = constraint.AmountFromConstraint(ret.arr.At(int(OutputBlockAmount))); err != nil {
-		return nil, err
+	if _, ok := constraint.AmountFromConstraint(ret.arr.At(int(OutputBlockAmount))); !ok {
+		return nil, fmt.Errorf("can't parse amount")
 	}
-	if _, err = constraint.TimestampFromConstraint(ret.arr.At(int(OutputBlockTimestamp))); err != nil {
-		return nil, err
+	if _, ok := constraint.TimestampFromConstraint(ret.arr.At(int(OutputBlockTimestamp))); !ok {
+		return nil, fmt.Errorf("can't parse timestamp")
 	}
 
 	lock := ret.arr.At(int(OutputBlockLock))
@@ -119,14 +118,14 @@ func (o *Output) WithTimestamp(ts uint32) *Output {
 }
 
 func (o *Output) Amount() uint64 {
-	ret, err := constraint.AmountFromConstraint(o.arr.At(int(OutputBlockAmount)))
-	easyfl.AssertNoError(err)
+	ret, ok := constraint.AmountFromConstraint(o.arr.At(int(OutputBlockAmount)))
+	easyfl.Assert(ok, "can't parse amount")
 	return ret
 }
 
 func (o *Output) Timestamp() uint32 {
-	ret, err := constraint.TimestampFromConstraint(o.arr.At(int(OutputBlockTimestamp)))
-	easyfl.AssertNoError(err)
+	ret, ok := constraint.TimestampFromConstraint(o.arr.At(int(OutputBlockTimestamp)))
+	easyfl.Assert(ok, "can't parse timestamp")
 	return ret
 }
 
@@ -177,12 +176,11 @@ func (o *Output) Sender() ([]byte, bool) {
 		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
 			return true
 		}
-		var err error
-		if ret, err = constraint.SenderFromConstraint(constr); err == nil {
-			found = true
+		ret, found = constraint.SenderFromConstraint(constr)
+		if found {
 			return false
 		}
-		return false
+		return true
 	})
 	if found {
 		return ret, true
@@ -201,12 +199,11 @@ func (o *Output) TimeLock() (uint32, bool) {
 		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
 			return true
 		}
-		var err error
-		if ret, err = constraint.TimelockFromBin(constr); err == nil {
-			found = true
+		ret, found = constraint.TimelockFromBin(constr)
+		if found {
 			return false
 		}
-		return false
+		return true
 	})
 	if found {
 		return ret, true

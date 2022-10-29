@@ -1,7 +1,6 @@
 package constraint
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -37,25 +36,24 @@ func AmountConstraintBin(amount uint64) []byte {
 func initAmountConstraint() {
 	easyfl.MustExtendMany(amountSource)
 
+	// sanity check
 	example := AmountConstraintBin(1337)
-	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
+	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(len(args[0]) == 8 && binary.BigEndian.Uint64(args[0]) == 1337, "len(args)==8 && binary.BigEndian.Uint64(args[0])==1337")
+	common.Assert(sym == "amount" && len(args[0]) == 8 && binary.BigEndian.Uint64(args[0]) == 1337, "'amount' consistency check failed")
 	registerConstraint("amount", prefix)
 }
 
-func AmountFromConstraint(data []byte) (uint64, error) {
-	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+func AmountFromConstraint(data []byte) (uint64, bool) {
+	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data)
 	if err != nil {
-		return 0, err
+		return 0, false
 	}
-	prefix1, ok := PrefixByName("amount")
-	common.Assert(ok, "no amount")
-	if !bytes.Equal(prefix, prefix1) {
-		return 0, fmt.Errorf("AmountFromConstraint:: not an 'amount' constraint")
+	if sym != "amount" {
+		return 0, false
 	}
 	if len(args[0]) != 8 {
-		return 0, fmt.Errorf("AmountFromConstraint:: wrong data length")
+		return 0, false
 	}
-	return binary.BigEndian.Uint64(args[0]), nil
+	return binary.BigEndian.Uint64(args[0]), true
 }

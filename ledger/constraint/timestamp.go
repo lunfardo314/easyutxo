@@ -1,7 +1,6 @@
 package constraint
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -29,24 +28,19 @@ func initTimestampConstraint() {
 	easyfl.MustExtendMany(timestampSource)
 
 	example := TimestampConstraintBin(1337)
-	prefix, args, err := easyfl.ParseCallWithConstants(example, 1)
+	sym, prefix, args, err := easyfl.DecompileBinaryOneLevel(example, 1)
 	easyfl.AssertNoError(err)
-	common.Assert(len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337")
+	common.Assert(sym == "timestamp" && len(args[0]) == 4 && binary.BigEndian.Uint32(args[0]) == 1337, "'timestamp' consistency check failed")
 	registerConstraint("timestamp", prefix)
 }
 
-func TimestampFromConstraint(data []byte) (uint32, error) {
-	prefix, args, err := easyfl.ParseCallWithConstants(data, 1)
+func TimestampFromConstraint(data []byte) (uint32, bool) {
+	sym, _, args, err := easyfl.DecompileBinaryOneLevel(data, 1)
 	if err != nil {
-		return 0, err
+		return 0, false
 	}
-	prefix1, ok := PrefixByName("timestamp")
-	common.Assert(ok, "no timestamp")
-	if !bytes.Equal(prefix, prefix1) {
-		return 0, fmt.Errorf("TimestampFromConstraint:: not an 'amount' constraint")
+	if sym != "timestamp" || len(args[0]) != 4 {
+		return 0, false
 	}
-	if len(args[0]) != 4 {
-		return 0, fmt.Errorf("TimestampFromConstraint:: wrong data length")
-	}
-	return binary.BigEndian.Uint32(args[0]), nil
+	return binary.BigEndian.Uint32(args[0]), true
 }
