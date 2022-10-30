@@ -66,7 +66,7 @@ func mustBinFromSource(src string) []byte {
 	return binCode
 }
 
-func EqualConstraints(l1, l2 Constraint) bool {
+func Equal(l1, l2 Constraint) bool {
 	if common.IsNil(l1) != common.IsNil(l2) {
 		return false
 	}

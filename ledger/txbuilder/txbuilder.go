@@ -266,10 +266,10 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 	for i := range consumedOuts {
 		if i == 0 {
 			unlockData := constraint.UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderPrivateKey)
-			ctx.UnlockBlock(0).PutUnlockParams(unlockData, OutputBlockLock)
+			ctx.UnlockBlock(0).PutUnlockParams(unlockData, ledger.OutputBlockLock)
 			continue
 		}
-		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, OutputBlockLock)
+		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, ledger.OutputBlockLock)
 	}
 	return ctx.Transaction.Bytes(), nil
 }

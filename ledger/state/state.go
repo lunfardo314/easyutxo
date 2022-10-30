@@ -1,7 +1,6 @@
 package state
 
 import (
-	"crypto/ed25519"
 	"sync"
 	"time"
 
@@ -19,8 +18,8 @@ type FinalState struct {
 	store ledger.StateStore
 }
 
-func NewLedgerState(store ledger.StateStore, genesisPublicKey ed25519.PublicKey, initialSupply uint64) *FinalState {
-	outBytes, oid := genesisOutput(genesisPublicKey, initialSupply, uint32(time.Now().Unix()))
+func NewLedgerState(store ledger.StateStore, genesisAddr constraint.AddressED25519, initialSupply uint64) *FinalState {
+	outBytes, oid := genesisOutput(genesisAddr, initialSupply, uint32(time.Now().Unix()))
 	batch := store.BatchedWriter()
 	batch.Set(oid[:], outBytes)
 	if err := batch.Commit(); err != nil {
@@ -33,19 +32,18 @@ func NewLedgerState(store ledger.StateStore, genesisPublicKey ed25519.PublicKey,
 }
 
 // NewInMemory mostly for testing
-func NewInMemory(genesisPublicKey ed25519.PublicKey, initialSupply uint64) *FinalState {
-	return NewLedgerState(common.NewInMemoryKVStore(), genesisPublicKey, initialSupply)
+func NewInMemory(genesisAddr constraint.AddressED25519, initialSupply uint64) *FinalState {
+	return NewLedgerState(common.NewInMemoryKVStore(), genesisAddr, initialSupply)
 }
 
-func genesisOutput(genesisPublicKey ed25519.PublicKey, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
+func genesisOutput(genesisAddr constraint.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
 	amount := constraint.NewAmount(initialSupply)
 	timestamp := constraint.NewTimestamp(ts)
-	genesisLock := constraint.AddressED25519FromPublicKey(genesisPublicKey)
 	ret := lazyslice.EmptyArray()
 	ret.Push(amount.Bytes())
 	ret.Push(timestamp.Bytes())
-	ret.Push(genesisLock.Bytes())
+	ret.Push(genesisAddr.Bytes())
 	return ret.Bytes(), ledger.OutputID{}
 }
 
@@ -64,8 +62,8 @@ func (u *FinalState) AddTransaction(txBytes []byte, traceOption ...int) ([]*inde
 	return indexerUpdate, u.updateLedger(ctx)
 }
 
-func (u *FinalState) GetUTXO(id *ledger.OutputID) ([]byte, bool) {
-	ret := u.store.Get(common.Concat(ledger.PartitionState, id.Bytes()))
+func (u *FinalState) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
+	ret := u.store.Get(oid.Bytes())
 	if len(ret) == 0 {
 		return nil, false
 	}

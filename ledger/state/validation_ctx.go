@@ -6,7 +6,6 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -92,11 +91,6 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 	return ret, nil
 }
 
-const (
-	unlockScriptName = "(unlock script constraint)"
-	inlineScriptName = "(in-line script constraint)"
-)
-
 // unlockScriptBinary finds script from unlock block
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
 	unlockBlockPath := easyfl.Concat(invocationFullPath)
@@ -132,22 +126,6 @@ func (v *ValidationContext) InputCommitment() []byte {
 	return v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
 }
 
-func (v *ValidationContext) ConsumedOutput(idx byte) *txbuilder.Output {
-	ret, err := txbuilder.OutputFromBytes(v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch, idx)))
-	easyfl.AssertNoError(err)
-	return ret
-}
-
-func (v *ValidationContext) ForEachOutput(branch lazyslice.TreePath, fun func(out *txbuilder.Output, byteSize uint32, path lazyslice.TreePath) bool) {
-	outputPath := easyfl.Concat(branch, byte(0))
-	v.tree.ForEach(func(idx byte, outputData []byte) bool {
-		outputPath[2] = idx
-		out, err := txbuilder.OutputFromBytes(outputData)
-		easyfl.AssertNoError(err)
-		return fun(out, uint32(len(outputData)), outputPath)
-	}, branch)
-}
-
 func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.OutputID) bool) {
 	v.tree.ForEach(func(i byte, data []byte) bool {
 		oid, err := ledger.OutputIDFromBytes(data)
@@ -157,12 +135,6 @@ func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.Output
 		}
 		return true
 	}, Path(TransactionBranch, TxInputIDsBranch))
-}
-
-func (v *ValidationContext) ForEachProducedOutput(fun func(out *txbuilder.Output, byteSize uint32, idx byte) bool) {
-	v.ForEachOutput([]byte{TransactionBranch, TxOutputBranch}, func(out *txbuilder.Output, byteSize uint32, path lazyslice.TreePath) bool {
-		return !fun(out, byteSize, path[len(path)-1])
-	})
 }
 
 func (v *ValidationContext) NumProducedOutputs() byte {

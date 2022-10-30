@@ -12,7 +12,6 @@ import (
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
-	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -61,7 +60,7 @@ func (v *ValidationContext) Validate() ([]*indexer.IndexEntry, error) {
 
 	err = easyfl.CatchPanicOrError(func() error {
 		var err1 error
-		inSum, err1 = v.validateConsumedOutputs(ret)
+		inSum, err1 = v.validateConsumedOutputs(&ret)
 		return err1
 	})
 	if err != nil {
@@ -69,7 +68,7 @@ func (v *ValidationContext) Validate() ([]*indexer.IndexEntry, error) {
 	}
 	err = easyfl.CatchPanicOrError(func() error {
 		var err1 error
-		outSum, err1 = v.validateProducedOutputs(ret)
+		outSum, err1 = v.validateProducedOutputs(&ret)
 		return err1
 	})
 	if err != nil {
@@ -87,15 +86,16 @@ func (v *ValidationContext) Validate() ([]*indexer.IndexEntry, error) {
 	return ret, nil
 }
 
-func (v *ValidationContext) validateProducedOutputs(indexRecords []*indexer.IndexEntry) (uint64, error) {
+func (v *ValidationContext) validateProducedOutputs(indexRecords *[]*indexer.IndexEntry) (uint64, error) {
 	return v.validateOutputs(false, indexRecords)
 }
 
-func (v *ValidationContext) validateConsumedOutputs(indexRecords []*indexer.IndexEntry) (uint64, error) {
+func (v *ValidationContext) validateConsumedOutputs(indexRecords *[]*indexer.IndexEntry) (uint64, error) {
 	return v.validateOutputs(true, indexRecords)
 }
 
-func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords []*indexer.IndexEntry) (uint64, error) {
+func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.IndexEntry) (uint64, error) {
+	indexRecs := *indexRecords
 	var branch lazyslice.TreePath
 	if consumedBranch {
 		branch = Path(ConsumedContextBranch, ConsumedContextOutputsBranch)
@@ -114,7 +114,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords []
 		}
 		minDeposit := constraint.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
 		var am constraint.Amount
-		am, err = constraint.AmountFromBytes(arr.At(int(txbuilder.OutputBlockAmount)))
+		am, err = constraint.AmountFromBytes(arr.At(int(ledger.OutputBlockAmount)))
 		if err != nil {
 			return false
 		}
@@ -132,7 +132,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords []
 
 		// create update command for indexer
 		var lock constraint.Lock
-		lock, err = constraint.LockFromBytes(arr.At(int(txbuilder.OutputBlockLock)))
+		lock, err = constraint.LockFromBytes(arr.At(int(ledger.OutputBlockLock)))
 		if err != nil {
 			return false
 		}
@@ -146,13 +146,14 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords []
 			} else {
 				indexEntry.OutputID = ledger.NewOutputID(v.TransactionID(), i)
 			}
-			indexRecords = append(indexRecords, indexEntry)
+			indexRecs = append(indexRecs, indexEntry)
 		}
 		return true
 	}, branch)
 	if err != nil {
 		return 0, err
 	}
+	*indexRecords = indexRecs
 	return sum, nil
 }
 

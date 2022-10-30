@@ -69,7 +69,7 @@ func initAddressED25519Constraint() {
 	example := AddressED25519Null()
 	addrBack, err := AddressED25519FromBytes(example.Bytes())
 	easyfl.AssertNoError(err)
-	easyfl.Assert(EqualConstraints(addrBack, AddressED25519Null()), "inconsistency "+addressED25519Name)
+	easyfl.Assert(Equal(addrBack, AddressED25519Null()), "inconsistency "+addressED25519Name)
 
 	prefix, err := easyfl.ParseCallPrefixFromBinary(example.Bytes())
 	easyfl.AssertNoError(err)

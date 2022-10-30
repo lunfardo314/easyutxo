@@ -1,4 +1,4 @@
-package txbuilder
+package ledger_test
 
 import (
 	"crypto/ed25519"
@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"github.com/lunfardo314/easyutxo/ledger/state"
+	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"github.com/lunfardo314/easyutxo/ledger/utxodb"
 	"github.com/stretchr/testify/require"
 )
@@ -22,26 +24,26 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := OutputBasic(0, 0, constraint.AddressED25519Null())
-		outBack, err := OutputFromBytes(out.Bytes())
+		out := txbuilder.OutputBasic(0, 0, constraint.AddressED25519Null())
+		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := OutputBasic(0, 0, constraint.AddressED25519FromPublicKey(pubKey))
-		outBack, err := OutputFromBytes(out.Bytes())
+		out := txbuilder.OutputBasic(0, 0, constraint.AddressED25519FromPublicKey(pubKey))
+		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		_, err = constraint.AddressED25519FromBytes(outBack.Lock())
+		_, err = constraint.AddressED25519FromBytes(outBack.Lock().Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, out.Lock(), outBack.Lock())
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519Null())
-		outBack, err := OutputFromBytes(out.Bytes())
+		out := txbuilder.OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519Null())
+		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
@@ -51,13 +53,42 @@ func TestOutput(t *testing.T) {
 	})
 }
 
+func TestMainConstraints(t *testing.T) {
+	t.Run("genesis", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		genesisBytes, found := u.StateAccess().GetUTXO(&ledger.OutputID{})
+		require.True(t, found)
+		out, err := txbuilder.OutputFromBytes(genesisBytes)
+		require.NoError(t, err)
+		require.EqualValues(t, u.Supply(), out.Amount())
+		require.True(t, constraint.Equal(u.GenesisAddress(), out.Lock()))
+		outsData, err := u.IndexerAccess().GetUTXOsForAccountID(u.GenesisAddress().Bytes(), u.StateAccess())
+		require.NoError(t, err)
+		require.EqualValues(t, 1, len(outsData))
+		require.EqualValues(t, ledger.OutputID{}, outsData[0].ID)
+		require.EqualValues(t, genesisBytes, outsData[0].OutputData)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress().Bytes()))
+		require.EqualValues(t, u.Supply(), u.Balance(u.GenesisAddress().Bytes()))
+	})
+	t.Run("faucet", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		_, _, addr := u.GenerateAddress(1)
+		err := u.TokensFromFaucet(addr, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress().Bytes()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress().Bytes()))
+		require.EqualValues(t, 10000, u.Balance(addr.Bytes()))
+		require.EqualValues(t, 1, u.NumUTXOs(addr.Bytes()))
+	})
+}
+
 func TestTimelock(t *testing.T) {
 	t.Run("time lock 1", func(t *testing.T) {
 		u := utxodb.NewUTXODB(true)
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr0, 10000)
-		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
@@ -70,7 +101,7 @@ func TestTimelock(t *testing.T) {
 			WithTargetLock(addr1).
 			WithTimestamp(ts).
 			WithConstraint(constraint.NewTimelock(ts + 1))
-		txBytes, err := MakeTransferTransaction(par)
+		txBytes, err := txbuilder.MakeTransferTransaction(par)
 
 		require.NoError(t, err)
 		t.Logf("tx with timelock len: %d", len(txBytes))
@@ -116,8 +147,8 @@ func TestTimelock(t *testing.T) {
 
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr0, 10000)
-		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
@@ -126,7 +157,7 @@ func TestTimelock(t *testing.T) {
 		ts := uint32(time.Now().Unix()) + 5
 		par, err := u.MakeED25519TransferInputs(privKey0)
 		require.NoError(t, err)
-		txBytes, err := MakeTransferTransaction(par.
+		txBytes, err := txbuilder.MakeTransferTransaction(par.
 			WithAmount(200).
 			WithTargetLock(addr1).
 			WithTimestamp(ts).
@@ -178,8 +209,8 @@ func TestDeadlineLock(t *testing.T) {
 	privKey0, pubKey0, addr0 := u.GenerateAddress(0)
 	err := u.TokensFromFaucet(addr0, 10000)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-	require.EqualValues(t, u.Supply()-10000, u.Balance(u.OriginAddress()))
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 	require.EqualValues(t, 10000, u.Balance(addr0))
 	require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
@@ -206,7 +237,7 @@ func TestDeadlineLock(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 10000-2000, u.Balance(addr0))
 	t.Logf("tx ith deadline lock: %d bytes", len(txBytes))
-	ctx, err := state.ValidationContextFromTransaction(txBytes, u)
+	ctx, err := u.ValidationContextFromTransaction(txBytes)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, ctx.NumProducedOutputs())
 }

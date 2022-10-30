@@ -27,7 +27,7 @@ type (
 	}
 
 	IndexerAccess interface {
-		GetUTXOsForAddress(addr []byte, state StateAccess) ([]*OutputDataWithID, error)
+		GetUTXOsForAccountID(accountID []byte, state StateAccess) ([]*OutputDataWithID, error)
 	}
 
 	StateStore interface {
@@ -44,6 +44,14 @@ type (
 const (
 	PartitionState = byte(iota)
 	PartitionIndexer
+)
+
+// Mandatory output block indices
+const (
+	OutputBlockAmount = byte(iota)
+	OutputBlockTimestamp
+	OutputBlockLock
+	OutputNumMandatoryBlocks
 )
 
 func (txid *TransactionID) String() string {
