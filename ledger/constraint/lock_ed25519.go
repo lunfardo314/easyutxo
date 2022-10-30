@@ -51,8 +51,12 @@ func (a AddressED25519) Bytes() []byte {
 	return mustBinFromSource(a.source())
 }
 
-func (a AddressED25519) IndexableTags() [][]byte {
-	return [][]byte{a.Bytes()}
+func (a AddressED25519) IndexableTags() []Accountable {
+	return []Accountable{a}
+}
+
+func (a AddressED25519) AccountID() AccountID {
+	return a.Bytes()
 }
 
 func (a AddressED25519) Name() string {

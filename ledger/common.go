@@ -6,6 +6,7 @@ import (
 
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/ledger/constraint"
 )
 
 const (
@@ -27,7 +28,7 @@ type (
 	}
 
 	IndexerAccess interface {
-		GetUTXOsForAccountID(accountID []byte, state StateAccess) ([]*OutputDataWithID, error)
+		GetUTXOsForAccountID(accountID constraint.Accountable, state StateAccess) ([]*OutputDataWithID, error)
 	}
 
 	StateStore interface {
@@ -39,11 +40,6 @@ type (
 		common.BatchedUpdatable
 		common.Traversable
 	}
-)
-
-const (
-	PartitionState = byte(iota)
-	PartitionIndexer
 )
 
 // Mandatory output block indices

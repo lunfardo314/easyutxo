@@ -138,7 +138,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		}
 		for _, addr := range lock.IndexableTags() {
 			indexEntry := &indexer.IndexEntry{
-				AccountID: addr,
+				AccountID: addr.AccountID(),
 				Delete:    consumedBranch,
 			}
 			if consumedBranch {

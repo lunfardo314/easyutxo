@@ -10,8 +10,8 @@ import (
 
 type DeadlineLock struct {
 	Deadline         uint32
-	ConstraintMain   Lock
-	ConstraintExpiry Lock
+	ConstraintMain   Accountable
+	ConstraintExpiry Accountable
 }
 
 const (
@@ -19,7 +19,7 @@ const (
 	deadlineLockTemplate = deadlineLockName + "(u32/%d,x/%s, x/%s)"
 )
 
-func NewDeadlineLock(deadline uint32, main, expiry Lock) *DeadlineLock {
+func NewDeadlineLock(deadline uint32, main, expiry Accountable) *DeadlineLock {
 	return &DeadlineLock{
 		Deadline:         deadline,
 		ConstraintMain:   main,
@@ -30,8 +30,8 @@ func NewDeadlineLock(deadline uint32, main, expiry Lock) *DeadlineLock {
 func (dl *DeadlineLock) source() string {
 	return fmt.Sprintf(deadlineLockTemplate,
 		dl.Deadline,
-		hex.EncodeToString(dl.ConstraintMain.Bytes()),
-		hex.EncodeToString(dl.ConstraintExpiry.Bytes()),
+		hex.EncodeToString(dl.ConstraintMain.AccountID()),
+		hex.EncodeToString(dl.ConstraintExpiry.AccountID()),
 	)
 }
 
@@ -43,8 +43,8 @@ func (dl *DeadlineLock) String() string {
 	return fmt.Sprintf("%s(%d,%s,%s)", deadlineLockName, dl.Deadline, dl.ConstraintMain, dl.ConstraintExpiry)
 }
 
-func (dl *DeadlineLock) IndexableTags() [][]byte {
-	return [][]byte{dl.ConstraintMain.Bytes(), dl.ConstraintExpiry.Bytes()}
+func (dl *DeadlineLock) IndexableTags() []Accountable {
+	return []Accountable{dl.ConstraintMain, dl.ConstraintExpiry}
 }
 
 func (dl *DeadlineLock) Name() string {
@@ -81,10 +81,10 @@ func DeadlineLockFromBytes(data []byte) (*DeadlineLock, error) {
 	}
 	ret.Deadline = binary.BigEndian.Uint32(dlBin)
 
-	if ret.ConstraintMain, err = LockFromBytes(args[1]); err != nil {
+	if ret.ConstraintMain, err = IndexableFromBytes(args[1]); err != nil {
 		return nil, err
 	}
-	if ret.ConstraintExpiry, err = LockFromBytes(args[1]); err != nil {
+	if ret.ConstraintExpiry, err = IndexableFromBytes(args[1]); err != nil {
 		return nil, err
 	}
 	return ret, nil

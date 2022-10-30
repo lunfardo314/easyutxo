@@ -36,11 +36,12 @@ func NewIndexer(store ledger.IndexerStore, originAddr constraint.AddressED25519)
 	}
 }
 
-func (inr *Indexer) GetUTXOsForAccountID(addr []byte, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
-	if len(addr) > 255 {
+func (inr *Indexer) GetUTXOsForAccountID(addr constraint.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
+	acc := addr.AccountID()
+	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
 	}
-	accountPrefix := easyfl.Concat(byte(len(addr)), addr)
+	accountPrefix := easyfl.Concat(byte(len(acc)), acc)
 
 	inr.mutex.RLock()
 	defer inr.mutex.RUnlock()

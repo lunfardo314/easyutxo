@@ -8,7 +8,7 @@ import (
 
 type GeneralScript []byte
 
-func NewUnknownConstraint(data []byte) GeneralScript {
+func NewGeneralScript(data []byte) GeneralScript {
 	return data
 }
 

@@ -7,19 +7,27 @@ import (
 	"github.com/lunfardo314/easyfl"
 )
 
-type Constraint interface {
-	Name() string
-	Bytes() []byte
-	String() string
-}
-
-type Lock interface {
-	Constraint
-	IndexableTags() [][]byte
-}
-
 type (
-	Parser           func([]byte) (Constraint, error)
+	Constraint interface {
+		Name() string
+		Bytes() []byte
+		String() string
+	}
+
+	AccountID []byte
+
+	Accountable interface {
+		Constraint
+		AccountID() AccountID
+	}
+
+	Lock interface {
+		Constraint
+		IndexableTags() []Accountable
+	}
+
+	Parser func([]byte) (Constraint, error)
+
 	constraintRecord struct {
 		name   string
 		prefix []byte
@@ -85,5 +93,9 @@ func FromBytes(data []byte) (Constraint, error) {
 	if ok {
 		return parser(data)
 	}
-	return NewUnknownConstraint(data), nil
+	return NewGeneralScript(data), nil
+}
+
+func (acc AccountID) Bytes() []byte {
+	return acc
 }

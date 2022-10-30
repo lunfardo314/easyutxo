@@ -24,7 +24,7 @@ type Array struct {
 type lenPrefixType uint16
 
 // prefix of the serialized slice array are two bytes interpreted as uint16
-// The highest 2 bits are interpreted as 4 possible DataLenBytes (0, 1, 2 and 4 bytes)
+// The highest 2 bits are interpreted as 4 possible dataLenBytes (0, 1, 2 and 4 bytes)
 // The rest is interpreted as uint16 of the number of elements in the array. Max 2^14-1 =
 // 0 byte with ArrayMaxData code, the number of bits reserved for element data length
 // 1 byte is number of elements in the array
@@ -41,7 +41,7 @@ const (
 	emptyArrayPrefix = lenPrefixType(0)
 )
 
-func (dl lenPrefixType) DataLenBytes() int {
+func (dl lenPrefixType) dataLenBytes() int {
 	m := uint16(dl) & dataLenMask
 	switch m {
 	case dataLenBytes0:
@@ -292,7 +292,7 @@ func encodeArray(data [][]byte, w io.Writer) error {
 	if _, err = w.Write(prefix.Bytes()); err != nil {
 		return err
 	}
-	return writeData(data, prefix.DataLenBytes(), w)
+	return writeData(data, prefix.dataLenBytes(), w)
 }
 
 func parseArray(data []byte, maxNumElements int) ([][]byte, error) {
@@ -304,7 +304,7 @@ func parseArray(data []byte, maxNumElements int) ([][]byte, error) {
 		return nil, fmt.Errorf("parseArray: number of elements in the prefix %d is larger than maxNumElements %d ",
 			prefix.numElements(), maxNumElements)
 	}
-	return decodeData(data[2:], prefix.DataLenBytes(), prefix.numElements())
+	return decodeData(data[2:], prefix.dataLenBytes(), prefix.numElements())
 }
 
 //------------------------------------------------------------------------------

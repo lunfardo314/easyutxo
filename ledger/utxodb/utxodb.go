@@ -97,7 +97,7 @@ func (u *UTXODB) TokensFromFaucet(addr constraint.AddressED25519, howMany ...uin
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	outsData, err := u.indexer.GetUTXOsForAccountID(u.genesisAddress.Bytes(), u.state)
+	outsData, err := u.indexer.GetUTXOsForAccountID(u.genesisAddress, u.state)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constrain
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) account(addr []byte) (uint64, int) {
+func (u *UTXODB) account(addr constraint.Accountable) (uint64, int) {
 	outs, err := u.indexer.GetUTXOsForAccountID(addr, u.state)
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
@@ -178,12 +178,12 @@ func (u *UTXODB) account(addr []byte) (uint64, int) {
 	return balance, len(outs)
 }
 
-func (u *UTXODB) Balance(addr []byte) uint64 {
+func (u *UTXODB) Balance(addr constraint.Accountable) uint64 {
 	ret, _ := u.account(addr)
 	return ret
 }
 
-func (u *UTXODB) NumUTXOs(addr []byte) int {
+func (u *UTXODB) NumUTXOs(addr constraint.Accountable) int {
 	_, ret := u.account(addr)
 	return ret
 }
