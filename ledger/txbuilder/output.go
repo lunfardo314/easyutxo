@@ -1,25 +1,14 @@
-package ledger
+package txbuilder
 
 import (
-	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraint"
 )
-
-// Output is a LazyArray with constraint invocations
-// There must be at least 2 constraints:
-// - at index 0 it is 'main constraint'
-// - at index 1 it is 'address constraint'
-// The main constraint has:
-// ---  constraint code 0 (byte 0). It checks basic constraints for amount and timestamp
-// ---  data is: 4 bytes of timestamp and 8 bytes of amount.
-// The address constraint is any constraint invocation. The block is treated as 'address'
-// and it is used as index value for the search of 'all UTXOs belonging to the address'
-
-const OutputIDLength = TransactionIDLength + 1
 
 const (
 	OutputBlockAmount = byte(iota)
@@ -28,50 +17,13 @@ const (
 	OutputNumMandatoryBlocks
 )
 
-type (
-	OutputID [OutputIDLength]byte
-
-	Output struct {
-		arr *lazyslice.Array
-	}
-
-	OutputWithID struct {
-		ID     OutputID
-		Output *Output
-	}
-)
-
-func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
-	copy(ret[:TransactionIDLength], id[:])
-	ret[TransactionIDLength] = idx
-	return
+type Output struct {
+	arr *lazyslice.Array
 }
 
-func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
-	if len(data) != OutputIDLength {
-		err = errors.New("OutputIDFromBytes: wrong data length")
-		return
-	}
-	copy(ret[:], data)
-	return
-}
-
-func (oid *OutputID) String() string {
-	txid := oid.TransactionID()
-	return fmt.Sprintf("[%d]%s", oid.Index(), txid.String())
-}
-
-func (oid *OutputID) TransactionID() (ret TransactionID) {
-	copy(ret[:], oid[:TransactionIDLength])
-	return
-}
-
-func (oid *OutputID) Index() byte {
-	return oid[TransactionIDLength]
-}
-
-func (oid *OutputID) Bytes() []byte {
-	return oid[:]
+type OutputWithID struct {
+	ID     ledger.OutputID
+	Output *Output
 }
 
 func NewOutput() *Output {
@@ -212,20 +164,26 @@ func (o *Output) TimeLock() (uint32, bool) {
 	return 0, false
 }
 
-//---------------------------------------------------------
-
-func (u *UnlockParams) Bytes() []byte {
-	return u.array.Bytes()
-}
-
-func NewUnlockBlock() *UnlockParams {
-	return &UnlockParams{
-		array: lazyslice.EmptyArray(256),
+func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, desc ...bool) ([]*OutputWithID, error) {
+	ret := make([]*OutputWithID, len(outs))
+	for i, od := range outs {
+		out, err := OutputFromBytes(od.OutputData)
+		if err != nil {
+			return nil, err
+		}
+		ret[i] = &OutputWithID{
+			ID:     od.ID,
+			Output: out,
+		}
 	}
-}
-
-// PutUnlockParams puts data at index. If index is out of bounds, pushes empty elements to fill the gaps
-// Unlock params in the element 'idx' corresponds to the consumed output constraint at the same index
-func (u *UnlockParams) PutUnlockParams(data []byte, idx byte) {
-	u.array.PutAtIdxGrow(idx, data)
+	if len(desc) > 0 && desc[0] {
+		sort.Slice(ret, func(i, j int) bool {
+			return ret[i].Output.Amount() > ret[j].Output.Amount()
+		})
+	} else {
+		sort.Slice(ret, func(i, j int) bool {
+			return ret[i].Output.Amount() < ret[j].Output.Amount()
+		})
+	}
+	return ret, nil
 }

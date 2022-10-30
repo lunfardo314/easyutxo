@@ -1,0 +1,84 @@
+package ledger
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/iotaledger/trie.go/common"
+	"github.com/lunfardo314/easyfl"
+)
+
+const (
+	TransactionIDLength = 32
+	OutputIDLength      = TransactionIDLength + 1
+)
+
+type (
+	TransactionID [TransactionIDLength]byte
+	OutputID      [OutputIDLength]byte
+
+	OutputDataWithID struct {
+		ID         OutputID
+		OutputData []byte
+	}
+
+	StateAccess interface {
+		GetUTXO(id *OutputID) ([]byte, bool)
+	}
+
+	IndexerAccess interface {
+		GetUTXOsForAddress(addr []byte, state StateAccess) ([]*OutputDataWithID, error)
+	}
+
+	StateStore interface {
+		common.KVReader
+		common.BatchedUpdatable
+	}
+
+	IndexerStore interface {
+		common.BatchedUpdatable
+		common.Traversable
+	}
+)
+
+const (
+	PartitionState = byte(iota)
+	PartitionIndexer
+)
+
+func (txid *TransactionID) String() string {
+	return easyfl.Fmt(txid[:])
+}
+
+func NewOutputID(id TransactionID, idx byte) (ret OutputID) {
+	copy(ret[:TransactionIDLength], id[:])
+	ret[TransactionIDLength] = idx
+	return
+}
+
+func OutputIDFromBytes(data []byte) (ret OutputID, err error) {
+	if len(data) != OutputIDLength {
+		err = errors.New("OutputIDFromBytes: wrong data length")
+		return
+	}
+	copy(ret[:], data)
+	return
+}
+
+func (oid *OutputID) String() string {
+	txid := oid.TransactionID()
+	return fmt.Sprintf("[%d]%s", oid.Index(), txid.String())
+}
+
+func (oid *OutputID) TransactionID() (ret TransactionID) {
+	copy(ret[:], oid[:TransactionIDLength])
+	return
+}
+
+func (oid *OutputID) Index() byte {
+	return oid[TransactionIDLength]
+}
+
+func (oid *OutputID) Bytes() []byte {
+	return oid[:]
+}

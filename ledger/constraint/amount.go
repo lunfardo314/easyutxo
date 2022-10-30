@@ -79,3 +79,7 @@ func AmountFromBytes(data []byte) (Amount, error) {
 	}
 	return Amount(binary.BigEndian.Uint64(amountBin)), nil
 }
+
+func (a Amount) Amount() uint64 {
+	return uint64(a)
+}

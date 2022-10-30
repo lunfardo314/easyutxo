@@ -1,4 +1,4 @@
-package ledger
+package state
 
 import (
 	"bytes"
@@ -9,7 +9,10 @@ import (
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/indexer"
+	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -37,12 +40,12 @@ func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
 
 // checkConstraint checks the constraint at path. In-line and unlock scripts are ignored
 // for 'produces output' context
-func (v *ValidationContext) checkConstraint(constraintPath lazyslice.TreePath) ([]byte, string, error) {
+func (v *ValidationContext) checkConstraint(constraintData []byte, constraintPath lazyslice.TreePath) ([]byte, string, error) {
 	var ret []byte
 	var name string
 	err := common.CatchPanicOrError(func() error {
 		var err1 error
-		ret, name, err1 = v.evalConstraint(constraintPath)
+		ret, name, err1 = v.evalConstraint(constraintData, constraintPath)
 		return err1
 	})
 	if err != nil {
@@ -51,58 +54,74 @@ func (v *ValidationContext) checkConstraint(constraintPath lazyslice.TreePath) (
 	return ret, name, nil
 }
 
-func (v *ValidationContext) Validate() error {
+func (v *ValidationContext) Validate() ([]*indexer.IndexEntry, error) {
 	var inSum, outSum uint64
 	var err error
+	ret := make([]*indexer.IndexEntry, 0)
+
 	err = easyfl.CatchPanicOrError(func() error {
 		var err1 error
-		inSum, err1 = v.validateConsumedOutputs()
+		inSum, err1 = v.validateConsumedOutputs(ret)
 		return err1
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = easyfl.CatchPanicOrError(func() error {
 		var err1 error
-		outSum, err1 = v.validateProducedOutputs()
+		outSum, err1 = v.validateProducedOutputs(ret)
 		return err1
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = easyfl.CatchPanicOrError(func() error {
 		return v.validateInputCommitment()
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if inSum != outSum {
-		return fmt.Errorf("unbalanced amount between inputs and outputs")
+		return nil, fmt.Errorf("unbalanced amount between inputs and outputs")
 	}
-	return nil
+	return ret, nil
 }
 
-func (v *ValidationContext) validateProducedOutputs() (uint64, error) {
-	return v.validateOutputs(Path(TransactionBranch, TxOutputBranch))
+func (v *ValidationContext) validateProducedOutputs(indexRecords []*indexer.IndexEntry) (uint64, error) {
+	return v.validateOutputs(false, indexRecords)
 }
 
-func (v *ValidationContext) validateConsumedOutputs() (uint64, error) {
-	return v.validateOutputs(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
+func (v *ValidationContext) validateConsumedOutputs(indexRecords []*indexer.IndexEntry) (uint64, error) {
+	return v.validateOutputs(true, indexRecords)
 }
 
-func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, error) {
+func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords []*indexer.IndexEntry) (uint64, error) {
+	var branch lazyslice.TreePath
+	if consumedBranch {
+		branch = Path(ConsumedContextBranch, ConsumedContextOutputsBranch)
+	} else {
+		branch = Path(TransactionBranch, TxOutputBranch)
+	}
 	var err error
 	var sum uint64
 	var extraDepositWeight uint32
-	v.ForEachOutput(branch, func(out *Output, byteSize uint32, path lazyslice.TreePath) bool {
-		if extraDepositWeight, err = v.runOutput(out, path); err != nil {
+	path := easyfl.Concat(branch, 0)
+	v.tree.ForEach(func(i byte, data []byte) bool {
+		path[len(path)-1] = i
+		arr := lazyslice.ArrayFromBytes(data, 256)
+		if extraDepositWeight, err = v.runOutput(arr, path); err != nil {
 			return false
 		}
-		minDeposit := MinimumStorageDeposit(byteSize, extraDepositWeight)
-		amount := out.Amount()
+		minDeposit := constraint.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
+		var am constraint.Amount
+		am, err = constraint.AmountFromBytes(arr.At(int(txbuilder.OutputBlockAmount)))
+		if err != nil {
+			return false
+		}
+		amount := am.Amount()
 		if amount < minDeposit {
 			err = fmt.Errorf("not enough storage deposit in output %s. Minimum %d, got %d",
-				PathToString(path), minDeposit, out.Amount())
+				PathToString(path), minDeposit, amount)
 			return false
 		}
 		if amount > math.MaxUint64-sum {
@@ -110,26 +129,51 @@ func (v *ValidationContext) validateOutputs(branch lazyslice.TreePath) (uint64, 
 			return false
 		}
 		sum += amount
+
+		// create update command for indexer
+		var lock constraint.Lock
+		lock, err = constraint.LockFromBytes(arr.At(int(txbuilder.OutputBlockLock)))
+		if err != nil {
+			return false
+		}
+		for _, addr := range lock.IndexableTags() {
+			indexEntry := &indexer.IndexEntry{
+				AccountID: addr,
+				Delete:    consumedBranch,
+			}
+			if consumedBranch {
+				indexEntry.OutputID = v.InputID(i)
+			} else {
+				indexEntry.OutputID = ledger.NewOutputID(v.TransactionID(), i)
+			}
+			indexRecords = append(indexRecords, indexEntry)
+		}
 		return true
-	})
+	}, branch)
 	if err != nil {
 		return 0, err
 	}
 	return sum, nil
 }
 
+func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
+	data := v.tree.BytesAtPath(Path(TransactionBranch, TxInputIDsBranch, idx))
+	ret, err := ledger.OutputIDFromBytes(data)
+	easyfl.AssertNoError(err)
+	return ret
+}
+
 // runOutput checks constraints of the output one-by-one
-func (v *ValidationContext) runOutput(out *Output, path lazyslice.TreePath) (uint32, error) {
+func (v *ValidationContext) runOutput(outputArray *lazyslice.Array, path lazyslice.TreePath) (uint32, error) {
 	blockPath := easyfl.Concat(path, byte(0))
 	var err error
 	extraStorageDepositWeight := uint32(0)
-
-	out.ForEachConstraint(func(idx byte, _ []byte) bool {
-		blockPath[len(blockPath)-1] = idx
+	outputArray.ForEach(func(idx int, data []byte) bool {
+		blockPath[len(blockPath)-1] = byte(idx)
 		var res []byte
 		var name string
 
-		res, name, err = v.checkConstraint(blockPath)
+		res, name, err = v.checkConstraint(data, blockPath)
 		if err != nil {
 			err = fmt.Errorf("constraint '%s' failed with error '%v'. Path: %s",
 				name, err, PathToString(blockPath))
@@ -237,8 +281,7 @@ func constraintName(binCode []byte) string {
 	return fmt.Sprintf("constraint_call_prefix(%s)", easyfl.Fmt(prefix))
 }
 
-func (v *ValidationContext) evalConstraint(path lazyslice.TreePath) ([]byte, string, error) {
-	constr := v.tree.BytesAtPath(path)
+func (v *ValidationContext) evalConstraint(constr []byte, path lazyslice.TreePath) ([]byte, string, error) {
 	if len(constr) == 0 {
 		return nil, "", fmt.Errorf("constraint can't be empty")
 	}

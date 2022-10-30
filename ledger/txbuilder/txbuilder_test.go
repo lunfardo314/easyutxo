@@ -1,16 +1,16 @@
-package ledger_test
+package txbuilder
 
 import (
 	"testing"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/ledger"
+	"github.com/lunfardo314/easyutxo/ledger/utxodb"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBasics(t *testing.T) {
 	t.Run("utxodb 1", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
+		u := utxodb.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
 		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
@@ -25,7 +25,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 1, u.NumUTXOs(addr))
 	})
 	t.Run("utxodb 2", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
+		u := utxodb.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
 		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
@@ -37,19 +37,19 @@ func TestBasics(t *testing.T) {
 		err = u.TokensFromFaucet(addr)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-100-ledger.TokensFromFaucetDefault, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, 100+ledger.TokensFromFaucetDefault, u.Balance(addr))
+		require.EqualValues(t, u.Supply()-100-utxodb.TokensFromFaucetDefault, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, 100+utxodb.TokensFromFaucetDefault, u.Balance(addr))
 		require.EqualValues(t, 2, u.NumUTXOs(addr))
 
 		err = u.TransferTokens(privKey, addr, u.Balance(addr))
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.OriginAddress()))
-		require.EqualValues(t, u.Supply()-100-ledger.TokensFromFaucetDefault, u.Balance(u.OriginAddress()))
-		require.EqualValues(t, 100+ledger.TokensFromFaucetDefault, u.Balance(addr))
+		require.EqualValues(t, u.Supply()-100-utxodb.TokensFromFaucetDefault, u.Balance(u.OriginAddress()))
+		require.EqualValues(t, 100+utxodb.TokensFromFaucetDefault, u.Balance(addr))
 		require.EqualValues(t, 1, u.NumUTXOs(addr))
 	})
 	t.Run("utxodb 3 compress outputs", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
+		u := utxodb.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
 		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
@@ -72,9 +72,9 @@ func TestBasics(t *testing.T) {
 			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 
-		par, err := ledger.MakeED25519TransferInputs(privKey, u)
+		par, err := u.MakeED25519TransferInputs(privKey)
 		require.NoError(t, err)
-		txBytes, err := ledger.MakeTransferTransaction(par.
+		txBytes, err := MakeTransferTransaction(par.
 			WithAmount(u.Balance(addr)).
 			WithTargetLock(addr),
 		)
@@ -89,7 +89,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 1, u.NumUTXOs(addr))
 	})
 	t.Run("utxodb too many inputs", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
+		u := utxodb.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
 		t.Logf("orig pub key: %s", easyfl.Fmt(pub))
@@ -115,7 +115,7 @@ func TestBasics(t *testing.T) {
 		easyfl.RequireErrorWith(t, err, "exceeded max number of consumed outputs")
 	})
 	t.Run("utxodb fan out outputs", func(t *testing.T) {
-		u := ledger.NewUTXODB(true)
+		u := utxodb.NewUTXODB(true)
 		priv, pub := u.OriginKeys()
 		t.Logf("orig priv key: %s", easyfl.Fmt(priv))
 		t.Logf("orig pub key: %s", easyfl.Fmt(pub))

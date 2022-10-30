@@ -1,4 +1,4 @@
-package ledger
+package utxodb
 
 import (
 	"crypto/ed25519"
@@ -9,13 +9,17 @@ import (
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/indexer"
+	"github.com/lunfardo314/easyutxo/ledger/state"
+	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"golang.org/x/crypto/blake2b"
 )
 
 // UTXODB is a ledger.FinalState with faucet
 
 type UTXODB struct {
-	FinalState
+	state            *state.FinalState
+	indexer          *indexer.Indexer
 	supply           uint64
 	originPrivateKey ed25519.PrivateKey
 	originPublicKey  ed25519.PublicKey
@@ -40,8 +44,10 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	if err != nil {
 		panic(err)
 	}
+
 	ret := &UTXODB{
-		FinalState:       *NewLedgerStateInMemory(originPubKey, supplyForTesting),
+		state:            state.NewInMemory(originPubKey, supplyForTesting),
+		indexer:          indexer.NewInMemory(),
 		supply:           supplyForTesting,
 		originPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
 		originPublicKey:  originPubKey,
@@ -63,26 +69,41 @@ func (u *UTXODB) OriginAddress() []byte {
 	return u.originAddress
 }
 
+// AddTransaction validates transaction and updates ledger state and indexer
+// Ledger state and indexer are on different transactions, so ledger state can
+// succeed while indexer fails. In that case indexer can be updated from ledger state
+func (u *UTXODB) AddTransaction(txBytes []byte, traceOption ...int) error {
+	indexerUpdate, err := u.state.AddTransaction(txBytes, traceOption...)
+	if err != nil {
+		return err
+	}
+	if err = u.indexer.Update(indexerUpdate); err != nil {
+		return fmt.Errorf("ledger state was updated but indexer update failed with '%v'", err)
+	}
+	return nil
+}
+
 func (u *UTXODB) TokensFromFaucet(addr constraint.AddressED25519, howMany ...uint64) error {
 	amount := TokensFromFaucetDefault
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	par, err := MakeED25519TransferInputs(u.originPrivateKey, u)
+	outs, err := u.indexer.GetUTXOsForAddress(u.originAddress, u.state)
 	if err != nil {
 		return err
 	}
-	txBytes, err := MakeTransferTransaction(par.
+	par := txbuilder.NewED25519TransferInputs(u.originPrivateKey).
 		WithAmount(amount, true).
-		WithTargetLock(addr),
-	)
+		WithTargetLock(addr).
+		WithOutputs(outs)
+	txBytes, err := txbuilder.MakeTransferTransaction(par)
 	if err != nil {
 		return fmt.Errorf("UTXODB faucet: %v", err)
 	}
 
-	trace := TraceOptionNone
+	trace := state.TraceOptionNone
 	if u.trace {
-		trace = TraceOptionFailedConstraints
+		trace = state.TraceOptionFailedConstraints
 	}
 	return u.AddTransaction(txBytes, trace)
 }
@@ -97,32 +118,45 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	return priv, pub, addr
 }
 
+func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, desc ...bool) (*txbuilder.ED25519TransferInputs, error) {
+	ret := txbuilder.NewED25519TransferInputs(privKey)
+	outs, err := u.indexer.GetUTXOsForAddress(ret.SenderAddress, u.state)
+	if err != nil {
+		return nil, err
+	}
+	ret.WithOutputs(outs)
+	return ret, nil
+}
+
 func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constraint.Lock, amount uint64) error {
-	par, err := MakeED25519TransferInputs(privKey, u)
+	par, err := u.MakeED25519TransferInputs(privKey)
 	if err != nil {
 		return err
 	}
-	par.WithAmount(amount).WithTargetLock(targetLock)
+	par.WithAmount(amount).
+		WithTargetLock(targetLock)
 	//if len(addSender) > 0 && addSender[0] {
 	//	par.WithConstraint(constraint.SenderConstraintBin(par.SenderAddress, 0))
 	//}
-	txBytes, err := MakeTransferTransaction(par)
+	txBytes, err := txbuilder.MakeTransferTransaction(par)
 	if err != nil {
 		return err
 	}
-	trace := TraceOptionNone
+	trace := state.TraceOptionNone
 	if u.trace {
-		trace = TraceOptionFailedConstraints
+		trace = state.TraceOptionFailedConstraints
 	}
 	return u.AddTransaction(txBytes, trace)
 }
 
 func (u *UTXODB) account(addr []byte) (uint64, int) {
-	outs, err := u.GetUTXOsForAddress(addr)
+	outs, err := u.indexer.GetUTXOsForAddress(addr, u.state)
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
 	for _, o := range outs {
-		balance += o.Output.Amount()
+		out, err := txbuilder.OutputFromBytes(o.OutputData)
+		easyfl.AssertNoError(err)
+		balance += out.Amount()
 	}
 	return balance, len(outs)
 }
@@ -135,4 +169,17 @@ func (u *UTXODB) Balance(addr []byte) uint64 {
 func (u *UTXODB) NumUTXOs(addr []byte) int {
 	_, ret := u.account(addr)
 	return ret
+}
+
+func (u *UTXODB) DoTransferTx(par *txbuilder.ED25519TransferInputs, traceOption ...int) ([]byte, error) {
+	txBytes, err := txbuilder.MakeTransferTransaction(par)
+	if err != nil {
+		return nil, err
+	}
+	return txBytes, u.AddTransaction(txBytes, traceOption...)
+}
+
+func (u *UTXODB) DoTransfer(par *txbuilder.ED25519TransferInputs, traceOption ...int) error {
+	_, err := u.DoTransferTx(par, traceOption...)
+	return err
 }

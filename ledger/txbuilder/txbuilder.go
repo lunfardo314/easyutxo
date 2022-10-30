@@ -1,42 +1,27 @@
-package ledger
+package txbuilder
 
 import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/state"
 	"golang.org/x/crypto/blake2b"
 )
 
-const (
-	TransactionIDLength = 32
-)
-
-// Transaction tree
-const (
-	TxUnlockParamsBranch = byte(iota)
-	TxInputIDsBranch
-	TxOutputBranch
-	TxTimestamp
-	TxInputCommitment
-	TxTreeIndexMax
-)
-
 type (
-	TransactionID [TransactionIDLength]byte
-
 	TransactionBuilder struct {
 		ConsumedOutputs []*Output
 		Transaction     *transaction
 	}
 
 	transaction struct {
-		InputIDs        []*OutputID
+		InputIDs        []*ledger.OutputID
 		Outputs         []*Output
 		UnlockBlocks    []*UnlockParams
 		Timestamp       uint32
@@ -48,15 +33,11 @@ type (
 	}
 )
 
-func (txid *TransactionID) String() string {
-	return easyfl.Fmt(txid[:])
-}
-
 func NewTransactionBuilder() *TransactionBuilder {
 	return &TransactionBuilder{
 		ConsumedOutputs: make([]*Output, 0),
 		Transaction: &transaction{
-			InputIDs:        make([]*OutputID, 0),
+			InputIDs:        make([]*ledger.OutputID, 0),
 			Outputs:         make([]*Output, 0),
 			UnlockBlocks:    make([]*UnlockParams, 0),
 			Timestamp:       0,
@@ -75,7 +56,7 @@ func (ctx *TransactionBuilder) NumOutputs() int {
 	return len(ctx.Transaction.Outputs)
 }
 
-func (ctx *TransactionBuilder) ConsumeOutput(out *Output, oid OutputID) (byte, error) {
+func (ctx *TransactionBuilder) ConsumeOutput(out *Output, oid ledger.OutputID) (byte, error) {
 	if ctx.NumInputs() >= 256 {
 		return 0, fmt.Errorf("too many consumed outputs")
 	}
@@ -139,16 +120,12 @@ func (tx *transaction) Bytes() []byte {
 	return tx.ToArray().Bytes()
 }
 
-func (tx *transaction) ID() TransactionID {
-	return blake2b.Sum256(tx.Bytes())
-}
-
 func (tx *transaction) EssenceBytes() []byte {
 	arr := tx.ToArray()
 	return easyfl.Concat(
-		arr.At(int(TxInputIDsBranch)),
-		arr.At(int(TxOutputBranch)),
-		arr.At(int(TxInputCommitment)),
+		arr.At(int(state.TxInputIDsBranch)),
+		arr.At(int(state.TxOutputBranch)),
+		arr.At(int(state.TxInputCommitment)),
 	)
 }
 
@@ -164,35 +141,16 @@ type ED25519TransferInputs struct {
 	AddConstraints   [][]byte
 }
 
-func MakeED25519TransferInputs(senderKey ed25519.PrivateKey, state StateAccess, desc ...bool) (*ED25519TransferInputs, error) {
+func NewED25519TransferInputs(senderKey ed25519.PrivateKey) *ED25519TransferInputs {
 	sourcePubKey := senderKey.Public().(ed25519.PublicKey)
 	sourceAddr := constraint.AddressED25519FromPublicKey(sourcePubKey)
-	ret := &ED25519TransferInputs{
+	return &ED25519TransferInputs{
 		SenderPrivateKey: senderKey,
 		SenderPublicKey:  sourcePubKey,
 		SenderAddress:    sourceAddr,
 		Timestamp:        uint32(time.Now().Unix()),
 		AddConstraints:   make([][]byte, 0),
 	}
-	var err error
-	ret.Outputs, err = state.GetUTXOsForAddress(sourceAddr)
-	if err != nil {
-		return nil, err
-	}
-	if len(ret.Outputs) == 0 {
-		return nil, fmt.Errorf("empty account %s", easyfl.Fmt(sourceAddr))
-	}
-	descending := len(desc) > 0 && desc[0]
-	if descending {
-		sort.Slice(ret.Outputs, func(i, j int) bool {
-			return ret.Outputs[i].Output.Amount() > ret.Outputs[j].Output.Amount()
-		})
-	} else {
-		sort.Slice(ret.Outputs, func(i, j int) bool {
-			return ret.Outputs[i].Output.Amount() < ret.Outputs[j].Output.Amount()
-		})
-	}
-	return ret, nil
 }
 
 func (t *ED25519TransferInputs) WithTimestamp(ts uint32) *ED25519TransferInputs {
@@ -216,6 +174,11 @@ func (t *ED25519TransferInputs) WithConstraint(constr constraint.Constraint) *ED
 	return t
 }
 
+func (t *ED25519TransferInputs) WithOutputs(outs []*OutputWithID) *ED25519TransferInputs {
+	t.Outputs = outs
+	return t
+}
+
 // AdjustedAmount adjust amount to minimum storage deposit requirements
 func (t *ED25519TransferInputs) AdjustedAmount() uint64 {
 	if !t.AdjustToMinimum {
@@ -232,7 +195,7 @@ func (t *ED25519TransferInputs) AdjustedAmount() uint64 {
 		_, err := outTentative.PushConstraint(c)
 		easyfl.AssertNoError(err)
 	}
-	minimumDeposit := MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
+	minimumDeposit := constraint.MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
 	if t.Amount < minimumDeposit {
 		return minimumDeposit
 	}
@@ -309,4 +272,22 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, OutputBlockLock)
 	}
 	return ctx.Transaction.Bytes(), nil
+}
+
+//---------------------------------------------------------
+
+func (u *UnlockParams) Bytes() []byte {
+	return u.array.Bytes()
+}
+
+func NewUnlockBlock() *UnlockParams {
+	return &UnlockParams{
+		array: lazyslice.EmptyArray(256),
+	}
+}
+
+// PutUnlockParams puts data at index. If index is out of bounds, pushes empty elements to fill the gaps
+// Unlock params in the element 'idx' corresponds to the consumed output constraint at the same index
+func (u *UnlockParams) PutUnlockParams(data []byte, idx byte) {
+	u.array.PutAtIdxGrow(idx, data)
 }
