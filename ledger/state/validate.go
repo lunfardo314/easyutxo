@@ -15,23 +15,15 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
+func (v *ValidationContext) evalContext(path []byte) easyfl.GlobalData {
+	v.dataContext.SetPath(path)
 	switch v.traceOption {
 	case TraceOptionNone:
-		return easyfl.NewGlobalDataNoTrace(&library.DataContext{
-			DataTree: v.tree,
-			Path:     path,
-		})
+		return easyfl.NewGlobalDataNoTrace(v.dataContext)
 	case TraceOptionAll:
-		return easyfl.NewGlobalDataTracePrint(&library.DataContext{
-			DataTree: v.tree,
-			Path:     path,
-		})
+		return easyfl.NewGlobalDataTracePrint(v.dataContext)
 	case TraceOptionFailedConstraints:
-		return easyfl.NewGlobalDataLog(&library.DataContext{
-			DataTree: v.tree,
-			Path:     path,
-		})
+		return easyfl.NewGlobalDataLog(v.dataContext)
 	default:
 		panic("wrong trace option")
 	}
@@ -288,7 +280,7 @@ func (v *ValidationContext) evalConstraint(constr []byte, path lazyslice.TreePat
 	}
 	var err error
 	name := constraintName(constr)
-	ctx := v.dataContext(path)
+	ctx := v.evalContext(path)
 	if ctx.Trace() {
 		ctx.PutTrace(fmt.Sprintf("--- check constraint '%s' at path %s", name, PathToString(path)))
 	}

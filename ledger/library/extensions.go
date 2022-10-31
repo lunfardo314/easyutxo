@@ -6,8 +6,25 @@ import (
 )
 
 type DataContext struct {
-	DataTree *lazyslice.Tree
-	Path     lazyslice.TreePath
+	tree *lazyslice.Tree
+	path lazyslice.TreePath
+	// TODO caching
+}
+
+func NewDataContext(tree *lazyslice.Tree) *DataContext {
+	return &DataContext{tree: tree}
+}
+
+func (c *DataContext) DataTree() *lazyslice.Tree {
+	return c.tree
+}
+
+func (c *DataContext) Path() lazyslice.TreePath {
+	return c.path
+}
+
+func (c *DataContext) SetPath(path lazyslice.TreePath) {
+	c.path = easyfl.Concat(path.Bytes())
 }
 
 func init() {
@@ -38,7 +55,7 @@ func init() {
 	easyfl.Extend("txOutputsBytes", "@Path(0x0002)")
 	easyfl.Extend("txTimestampBytes", "@Path(0x0003)")
 	easyfl.Extend("txInputCommitmentBytes", "@Path(0x0004)")
-	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txInputCommitmentBytes)")
+	easyfl.Extend("txEssenceBytes", "concat(txInputIDsBytes, txOutputsBytes, txInputCommitmentBytes)") // timestamp is not a part of the essence
 
 	easyfl.Extend("selfOutputPath", "slice(@,0,2)")
 	easyfl.Extend("selfSiblingBlock", "@Array8(@Path(selfOutputPath), $0)")
@@ -79,11 +96,11 @@ func init() {
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {
-	return ctx.DataContext().(*DataContext).Path
+	return ctx.DataContext().(*DataContext).Path()
 }
 
 func evalAtPath(ctx *easyfl.CallParams) []byte {
-	return ctx.DataContext().(*DataContext).DataTree.BytesAtPath(ctx.Arg(0))
+	return ctx.DataContext().(*DataContext).DataTree().BytesAtPath(ctx.Arg(0))
 }
 
 func evalAtArray8(ctx *easyfl.CallParams) []byte {

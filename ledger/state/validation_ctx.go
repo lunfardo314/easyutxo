@@ -6,12 +6,14 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"golang.org/x/crypto/blake2b"
 )
 
 // ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
 type ValidationContext struct {
 	tree        *lazyslice.Tree
+	dataContext *library.DataContext
 	txid        ledger.TransactionID
 	traceOption int
 }
@@ -80,8 +82,10 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 		txBytes, // TransactionBranch = 0
 		lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
 	)
+	tree := ctx.AsTree()
 	ret := &ValidationContext{
-		tree:        ctx.AsTree(),
+		tree:        tree,
+		dataContext: library.NewDataContext(tree),
 		traceOption: TraceOptionNone,
 		txid:        blake2b.Sum256(txBytes),
 	}
@@ -99,7 +103,7 @@ func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.Tree
 }
 
 func (v *ValidationContext) rootContext() easyfl.GlobalData {
-	return v.dataContext(nil)
+	return v.evalContext(nil)
 }
 
 func (v *ValidationContext) TransactionBytes() []byte {
