@@ -30,9 +30,18 @@ func (c *DataContext) SetPath(path lazyslice.TreePath) {
 func init() {
 	//-------------------------------- standard EasyFL library extensions ------------------------------
 
-	// context access
+	// data context access
+	// data context is a lazyslice.Tree
+
+	// the only function dependent on the local invocation path.
+	// The value of the expression which calls it cannot be cached
+	// Otherwise the expression value is constant for a given data context and can be cached for subsequent evaluations
 	easyfl.EmbedShort("@", 0, evalPath, true)
-	easyfl.EmbedShort("@Path", 1, evalAtPath, true)
+
+	// return data bytes at the given path of the data context (lazy tree)
+	easyfl.EmbedShort("@Path", 1, evalAtPath)
+
+	// gives a vByte cost as big-endian uint16
 	easyfl.Extend("#vbCost16", "u16/1")
 
 	// LazyArray
