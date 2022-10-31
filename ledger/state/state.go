@@ -8,8 +8,8 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 )
 
 // FinalState is a ledger state
@@ -18,7 +18,7 @@ type FinalState struct {
 	store ledger.StateStore
 }
 
-func NewLedgerState(store ledger.StateStore, genesisAddr constraint.AddressED25519, initialSupply uint64) *FinalState {
+func NewLedgerState(store ledger.StateStore, genesisAddr library.AddressED25519, initialSupply uint64) *FinalState {
 	outBytes, oid := genesisOutput(genesisAddr, initialSupply, uint32(time.Now().Unix()))
 	batch := store.BatchedWriter()
 	batch.Set(oid[:], outBytes)
@@ -32,14 +32,14 @@ func NewLedgerState(store ledger.StateStore, genesisAddr constraint.AddressED255
 }
 
 // NewInMemory mostly for testing
-func NewInMemory(genesisAddr constraint.AddressED25519, initialSupply uint64) *FinalState {
+func NewInMemory(genesisAddr library.AddressED25519, initialSupply uint64) *FinalState {
 	return NewLedgerState(common.NewInMemoryKVStore(), genesisAddr, initialSupply)
 }
 
-func genesisOutput(genesisAddr constraint.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
+func genesisOutput(genesisAddr library.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	amount := constraint.NewAmount(initialSupply)
-	timestamp := constraint.NewTimestamp(ts)
+	amount := library.NewAmount(initialSupply)
+	timestamp := library.NewTimestamp(ts)
 	ret := lazyslice.EmptyArray()
 	ret.Push(amount.Bytes())
 	ret.Push(timestamp.Bytes())

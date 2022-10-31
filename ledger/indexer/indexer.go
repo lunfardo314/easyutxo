@@ -7,7 +7,7 @@ import (
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 )
 
 type Indexer struct {
@@ -21,7 +21,7 @@ type IndexEntry struct {
 	Delete    bool
 }
 
-func NewIndexer(store ledger.IndexerStore, originAddr constraint.AddressED25519) *Indexer {
+func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *Indexer {
 	w := store.BatchedWriter()
 	var nullOutputID ledger.OutputID
 	addrBytes := originAddr.Bytes()
@@ -36,7 +36,7 @@ func NewIndexer(store ledger.IndexerStore, originAddr constraint.AddressED25519)
 	}
 }
 
-func (inr *Indexer) GetUTXOsForAccountID(addr constraint.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOsForAccountID(addr library.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
 	acc := addr.AccountID()
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
@@ -89,6 +89,6 @@ func (inr *Indexer) Update(entries []*IndexEntry) error {
 }
 
 // NewInMemory mostly for testing
-func NewInMemory(originAddr constraint.AddressED25519) *Indexer {
+func NewInMemory(originAddr library.AddressED25519) *Indexer {
 	return NewIndexer(common.NewInMemoryKVStore(), originAddr)
 }

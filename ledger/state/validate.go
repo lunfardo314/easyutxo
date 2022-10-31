@@ -10,25 +10,25 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"golang.org/x/crypto/blake2b"
 )
 
 func (v *ValidationContext) dataContext(path []byte) easyfl.GlobalData {
 	switch v.traceOption {
 	case TraceOptionNone:
-		return easyfl.NewGlobalDataNoTrace(&constraint.DataContext{
+		return easyfl.NewGlobalDataNoTrace(&library.DataContext{
 			DataTree: v.tree,
 			Path:     path,
 		})
 	case TraceOptionAll:
-		return easyfl.NewGlobalDataTracePrint(&constraint.DataContext{
+		return easyfl.NewGlobalDataTracePrint(&library.DataContext{
 			DataTree: v.tree,
 			Path:     path,
 		})
 	case TraceOptionFailedConstraints:
-		return easyfl.NewGlobalDataLog(&constraint.DataContext{
+		return easyfl.NewGlobalDataLog(&library.DataContext{
 			DataTree: v.tree,
 			Path:     path,
 		})
@@ -112,9 +112,9 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		if extraDepositWeight, err = v.runOutput(arr, path); err != nil {
 			return false
 		}
-		minDeposit := constraint.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
-		var am constraint.Amount
-		am, err = constraint.AmountFromBytes(arr.At(int(ledger.OutputBlockAmount)))
+		minDeposit := library.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
+		var am library.Amount
+		am, err = library.AmountFromBytes(arr.At(int(ledger.OutputBlockAmount)))
 		if err != nil {
 			return false
 		}
@@ -131,8 +131,8 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		sum += amount
 
 		// create update command for indexer
-		var lock constraint.Lock
-		lock, err = constraint.LockFromBytes(arr.At(int(ledger.OutputBlockLock)))
+		var lock library.Lock
+		lock, err = library.LockFromBytes(arr.At(int(ledger.OutputBlockLock)))
 		if err != nil {
 			return false
 		}
@@ -275,7 +275,7 @@ func constraintName(binCode []byte) string {
 	if err != nil {
 		return fmt.Sprintf("unknown_constraint(%s)", easyfl.Fmt(binCode))
 	}
-	name, found := constraint.NameByPrefix(prefix)
+	name, found := library.NameByPrefix(prefix)
 	if found {
 		return name
 	}

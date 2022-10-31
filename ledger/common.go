@@ -6,7 +6,7 @@ import (
 
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 )
 
 const (
@@ -28,7 +28,7 @@ type (
 	}
 
 	IndexerAccess interface {
-		GetUTXOsForAccountID(accountID constraint.Accountable, state StateAccess) ([]*OutputDataWithID, error)
+		GetUTXOsForAccountID(accountID library.Accountable, state StateAccess) ([]*OutputDataWithID, error)
 	}
 
 	StateStore interface {

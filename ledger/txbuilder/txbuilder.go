@@ -9,7 +9,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/state"
 	"golang.org/x/crypto/blake2b"
 )
@@ -132,10 +132,10 @@ func (tx *transaction) EssenceBytes() []byte {
 type ED25519TransferInputs struct {
 	SenderPrivateKey ed25519.PrivateKey
 	SenderPublicKey  ed25519.PublicKey
-	SenderAddress    constraint.AddressED25519
+	SenderAddress    library.AddressED25519
 	Outputs          []*OutputWithID
 	Timestamp        uint32 // takes time.Now() if 0
-	Lock             constraint.Lock
+	Lock             library.Lock
 	Amount           uint64
 	AdjustToMinimum  bool
 	AddConstraints   [][]byte
@@ -143,7 +143,7 @@ type ED25519TransferInputs struct {
 
 func NewED25519TransferInputs(senderKey ed25519.PrivateKey) *ED25519TransferInputs {
 	sourcePubKey := senderKey.Public().(ed25519.PublicKey)
-	sourceAddr := constraint.AddressED25519FromPublicKey(sourcePubKey)
+	sourceAddr := library.AddressED25519FromPublicKey(sourcePubKey)
 	return &ED25519TransferInputs{
 		SenderPrivateKey: senderKey,
 		SenderPublicKey:  sourcePubKey,
@@ -158,7 +158,7 @@ func (t *ED25519TransferInputs) WithTimestamp(ts uint32) *ED25519TransferInputs 
 	return t
 }
 
-func (t *ED25519TransferInputs) WithTargetLock(lock constraint.Lock) *ED25519TransferInputs {
+func (t *ED25519TransferInputs) WithTargetLock(lock library.Lock) *ED25519TransferInputs {
 	t.Lock = lock
 	return t
 }
@@ -169,7 +169,7 @@ func (t *ED25519TransferInputs) WithAmount(amount uint64, adjustToMinimum ...boo
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraint(constr constraint.Constraint) *ED25519TransferInputs {
+func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint) *ED25519TransferInputs {
 	t.AddConstraints = append(t.AddConstraints, constr.Bytes())
 	return t
 }
@@ -195,7 +195,7 @@ func (t *ED25519TransferInputs) AdjustedAmount() uint64 {
 		_, err := outTentative.PushConstraint(c)
 		easyfl.AssertNoError(err)
 	}
-	minimumDeposit := constraint.MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
+	minimumDeposit := library.MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
 	if t.Amount < minimumDeposit {
 		return minimumDeposit
 	}
@@ -262,10 +262,10 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 	ctx.Transaction.Timestamp = ts
 	ctx.Transaction.InputCommitment = ctx.InputCommitment()
 
-	unlockDataRef := constraint.UnlockParamsByReference(0)
+	unlockDataRef := library.UnlockParamsByReference(0)
 	for i := range consumedOuts {
 		if i == 0 {
-			unlockData := constraint.UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderPrivateKey)
+			unlockData := library.UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderPrivateKey)
 			ctx.UnlockBlock(0).PutUnlockParams(unlockData, ledger.OutputBlockLock)
 			continue
 		}

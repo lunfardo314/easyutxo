@@ -8,7 +8,7 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"github.com/lunfardo314/easyutxo/ledger/utxodb"
@@ -24,25 +24,25 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := txbuilder.OutputBasic(0, 0, constraint.AddressED25519Null())
+		out := txbuilder.OutputBasic(0, 0, library.AddressED25519Null())
 		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := txbuilder.OutputBasic(0, 0, constraint.AddressED25519FromPublicKey(pubKey))
+		out := txbuilder.OutputBasic(0, 0, library.AddressED25519FromPublicKey(pubKey))
 		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		_, err = constraint.AddressED25519FromBytes(outBack.Lock().Bytes())
+		_, err = library.AddressED25519FromBytes(outBack.Lock().Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, out.Lock(), outBack.Lock())
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := txbuilder.OutputBasic(1337, uint32(time.Now().Unix()), constraint.AddressED25519Null())
+		out := txbuilder.OutputBasic(1337, uint32(time.Now().Unix()), library.AddressED25519Null())
 		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -61,7 +61,7 @@ func TestMainConstraints(t *testing.T) {
 		out, err := txbuilder.OutputFromBytes(genesisBytes)
 		require.NoError(t, err)
 		require.EqualValues(t, u.Supply(), out.Amount())
-		require.True(t, constraint.Equal(u.GenesisAddress(), out.Lock()))
+		require.True(t, library.Equal(u.GenesisAddress(), out.Lock()))
 		outsData, err := u.IndexerAccess().GetUTXOsForAccountID(u.GenesisAddress(), u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outsData))
@@ -100,7 +100,7 @@ func TestTimelock(t *testing.T) {
 		par.WithAmount(200).
 			WithTargetLock(addr1).
 			WithTimestamp(ts).
-			WithConstraint(constraint.NewTimelock(ts + 1))
+			WithConstraint(library.NewTimelock(ts + 1))
 		txBytes, err := txbuilder.MakeTransferTransaction(par)
 
 		require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestTimelock(t *testing.T) {
 		par.WithAmount(2000).
 			WithTargetLock(addr1).
 			WithTimestamp(ts + 1).
-			WithConstraint(constraint.NewTimelock(ts + 1 + 10))
+			WithConstraint(library.NewTimelock(ts + 1 + 10))
 		err = u.DoTransfer(par)
 		require.NoError(t, err)
 
@@ -161,7 +161,7 @@ func TestTimelock(t *testing.T) {
 			WithAmount(200).
 			WithTargetLock(addr1).
 			WithTimestamp(ts).
-			WithConstraint(constraint.NewTimelock(ts + 1)),
+			WithConstraint(library.NewTimelock(ts + 1)),
 		)
 		require.NoError(t, err)
 		t.Logf("tx with timelock len: %d", len(txBytes))
@@ -176,7 +176,7 @@ func TestTimelock(t *testing.T) {
 			WithAmount(2000).
 			WithTargetLock(addr1).
 			WithTimestamp(ts + 1).
-			WithConstraint(constraint.NewTimelock(ts + 1 + 10)),
+			WithConstraint(library.NewTimelock(ts + 1 + 10)),
 		)
 		require.NoError(t, err)
 
@@ -223,10 +223,10 @@ func TestDeadlineLock(t *testing.T) {
 
 	par, err := u.MakeED25519TransferInputs(privKey0)
 	require.NoError(t, err)
-	deadlineLock := constraint.NewDeadlineLock(
+	deadlineLock := library.NewDeadlineLock(
 		ts+10,
-		constraint.AddressED25519FromPublicKey(pubKey1),
-		constraint.AddressED25519FromPublicKey(pubKey0),
+		library.AddressED25519FromPublicKey(pubKey1),
+		library.AddressED25519FromPublicKey(pubKey0),
 	)
 	t.Logf("deadline lock: %d bytes", len(deadlineLock.Bytes()))
 	txBytes, err := u.DoTransferTx(par.

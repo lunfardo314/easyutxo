@@ -1,4 +1,4 @@
-package constraint
+package library
 
 import (
 	"bytes"

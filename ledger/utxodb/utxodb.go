@@ -9,8 +9,8 @@ import (
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/constraint"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
+	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"golang.org/x/crypto/blake2b"
@@ -24,7 +24,7 @@ type UTXODB struct {
 	supply            uint64
 	genesisPrivateKey ed25519.PrivateKey
 	genesisPublicKey  ed25519.PublicKey
-	genesisAddress    constraint.AddressED25519
+	genesisAddress    library.AddressED25519
 	trace             bool
 }
 
@@ -45,7 +45,7 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	if err != nil {
 		panic(err)
 	}
-	originAddr := constraint.AddressED25519FromPublicKey(originPubKey)
+	originAddr := library.AddressED25519FromPublicKey(originPubKey)
 	ret := &UTXODB{
 		state:             state.NewInMemory(originAddr, supplyForTesting),
 		indexer:           indexer.NewInMemory(originAddr),
@@ -74,7 +74,7 @@ func (u *UTXODB) GenesisKeys() (ed25519.PrivateKey, ed25519.PublicKey) {
 	return u.genesisPrivateKey, u.genesisPublicKey
 }
 
-func (u *UTXODB) GenesisAddress() constraint.AddressED25519 {
+func (u *UTXODB) GenesisAddress() library.AddressED25519 {
 	return u.genesisAddress
 }
 
@@ -92,7 +92,7 @@ func (u *UTXODB) AddTransaction(txBytes []byte, traceOption ...int) error {
 	return nil
 }
 
-func (u *UTXODB) TokensFromFaucet(addr constraint.AddressED25519, howMany ...uint64) error {
+func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64) error {
 	amount := TokensFromFaucetDefault
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
@@ -121,13 +121,13 @@ func (u *UTXODB) TokensFromFaucet(addr constraint.AddressED25519, howMany ...uin
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, constraint.AddressED25519) {
+func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, library.AddressED25519) {
 	var u16 [2]byte
 	binary.BigEndian.PutUint16(u16[:], n)
 	seed := blake2b.Sum256(common.Concat([]byte(deterministicSeed), u16[:]))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	addr := constraint.AddressED25519FromPublicKey(pub)
+	addr := library.AddressED25519FromPublicKey(pub)
 	return priv, pub, addr
 }
 
@@ -145,7 +145,7 @@ func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, desc ...b
 	return ret, nil
 }
 
-func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constraint.Lock, amount uint64) error {
+func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.Lock, amount uint64) error {
 	par, err := u.MakeED25519TransferInputs(privKey)
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constrain
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) account(addr constraint.Accountable) (uint64, int) {
+func (u *UTXODB) account(addr library.Accountable) (uint64, int) {
 	outs, err := u.indexer.GetUTXOsForAccountID(addr, u.state)
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
@@ -178,12 +178,12 @@ func (u *UTXODB) account(addr constraint.Accountable) (uint64, int) {
 	return balance, len(outs)
 }
 
-func (u *UTXODB) Balance(addr constraint.Accountable) uint64 {
+func (u *UTXODB) Balance(addr library.Accountable) uint64 {
 	ret, _ := u.account(addr)
 	return ret
 }
 
-func (u *UTXODB) NumUTXOs(addr constraint.Accountable) int {
+func (u *UTXODB) NumUTXOs(addr library.Accountable) int {
 	_, ret := u.account(addr)
 	return ret
 }

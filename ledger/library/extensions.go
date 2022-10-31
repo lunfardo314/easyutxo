@@ -1,4 +1,4 @@
-package constraint
+package library
 
 import (
 	"github.com/lunfardo314/easyfl"
