@@ -2,13 +2,13 @@ package lazyslice
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo"
 )
 
 // Array can be interpreted two ways:
@@ -62,7 +62,9 @@ func (dl lenPrefixType) numElements() int {
 }
 
 func (dl lenPrefixType) Bytes() []byte {
-	return easyutxo.EncodeInteger(uint16(dl))
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, uint16(dl))
+	return ret
 }
 
 func ArrayFromBytes(data []byte, maxNumElements ...int) *Array {
@@ -230,15 +232,19 @@ func writeData(data [][]byte, numDataLenBytes int, w io.Writer) error {
 	for _, d := range data {
 		switch numDataLenBytes {
 		case 1:
-			if err := easyutxo.WriteInteger(w, byte(len(d))); err != nil {
+			if _, err := w.Write([]byte{byte(len(d))}); err != nil {
 				return err
 			}
 		case 2:
-			if err := easyutxo.WriteInteger(w, uint16(len(d))); err != nil {
+			var b [2]byte
+			binary.BigEndian.PutUint16(b[:], uint16(len(d)))
+			if _, err := w.Write(b[:]); err != nil {
 				return err
 			}
 		case 4:
-			if err := easyutxo.WriteInteger(w, uint32(len(d))); err != nil {
+			var b [4]byte
+			binary.BigEndian.PutUint32(b[:], uint32(len(d)))
+			if _, err := w.Write(b[:]); err != nil {
 				return err
 			}
 		}
@@ -259,9 +265,9 @@ func decodeElement(buf []byte, numDataLenBytes int) ([]byte, []byte, error) {
 	case 1:
 		sz = int(buf[0])
 	case 2:
-		sz = int(easyutxo.DecodeInteger[uint16](buf[:2]))
+		sz = int(binary.BigEndian.Uint16(buf[:2]))
 	case 4:
-		sz = int(easyutxo.DecodeInteger[uint32](buf[:4]))
+		sz = int(binary.BigEndian.Uint32(buf[:4]))
 	default:
 		return nil, nil, errors.New("wrong lenPrefixType value")
 	}
@@ -299,7 +305,7 @@ func parseArray(data []byte, maxNumElements int) ([][]byte, error) {
 	if len(data) < 2 {
 		return nil, errors.New("unexpected EOF")
 	}
-	prefix := lenPrefixType(easyutxo.DecodeInteger[uint16](data[:2]))
+	prefix := lenPrefixType(binary.BigEndian.Uint16(data[:2]))
 	if prefix.numElements() > maxNumElements {
 		return nil, fmt.Errorf("parseArray: number of elements in the prefix %d is larger than maxNumElements %d ",
 			prefix.numElements(), maxNumElements)

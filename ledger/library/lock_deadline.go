@@ -81,10 +81,10 @@ func DeadlineLockFromBytes(data []byte) (*DeadlineLock, error) {
 	}
 	ret.Deadline = binary.BigEndian.Uint32(dlBin)
 
-	if ret.ConstraintMain, err = IndexableFromBytes(args[1]); err != nil {
+	if ret.ConstraintMain, err = AccountableFromBytes(args[1]); err != nil {
 		return nil, err
 	}
-	if ret.ConstraintExpiry, err = IndexableFromBytes(args[1]); err != nil {
+	if ret.ConstraintExpiry, err = AccountableFromBytes(args[1]); err != nil {
 		return nil, err
 	}
 	return ret, nil

@@ -288,10 +288,10 @@ func (v *ValidationContext) evalConstraint(constr []byte, path lazyslice.TreePat
 	var ret []byte
 
 	if constr[0] != 0 {
-		// inline constraint. Binary code cannot start with 0-byte
+		// inline constraint. Binary code cannot begin with 0-byte
 		ret, err = easyfl.EvalFromBinary(ctx, constr)
 	} else {
-		// array constraint
+		// array constraint TODO do we need it?
 		arr := lazyslice.ArrayFromBytes(constr[1:], 256)
 		if arr.NumElements() == 0 {
 			err = fmt.Errorf("can't evaluate empty array")

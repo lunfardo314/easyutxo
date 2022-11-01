@@ -2,10 +2,10 @@ package lazyslice
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
 	"testing"
 
-	"github.com/lunfardo314/easyutxo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,8 @@ var data [][]byte
 func init() {
 	data = make([][]byte, howMany)
 	for i := range data {
-		data[i] = easyutxo.EncodeInteger(uint16(i))
+		data[i] = make([]byte, 2)
+		binary.BigEndian.PutUint16(data[i], uint16(i))
 	}
 }
 
@@ -233,7 +234,7 @@ func TestSliceTreeSemantics(t *testing.T) {
 		for i := 0; i < howMany; i++ {
 			var tmp []byte
 			tmp = st.BytesAtPath(Path(byte(i)))
-			require.EqualValues(t, uint16(i), easyutxo.DecodeInteger[uint16](tmp))
+			require.EqualValues(t, uint16(i), binary.BigEndian.Uint16(tmp))
 		}
 		require.Panics(t, func() {
 			st.BytesAtPath(Path(howMany))
