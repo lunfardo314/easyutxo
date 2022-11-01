@@ -3,6 +3,7 @@ package lazyslice
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -349,6 +350,10 @@ func (p TreePath) Bytes() []byte {
 
 func (p TreePath) String() string {
 	return fmt.Sprintf("%v", []byte(p))
+}
+
+func (p TreePath) Hex() string {
+	return hex.EncodeToString(p.Bytes())
 }
 
 // Bytes recursively updates bytes in the tree from leaves

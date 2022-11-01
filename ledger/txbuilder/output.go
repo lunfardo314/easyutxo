@@ -38,42 +38,42 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if ret.arr.NumElements() < 3 {
 		return nil, fmt.Errorf("at least 3 constraints expected")
 	}
-	if _, err := library.AmountFromBytes(ret.arr.At(int(ledger.OutputBlockAmount))); err != nil {
+	if _, err := library.AmountFromBytes(ret.arr.At(int(library.OutputBlockAmount))); err != nil {
 		return nil, err
 	}
-	if _, err := library.TimestampFromBytes(ret.arr.At(int(ledger.OutputBlockTimestamp))); err != nil {
+	if _, err := library.TimestampFromBytes(ret.arr.At(int(library.OutputBlockTimestamp))); err != nil {
 		return nil, err
 	}
-	if _, err := library.LockFromBytes(ret.arr.At(int(ledger.OutputBlockLock))); err != nil {
+	if _, err := library.LockFromBytes(ret.arr.At(int(library.OutputBlockLock))); err != nil {
 		return nil, err
 	}
 	return ret, nil
 }
 
 func (o *Output) WithAmount(amount uint64) *Output {
-	o.arr.PutAtIdxGrow(ledger.OutputBlockAmount, library.NewAmount(amount).Bytes())
+	o.arr.PutAtIdxGrow(library.OutputBlockAmount, library.NewAmount(amount).Bytes())
 	return o
 }
 
 func (o *Output) WithTimestamp(ts uint32) *Output {
-	o.arr.PutAtIdxGrow(ledger.OutputBlockTimestamp, library.NewTimestamp(ts).Bytes())
+	o.arr.PutAtIdxGrow(library.OutputBlockTimestamp, library.NewTimestamp(ts).Bytes())
 	return o
 }
 
 func (o *Output) Amount() uint64 {
-	ret, err := library.AmountFromBytes(o.arr.At(int(ledger.OutputBlockAmount)))
+	ret, err := library.AmountFromBytes(o.arr.At(int(library.OutputBlockAmount)))
 	easyfl.AssertNoError(err)
 	return uint64(ret)
 }
 
 func (o *Output) Timestamp() uint32 {
-	ret, err := library.TimestampFromBytes(o.arr.At(int(ledger.OutputBlockTimestamp)))
+	ret, err := library.TimestampFromBytes(o.arr.At(int(library.OutputBlockTimestamp)))
 	easyfl.AssertNoError(err)
 	return uint32(ret)
 }
 
 func (o *Output) WithLockConstraint(lock library.Lock) *Output {
-	o.PutConstraint(lock.Bytes(), ledger.OutputBlockLock)
+	o.PutConstraint(lock.Bytes(), library.OutputBlockLock)
 	return o
 }
 
@@ -132,7 +132,7 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constr []byte) bool) {
 //}
 
 func (o *Output) Lock() library.Lock {
-	ret, err := library.LockFromBytes(o.arr.At(int(ledger.OutputBlockLock)))
+	ret, err := library.LockFromBytes(o.arr.At(int(library.OutputBlockLock)))
 	easyfl.AssertNoError(err)
 	return ret
 }
@@ -142,7 +142,7 @@ func (o *Output) TimeLock() (uint32, bool) {
 	var err error
 	found := false
 	o.ForEachConstraint(func(idx byte, constr []byte) bool {
-		if idx == ledger.OutputBlockAmount || idx == ledger.OutputBlockTimestamp || idx == ledger.OutputBlockLock {
+		if idx == library.OutputBlockAmount || idx == library.OutputBlockTimestamp || idx == library.OutputBlockLock {
 			return true
 		}
 		ret, err = library.TimelockFromBytes(constr)

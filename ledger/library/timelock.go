@@ -13,12 +13,12 @@ const timelockSource = `
 // $0 is Unix seconds of the time lock
 func timelock: or(
 	and( 
-		isProducedBranch(@), 
+		isPathToProducedOutput(@), 
 		equal(len8($0), 4),             // must be 4-bytes long
 		lessThan(txTimestampBytes, $0)  // time lock must be after the transaction (not very necessary)
 	), 
 	and( 
-		isConsumedBranch(@), 
+		isPathToConsumedOutput(@), 
 		lessThan($0, txTimestampBytes)  // is unlocked if tx timestamp is strongly after the time lock 
 	) 
 )

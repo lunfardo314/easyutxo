@@ -16,9 +16,9 @@ func storageDepositEnough: greaterOrEqualThan(
 
 // $0 - amount uint64 big-endian
 func amount: or(
-	isConsumedBranch(@),               // not checked in consumed branch
+	isPathToConsumedOutput(@),               // not checked in consumed branch
 	and(
-		isProducedBranch(@),           // checked in produced branch
+		isPathToProducedOutput(@),           // checked in produced branch
 		equal(len8($0),8),             // length must be 8
 		storageDepositEnough($0)       // must satisfy minimum storage deposit requirements
 	)

@@ -87,6 +87,6 @@ func (u *FinalState) updateLedger(ctx *ValidationContext) error {
 		oid := ledger.NewOutputID(txID, idx)
 		batch.Set(oid[:], outputData)
 		return true
-	}, Path(TransactionBranch, TxOutputBranch))
+	}, Path(library.TransactionBranch, library.TxOutputs))
 	return batch.Commit()
 }

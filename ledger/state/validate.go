@@ -90,9 +90,9 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 	indexRecs := *indexRecords
 	var branch lazyslice.TreePath
 	if consumedBranch {
-		branch = Path(ConsumedContextBranch, ConsumedContextOutputsBranch)
+		branch = Path(library.ConsumedBranch, library.ConsumedOutputsBranch)
 	} else {
-		branch = Path(TransactionBranch, TxOutputBranch)
+		branch = Path(library.TransactionBranch, library.TxOutputs)
 	}
 	var err error
 	var sum uint64
@@ -106,7 +106,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		}
 		minDeposit := library.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
 		var am library.Amount
-		am, err = library.AmountFromBytes(arr.At(int(ledger.OutputBlockAmount)))
+		am, err = library.AmountFromBytes(arr.At(int(library.OutputBlockAmount)))
 		if err != nil {
 			return false
 		}
@@ -124,7 +124,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 
 		// create update command for indexer
 		var lock library.Lock
-		lock, err = library.LockFromBytes(arr.At(int(ledger.OutputBlockLock)))
+		lock, err = library.LockFromBytes(arr.At(int(library.OutputBlockLock)))
 		if err != nil {
 			return false
 		}
@@ -150,7 +150,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 }
 
 func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
-	data := v.tree.BytesAtPath(Path(TransactionBranch, TxInputIDsBranch, idx))
+	data := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputIDs, idx))
 	ret, err := ledger.OutputIDFromBytes(data)
 	easyfl.AssertNoError(err)
 	return ret
@@ -190,9 +190,9 @@ func (v *ValidationContext) runOutput(outputArray *lazyslice.Array, path lazysli
 }
 
 func (v *ValidationContext) validateInputCommitment() error {
-	consumedOutputBytes := v.tree.BytesAtPath(Path(ConsumedContextBranch, ConsumedContextOutputsBranch))
+	consumedOutputBytes := v.tree.BytesAtPath(Path(library.ConsumedBranch, library.ConsumedOutputsBranch))
 	h := blake2b.Sum256(consumedOutputBytes)
-	inputCommitment := v.tree.BytesAtPath(Path(TransactionBranch, TxInputCommitment))
+	inputCommitment := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputCommitment))
 	if !bytes.Equal(h[:], inputCommitment) {
 		return fmt.Errorf("consumed input hash %v not equal to input commitment %v",
 			easyfl.Fmt(h[:]), easyfl.Fmt(inputCommitment))
@@ -207,19 +207,21 @@ func PathToString(path []byte) string {
 	}
 	if len(path) >= 1 {
 		switch path[0] {
-		case TransactionBranch:
+		case library.TransactionBranch:
 			ret += ".tx"
 			if len(path) >= 2 {
 				switch path[1] {
-				case TxUnlockParamsBranch:
+				case library.TxUnlockParams:
 					ret += ".unlock"
-				case TxInputIDsBranch:
+				case library.TxInputIDs:
 					ret += ".inID"
-				case TxOutputBranch:
+				case library.TxOutputs:
 					ret += ".out"
-				case TxTimestamp:
+				case library.TxSignature:
+					ret += ".sig"
+				case library.TxTimestamp:
 					ret += ".ts"
-				case TxInputCommitment:
+				case library.TxInputCommitment:
 					ret += ".inhash"
 				default:
 					ret += "WRONG[1]"
@@ -234,7 +236,7 @@ func PathToString(path []byte) string {
 			if len(path) >= 5 {
 				ret += fmt.Sprintf("..%v", path[4:])
 			}
-		case ConsumedContextBranch:
+		case library.ConsumedBranch:
 			ret += ".consumed"
 			if len(path) >= 2 {
 				if path[1] != 0 {

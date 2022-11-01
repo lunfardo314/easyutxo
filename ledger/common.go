@@ -42,14 +42,6 @@ type (
 	}
 )
 
-// Mandatory output block indices
-const (
-	OutputBlockAmount = byte(iota)
-	OutputBlockTimestamp
-	OutputBlockLock
-	OutputNumMandatoryBlocks
-)
-
 func (txid *TransactionID) String() string {
 	return easyfl.Fmt(txid[:])
 }

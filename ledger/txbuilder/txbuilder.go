@@ -10,7 +10,6 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/library"
-	"github.com/lunfardo314/easyutxo/ledger/state"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -24,6 +23,7 @@ type (
 		InputIDs        []*ledger.OutputID
 		Outputs         []*Output
 		UnlockBlocks    []*UnlockParams
+		Signature       []byte
 		Timestamp       uint32
 		InputCommitment [32]byte
 	}
@@ -89,12 +89,12 @@ func (ctx *TransactionBuilder) InputCommitment() [32]byte {
 }
 
 func (tx *transaction) ToArray() *lazyslice.Array {
-	unlockBlocks := lazyslice.EmptyArray(256)
+	unlockParams := lazyslice.EmptyArray(256)
 	inputIDs := lazyslice.EmptyArray(256)
 	outputs := lazyslice.EmptyArray(256)
 
 	for _, b := range tx.UnlockBlocks {
-		unlockBlocks.Push(b.Bytes())
+		unlockParams.Push(b.Bytes())
 	}
 	for _, oid := range tx.InputIDs {
 		inputIDs.Push(oid[:])
@@ -103,17 +103,16 @@ func (tx *transaction) ToArray() *lazyslice.Array {
 		outputs.Push(o.Bytes())
 	}
 
+	elems := make([]interface{}, library.TxTreeIndexMax)
+	elems[library.TxUnlockParams] = unlockParams
+	elems[library.TxInputIDs] = inputIDs
+	elems[library.TxOutputs] = outputs
+	elems[library.TxSignature] = tx.Signature
 	var ts [4]byte
 	binary.BigEndian.PutUint32(ts[:], tx.Timestamp)
-	ret := lazyslice.MakeArray(
-		unlockBlocks,          // TxUnlockParamsBranch = 0
-		inputIDs,              // TxInputIDsBranch = 1
-		outputs,               // TxOutputBranch = 2
-		ts[:],                 // TxTimestamp = 3
-		tx.InputCommitment[:], // TxInputCommitment = 4
-	)
-
-	return ret
+	elems[library.TxTimestamp] = ts[:]
+	elems[library.TxInputCommitment] = tx.InputCommitment[:]
+	return lazyslice.MakeArray(elems...)
 }
 
 func (tx *transaction) Bytes() []byte {
@@ -123,9 +122,9 @@ func (tx *transaction) Bytes() []byte {
 func (tx *transaction) EssenceBytes() []byte {
 	arr := tx.ToArray()
 	return easyfl.Concat(
-		arr.At(int(state.TxInputIDsBranch)),
-		arr.At(int(state.TxOutputBranch)),
-		arr.At(int(state.TxInputCommitment)),
+		arr.At(int(library.TxInputIDs)),
+		arr.At(int(library.TxOutputs)),
+		arr.At(int(library.TxInputCommitment)),
 	)
 }
 
@@ -266,10 +265,10 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 	for i := range consumedOuts {
 		if i == 0 {
 			unlockData := library.UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderPrivateKey)
-			ctx.UnlockBlock(0).PutUnlockParams(unlockData, ledger.OutputBlockLock)
+			ctx.UnlockBlock(0).PutUnlockParams(unlockData, library.OutputBlockLock)
 			continue
 		}
-		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, ledger.OutputBlockLock)
+		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, library.OutputBlockLock)
 	}
 	return ctx.Transaction.Bytes(), nil
 }

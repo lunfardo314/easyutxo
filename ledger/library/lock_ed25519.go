@@ -143,14 +143,14 @@ func unlockedByReference: and(
 // $0 - ED25519 address, 32 byte blake2b hash of the public key
 func addressED25519: or(
 	and(
-		isProducedBranch(@), 
+		isPathToProducedOutput(@), 
 		equal(len8($0), 32) 
 	),
     and(
-		isConsumedBranch(@), 
+		isPathToConsumedOutput(@), 
 		or(                                    
 				// if it is unlocked with reference, the signature is not checked
-			unlockedByReference(selfConstraint, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),
+			unlockedByReference(self, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),
 				// otherwise signature is checked
 			unlockedWithSigED25519($0, selfUnlockParameters)    
 		)

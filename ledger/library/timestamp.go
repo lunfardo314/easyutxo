@@ -11,8 +11,8 @@ import (
 const timestampSource = `
 // $0 - 4 bytes Unix seconds big-endian 
 func timestamp: or(
-	and( isProducedBranch(@), equal($0, txTimestampBytes) ),
-	and( isConsumedBranch(@), lessThan($0, txTimestampBytes) )	
+	and( isPathToProducedOutput(@), equal($0, txTimestampBytes) ),
+	and( isPathToConsumedOutput(@), lessThan($0, txTimestampBytes) )	
 )
 `
 
