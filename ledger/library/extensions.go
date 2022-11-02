@@ -150,9 +150,9 @@ func init() {
 	initAmountConstraint()
 	initTimestampConstraint()
 	initAddressED25519Constraint()
+	initDeadlineLockConstraint()
 	initTimelockConstraint()
 	//initSenderConstraint()
-	initDeadlineLockConstraint()
 
 	easyfl.PrintLibraryStats()
 }

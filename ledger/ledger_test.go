@@ -91,7 +91,7 @@ func TestMainConstraints(t *testing.T) {
 		require.EqualValues(t, 1, u.NumUTXOs(addr1))
 
 		_, _, addrNext := u.GenerateAddress(2)
-		in, err := u.MakeED25519TransferInputs(privKey1)
+		in, err := u.MakeED25519TransferInputs(privKey1, 0)
 		require.NoError(t, err)
 		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
 		require.NoError(t, err)
@@ -114,11 +114,11 @@ func TestMainConstraints(t *testing.T) {
 
 		_, _, addrNext := u.GenerateAddress(2)
 		privKeyWrong, _, _ := u.GenerateAddress(3)
-		in, err := u.MakeED25519TransferInputs(privKey1)
+		in, err := u.MakeED25519TransferInputs(privKey1, 0)
 		in.SenderPrivateKey = privKeyWrong
 		require.NoError(t, err)
 		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
-		easyfl.RequireErrorWith(t, err, "constraint 'addressED25519' failed")
+		easyfl.RequireErrorWith(t, err, "failed")
 	})
 }
 
@@ -135,11 +135,10 @@ func TestTimelock(t *testing.T) {
 		priv1, _, addr1 := u.GenerateAddress(1)
 
 		ts := uint32(time.Now().Unix()) + 5
-		par, err := u.MakeED25519TransferInputs(privKey0)
+		par, err := u.MakeED25519TransferInputs(privKey0, ts)
 		require.NoError(t, err)
 		par.WithAmount(200).
 			WithTargetLock(addr1).
-			WithTimestamp(ts).
 			WithConstraint(library.NewTimelock(ts + 1))
 		txBytes, err := txbuilder.MakeTransferTransaction(par)
 
@@ -150,34 +149,33 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(privKey0)
+		t.Logf("timelock: %x", ts+1)
+		par, err = u.MakeED25519TransferInputs(privKey0, ts+1)
 		require.NoError(t, err)
 		par.WithAmount(2000).
 			WithTargetLock(addr1).
-			WithTimestamp(ts + 1).
 			WithConstraint(library.NewTimelock(ts + 1 + 10))
 		err = u.DoTransfer(par)
 		require.NoError(t, err)
 
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1)
+		par, err = u.MakeED25519TransferInputs(priv1, ts+2)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
-			WithTargetLock(addr0).
-			WithTimestamp(ts + 2),
+			WithTargetLock(addr0),
 		)
 
-		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
+		easyfl.RequireErrorWith(t, err, "failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1)
+		t.Logf("tx time: %x", ts+12)
+		par, err = u.MakeED25519TransferInputs(priv1, ts+12)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
-			WithTargetLock(addr0).
-			WithTimestamp(ts + 12),
+			WithTargetLock(addr0),
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 200, u.Balance(addr1))
@@ -195,12 +193,11 @@ func TestTimelock(t *testing.T) {
 		priv1, _, addr1 := u.GenerateAddress(1)
 
 		ts := uint32(time.Now().Unix()) + 5
-		par, err := u.MakeED25519TransferInputs(privKey0)
+		par, err := u.MakeED25519TransferInputs(privKey0, ts)
 		require.NoError(t, err)
 		txBytes, err := txbuilder.MakeTransferTransaction(par.
 			WithAmount(200).
 			WithTargetLock(addr1).
-			WithTimestamp(ts).
 			WithConstraint(library.NewTimelock(ts + 1)),
 		)
 		require.NoError(t, err)
@@ -210,34 +207,31 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(privKey0)
+		par, err = u.MakeED25519TransferInputs(privKey0, ts+1)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
 			WithTargetLock(addr1).
-			WithTimestamp(ts + 1).
 			WithConstraint(library.NewTimelock(ts + 1 + 10)),
 		)
 		require.NoError(t, err)
 
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1)
+		par, err = u.MakeED25519TransferInputs(priv1, ts+2)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
-			WithTargetLock(addr0).
-			WithTimestamp(ts + 2),
+			WithTargetLock(addr0),
 		)
-		easyfl.RequireErrorWith(t, err, "constraint 'timelock' failed")
+		easyfl.RequireErrorWith(t, err, "failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1)
+		par, err = u.MakeED25519TransferInputs(priv1, ts+12)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
-			WithTargetLock(addr0).
-			WithTimestamp(ts + 12),
+			WithTargetLock(addr0),
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 200, u.Balance(addr1))
@@ -261,7 +255,7 @@ func TestDeadlineLock(t *testing.T) {
 
 	ts := uint32(time.Now().Unix())
 
-	par, err := u.MakeED25519TransferInputs(privKey0)
+	par, err := u.MakeED25519TransferInputs(privKey0, ts)
 	require.NoError(t, err)
 	deadlineLock := library.NewDeadlineLock(
 		ts+10,
@@ -269,15 +263,26 @@ func TestDeadlineLock(t *testing.T) {
 		library.AddressED25519FromPublicKey(pubKey0),
 	)
 	t.Logf("deadline lock: %d bytes", len(deadlineLock.Bytes()))
-	txBytes, err := u.DoTransferTx(par.
+	dis, err := easyfl.DecompileBinary(deadlineLock.Bytes())
+	require.NoError(t, err)
+	t.Logf("disassemble deadlock %s", dis)
+	_, err = u.DoTransferTx(par.
 		WithAmount(2000).
-		WithTargetLock(deadlineLock).
-		WithTimestamp(ts),
+		WithTargetLock(deadlineLock),
 	)
 	require.NoError(t, err)
-	require.EqualValues(t, 10000-2000, u.Balance(addr0))
-	t.Logf("tx ith deadline lock: %d bytes", len(txBytes))
-	ctx, err := u.ValidationContextFromTransaction(txBytes)
-	require.NoError(t, err)
-	require.EqualValues(t, 2, ctx.NumProducedOutputs())
+
+	require.EqualValues(t, 2, u.NumUTXOs(addr0))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+
+	require.EqualValues(t, 1, u.NumUTXOs(addr0, ts+10))
+	require.EqualValues(t, 2, u.NumUTXOs(addr0, ts+11))
+	require.EqualValues(t, 8000, int(u.Balance(addr0, ts+10)))
+	require.EqualValues(t, 10000, int(u.Balance(addr0, ts+11)))
+
+	require.EqualValues(t, 1, u.NumUTXOs(addr1))
+	require.EqualValues(t, 1, u.NumUTXOs(addr1, ts+10))
+	require.EqualValues(t, 0, u.NumUTXOs(addr1, ts+11))
+	require.EqualValues(t, 2000, int(u.Balance(addr1, ts+10)))
+	require.EqualValues(t, 0, int(u.Balance(addr1, ts+11)))
 }

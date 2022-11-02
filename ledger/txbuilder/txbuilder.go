@@ -77,7 +77,7 @@ func (txb *TransactionBuilder) PutSignatureUnlock(outputIndex, blockIndex byte) 
 
 // PutUnlockReference references some preceding output
 func (txb *TransactionBuilder) PutUnlockReference(outputIndex, blockIndex, referencedOutputIndex byte) error {
-	if referencedOutputIndex <= outputIndex {
+	if referencedOutputIndex >= outputIndex {
 		return fmt.Errorf("referenced output index must be strongly less than the unlocked output index")
 	}
 	txb.Transaction.UnlockBlocks[outputIndex].array.PutAtIdxGrow(blockIndex, []byte{referencedOutputIndex})
@@ -162,21 +162,16 @@ type ED25519TransferInputs struct {
 	AddConstraints   [][]byte
 }
 
-func NewED25519TransferInputs(senderKey ed25519.PrivateKey) *ED25519TransferInputs {
+func NewED25519TransferInputs(senderKey ed25519.PrivateKey, ts uint32) *ED25519TransferInputs {
 	sourcePubKey := senderKey.Public().(ed25519.PublicKey)
 	sourceAddr := library.AddressED25519FromPublicKey(sourcePubKey)
 	return &ED25519TransferInputs{
 		SenderPrivateKey: senderKey,
 		SenderPublicKey:  sourcePubKey,
 		SenderAddress:    sourceAddr,
-		Timestamp:        uint32(time.Now().Unix()),
+		Timestamp:        ts,
 		AddConstraints:   make([][]byte, 0),
 	}
-}
-
-func (t *ED25519TransferInputs) WithTimestamp(ts uint32) *ED25519TransferInputs {
-	t.Timestamp = ts
-	return t
 }
 
 func (t *ED25519TransferInputs) WithTargetLock(lock library.Lock) *ED25519TransferInputs {
@@ -289,7 +284,7 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 			txb.PutSignatureUnlock(0, library.OutputBlockLock)
 		} else {
 			// always referencing the 0 output
-			err := txb.PutUnlockReference(0, library.OutputBlockLock, 0)
+			err := txb.PutUnlockReference(byte(i), library.OutputBlockLock, 0)
 			easyfl.AssertNoError(err)
 		}
 	}

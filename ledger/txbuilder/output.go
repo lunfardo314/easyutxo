@@ -159,17 +159,20 @@ func (o *Output) TimeLock() (uint32, bool) {
 	return 0, false
 }
 
-func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, desc ...bool) ([]*OutputWithID, error) {
-	ret := make([]*OutputWithID, len(outs))
-	for i, od := range outs {
+func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, filter func(o *Output) bool, desc ...bool) ([]*OutputWithID, error) {
+	ret := make([]*OutputWithID, 0, len(outs))
+	for _, od := range outs {
 		out, err := OutputFromBytes(od.OutputData)
 		if err != nil {
 			return nil, err
 		}
-		ret[i] = &OutputWithID{
+		if filter != nil && !filter(out) {
+			continue
+		}
+		ret = append(ret, &OutputWithID{
 			ID:     od.ID,
 			Output: out,
-		}
+		})
 	}
 	if len(desc) > 0 && desc[0] {
 		sort.Slice(ret, func(i, j int) bool {

@@ -1,6 +1,7 @@
 package library
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -47,6 +48,13 @@ func (dl *DeadlineLock) IndexableTags() []Accountable {
 	return []Accountable{dl.ConstraintMain, dl.ConstraintExpiry}
 }
 
+func (dl *DeadlineLock) UnlockableWith(acc AccountID, ts uint32) bool {
+	if ts <= dl.Deadline {
+		return bytes.Equal(dl.ConstraintMain.AccountID(), acc)
+	}
+	return bytes.Equal(dl.ConstraintExpiry.AccountID(), acc)
+}
+
 func (dl *DeadlineLock) Name() string {
 	return deadlineLockName
 }
@@ -84,7 +92,7 @@ func DeadlineLockFromBytes(data []byte) (*DeadlineLock, error) {
 	if ret.ConstraintMain, err = AccountableFromBytes(args[1]); err != nil {
 		return nil, err
 	}
-	if ret.ConstraintExpiry, err = AccountableFromBytes(args[1]); err != nil {
+	if ret.ConstraintExpiry, err = AccountableFromBytes(args[2]); err != nil {
 		return nil, err
 	}
 	return ret, nil

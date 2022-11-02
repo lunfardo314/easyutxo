@@ -1,6 +1,7 @@
 package library
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
@@ -50,6 +51,10 @@ func (a AddressED25519) Bytes() []byte {
 
 func (a AddressED25519) IndexableTags() []Accountable {
 	return []Accountable{a}
+}
+
+func (a AddressED25519) UnlockableWith(acc AccountID, ts uint32) bool {
+	return bytes.Equal(a.AccountID(), acc)
 }
 
 func (a AddressED25519) AccountID() AccountID {

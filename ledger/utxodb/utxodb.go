@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
@@ -101,11 +102,11 @@ func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64
 	if err != nil {
 		return err
 	}
-	outs, err := txbuilder.ParseAndSortOutputData(outsData)
+	outs, err := txbuilder.ParseAndSortOutputData(outsData, nil)
 	if err != nil {
 		return err
 	}
-	par := txbuilder.NewED25519TransferInputs(u.genesisPrivateKey).
+	par := txbuilder.NewED25519TransferInputs(u.genesisPrivateKey, uint32(time.Now().Unix())).
 		WithAmount(amount, true).
 		WithTargetLock(addr).
 		WithOutputs(outs)
@@ -131,13 +132,18 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	return priv, pub, addr
 }
 
-func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, desc ...bool) (*txbuilder.ED25519TransferInputs, error) {
-	ret := txbuilder.NewED25519TransferInputs(privKey)
+func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, ts uint32, desc ...bool) (*txbuilder.ED25519TransferInputs, error) {
+	if ts == 0 {
+		ts = uint32(time.Now().Unix())
+	}
+	ret := txbuilder.NewED25519TransferInputs(privKey, ts)
 	outsData, err := u.indexer.GetUTXOsForAccountID(ret.SenderAddress, u.state)
 	if err != nil {
 		return nil, err
 	}
-	outs, err := txbuilder.ParseAndSortOutputData(outsData, desc...)
+	outs, err := txbuilder.ParseAndSortOutputData(outsData, func(o *txbuilder.Output) bool {
+		return o.Lock().UnlockableWith(ret.SenderAddress.AccountID(), ts)
+	}, desc...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +152,7 @@ func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, desc ...b
 }
 
 func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.Lock, amount uint64) error {
-	par, err := u.MakeED25519TransferInputs(privKey)
+	par, err := u.MakeED25519TransferInputs(privKey, 0)
 	if err != nil {
 		return err
 	}
@@ -166,25 +172,34 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.L
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) account(addr library.Accountable) (uint64, int) {
+func (u *UTXODB) account(addr library.Accountable, ts ...uint32) (uint64, int) {
 	outs, err := u.indexer.GetUTXOsForAccountID(addr, u.state)
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
-	for _, o := range outs {
-		out, err := txbuilder.OutputFromBytes(o.OutputData)
-		easyfl.AssertNoError(err)
-		balance += out.Amount()
+	var filter func(o *txbuilder.Output) bool
+	if len(ts) > 0 {
+		filter = func(o *txbuilder.Output) bool {
+			return o.Lock().UnlockableWith(addr.AccountID(), ts[0])
+		}
 	}
-	return balance, len(outs)
+	outs1, err := txbuilder.ParseAndSortOutputData(outs, filter)
+	easyfl.AssertNoError(err)
+
+	for _, o := range outs1 {
+		balance += o.Output.Amount()
+	}
+	return balance, len(outs1)
 }
 
-func (u *UTXODB) Balance(addr library.Accountable) uint64 {
-	ret, _ := u.account(addr)
+// Balance returns balance of address unlockable at timestamp ts, if provided. Otherwise, all outputs taken
+func (u *UTXODB) Balance(addr library.Accountable, ts ...uint32) uint64 {
+	ret, _ := u.account(addr, ts...)
 	return ret
 }
 
-func (u *UTXODB) NumUTXOs(addr library.Accountable) int {
-	_, ret := u.account(addr)
+// NumUTXOs returns number of outputs of address unlockable at timestamp ts, if provided. Otherwise, all outputs taken
+func (u *UTXODB) NumUTXOs(addr library.Accountable, ts ...uint32) int {
+	_, ret := u.account(addr, ts...)
 	return ret
 }
 

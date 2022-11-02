@@ -25,6 +25,7 @@ type (
 	Lock interface {
 		Constraint
 		IndexableTags() []Accountable
+		UnlockableWith(acc AccountID, ts uint32) bool
 	}
 
 	Parser func([]byte) (Constraint, error)
@@ -133,12 +134,4 @@ func AccountableFromBytes(data []byte) (Accountable, error) {
 		return AddressED25519FromBytes(data)
 	}
 	return nil, fmt.Errorf("not a indexable constraint '%s'", name)
-}
-
-func UnlockParamsByReference(ref byte) []byte {
-	return []byte{ref}
-}
-
-func UnlockParamsBySignature() []byte {
-	return []byte{0xff}
 }

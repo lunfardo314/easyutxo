@@ -130,7 +130,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		}
 		for _, addr := range lock.IndexableTags() {
 			indexEntry := &indexer.IndexEntry{
-				AccountID: addr.AccountID(),
+				AccountID: easyfl.Concat(addr.AccountID()),
 				Delete:    consumedBranch,
 			}
 			if consumedBranch {
@@ -173,8 +173,12 @@ func (v *ValidationContext) runOutput(outputArray *lazyslice.Array, path lazysli
 			return false
 		}
 		if len(res) == 0 {
-			err = fmt.Errorf("constraint '%s' failed. Path: %s",
-				name, PathToString(blockPath))
+			var decomp string
+			decomp, err = easyfl.DecompileBinary(data)
+			if err != nil {
+				decomp = fmt.Sprintf("(error while decompiling constraint 'name': '%v')", err)
+			}
+			err = fmt.Errorf("constraint '%s' failed. Path: %s", decomp, PathToString(blockPath))
 			return false
 		}
 		if len(res) == 4 {
