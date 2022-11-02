@@ -1,12 +1,9 @@
 package library
 
 import (
-	"crypto"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
-	"time"
 
 	"github.com/lunfardo314/easyfl"
 	"golang.org/x/crypto/blake2b"
@@ -83,15 +80,6 @@ func initAddressED25519Constraint() {
 	})
 }
 
-var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-func UnlockParamsBySignatureED25519(msg []byte, privKey ed25519.PrivateKey) []byte {
-	sig, err := privKey.Sign(rnd, msg, crypto.Hash(0))
-	easyfl.AssertNoError(err)
-	pubKey := privKey.Public().(ed25519.PublicKey)
-	return easyfl.Concat(sig, []byte(pubKey))
-}
-
 const AddressED25519ConstraintSource = `
 
 // ED25519 address constraint is 1-byte type and 32 bytes address, blake2b hash of the public key
@@ -107,10 +95,9 @@ func publicKeyED25519: slice($0, 64, 95) // the rest 32 bytes is public key
 // the signature must be valid and hash of the public key must be equal to the provided address
 
 // $0 = constraint data (address data)
-// $1 = unlock parameters of 96 bytes long
+// $1 = signature
 
 func unlockedWithSigED25519: and(
-	equal(len8($1), 96),         // unlock parameters must be 96 bytes long 
 	validSignatureED25519(
 		txEssenceBytes,          // function 'txEssenceHash' returns transaction essence bytes 
 		signatureED25519($1),    
@@ -124,16 +111,10 @@ func unlockedWithSigED25519: and(
 // The referenced constraint must be exactly the same  but with strictly lesser index.
 // This prevents from cycles and forces some other unlock mechanism up in the list of outputs
 
-// $0 - constraint (with type byte)
-// $1 - unlock parameters 1-byte long
-// $2 - index 1-byte of the selfOutput
-// $3 - referenced constraint
-
 func unlockedByReference: and(
-	equal(len8($1), 1),         // unlock parameters must be 1 byte long
-	lessThan($1, $2),           // unlock parameter must point to another input with 
-							    // strictly smaller index. This prevents reference cycles	
-	equal($0, $3)               // the referenced constraint bytes must be equal to the self constraint bytes
+	lessThan(selfUnlockParameters, selfOutputIndex),              // unlock parameter must point to another input with 
+							                                      // strictly smaller index. This prevents reference cycles	
+	equal(self, consumedLockByOutputIndex(selfUnlockParameters))  // the referenced constraint bytes must be equal to the self constraint bytes
 )
 
 // if it is 'produced' invocation context (constraint invoked in the input), only size of the address is checked
@@ -148,11 +129,11 @@ func addressED25519: or(
 	),
     and(
 		isPathToConsumedOutput(@), 
-		or(                                    
+		or(
 				// if it is unlocked with reference, the signature is not checked
-			unlockedByReference(self, selfUnlockParameters, selfOutputIndex, selfReferencedConstraint),
-				// otherwise signature is checked
-			unlockedWithSigED25519($0, selfUnlockParameters)    
+			unlockedByReference,
+				// tx signature is checked
+			unlockedWithSigED25519($0, txSignature) 
 		)
 	)
 )

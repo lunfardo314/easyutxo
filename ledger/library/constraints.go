@@ -138,3 +138,7 @@ func AccountableFromBytes(data []byte) (Accountable, error) {
 func UnlockParamsByReference(ref byte) []byte {
 	return []byte{ref}
 }
+
+func UnlockParamsBySignature() []byte {
+	return []byte{0xff}
+}

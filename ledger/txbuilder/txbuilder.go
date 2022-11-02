@@ -1,9 +1,11 @@
 package txbuilder
 
 import (
+	"crypto"
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/lunfardo314/easyfl"
@@ -46,42 +48,53 @@ func NewTransactionBuilder() *TransactionBuilder {
 	}
 }
 
-func (ctx *TransactionBuilder) NumInputs() int {
-	ret := len(ctx.ConsumedOutputs)
-	easyfl.Assert(ret == len(ctx.Transaction.InputIDs), "ret==len(ctx.Transaction.InputIDs)")
+func (txb *TransactionBuilder) NumInputs() int {
+	ret := len(txb.ConsumedOutputs)
+	easyfl.Assert(ret == len(txb.Transaction.InputIDs), "ret==len(ctx.Transaction.InputIDs)")
 	return ret
 }
 
-func (ctx *TransactionBuilder) NumOutputs() int {
-	return len(ctx.Transaction.Outputs)
+func (txb *TransactionBuilder) NumOutputs() int {
+	return len(txb.Transaction.Outputs)
 }
 
-func (ctx *TransactionBuilder) ConsumeOutput(out *Output, oid ledger.OutputID) (byte, error) {
-	if ctx.NumInputs() >= 256 {
+func (txb *TransactionBuilder) ConsumeOutput(out *Output, oid ledger.OutputID) (byte, error) {
+	if txb.NumInputs() >= 256 {
 		return 0, fmt.Errorf("too many consumed outputs")
 	}
-	ctx.ConsumedOutputs = append(ctx.ConsumedOutputs, out)
-	ctx.Transaction.InputIDs = append(ctx.Transaction.InputIDs, &oid)
-	ctx.Transaction.UnlockBlocks = append(ctx.Transaction.UnlockBlocks, NewUnlockBlock())
+	txb.ConsumedOutputs = append(txb.ConsumedOutputs, out)
+	txb.Transaction.InputIDs = append(txb.Transaction.InputIDs, &oid)
+	txb.Transaction.UnlockBlocks = append(txb.Transaction.UnlockBlocks, NewUnlockBlock())
 
-	return byte(len(ctx.ConsumedOutputs) - 1), nil
+	return byte(len(txb.ConsumedOutputs) - 1), nil
 }
 
-func (ctx *TransactionBuilder) UnlockBlock(idx byte) *UnlockParams {
-	return ctx.Transaction.UnlockBlocks[idx]
+// PutSignatureUnlock marker 0xff references signature of the transaction.
+// It can be distinguished from any reference because it cannot be stringly less than any other reference
+func (txb *TransactionBuilder) PutSignatureUnlock(outputIndex, blockIndex byte) {
+	txb.Transaction.UnlockBlocks[outputIndex].array.PutAtIdxGrow(blockIndex, []byte{0xff})
 }
 
-func (ctx *TransactionBuilder) ProduceOutput(out *Output) (byte, error) {
-	if ctx.NumOutputs() >= 256 {
+// PutUnlockReference references some preceding output
+func (txb *TransactionBuilder) PutUnlockReference(outputIndex, blockIndex, referencedOutputIndex byte) error {
+	if referencedOutputIndex <= outputIndex {
+		return fmt.Errorf("referenced output index must be strongly less than the unlocked output index")
+	}
+	txb.Transaction.UnlockBlocks[outputIndex].array.PutAtIdxGrow(blockIndex, []byte{referencedOutputIndex})
+	return nil
+}
+
+func (txb *TransactionBuilder) ProduceOutput(out *Output) (byte, error) {
+	if txb.NumOutputs() >= 256 {
 		return 0, fmt.Errorf("too many produced outputs")
 	}
-	ctx.Transaction.Outputs = append(ctx.Transaction.Outputs, out)
-	return byte(len(ctx.Transaction.Outputs) - 1), nil
+	txb.Transaction.Outputs = append(txb.Transaction.Outputs, out)
+	return byte(len(txb.Transaction.Outputs) - 1), nil
 }
 
-func (ctx *TransactionBuilder) InputCommitment() [32]byte {
+func (txb *TransactionBuilder) InputCommitment() [32]byte {
 	arr := lazyslice.EmptyArray(256)
-	for _, o := range ctx.ConsumedOutputs {
+	for _, o := range txb.ConsumedOutputs {
 		b := o.Bytes()
 		arr.Push(b)
 	}
@@ -126,6 +139,15 @@ func (tx *transaction) EssenceBytes() []byte {
 		arr.At(int(library.TxOutputs)),
 		arr.At(int(library.TxInputCommitment)),
 	)
+}
+
+var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func (txb *TransactionBuilder) SignED25519(privKey ed25519.PrivateKey) {
+	sig, err := privKey.Sign(rnd, txb.Transaction.EssenceBytes(), crypto.Hash(0))
+	easyfl.AssertNoError(err)
+	pubKey := privKey.Public().(ed25519.PublicKey)
+	txb.Transaction.Signature = easyfl.Concat(sig, []byte(pubKey))
 }
 
 type ED25519TransferInputs struct {
@@ -230,9 +252,9 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
 			par.SenderAddress.String(), par.Amount, availableTokens)
 	}
-	ctx := NewTransactionBuilder()
+	txb := NewTransactionBuilder()
 	for _, o := range consumedOuts {
-		if _, err := ctx.ConsumeOutput(o.Output, o.ID); err != nil {
+		if _, err := txb.ConsumeOutput(o.Output, o.ID); err != nil {
 			return nil, err
 		}
 	}
@@ -246,7 +268,7 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 			return nil, err
 		}
 	}
-	if _, err := ctx.ProduceOutput(out); err != nil {
+	if _, err := txb.ProduceOutput(out); err != nil {
 		return nil, err
 	}
 	if availableTokens > amount {
@@ -254,23 +276,24 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 			WithAmount(availableTokens - amount).
 			WithTimestamp(ts).
 			WithLockConstraint(par.SenderAddress)
-		if _, err := ctx.ProduceOutput(reminderOut); err != nil {
+		if _, err := txb.ProduceOutput(reminderOut); err != nil {
 			return nil, err
 		}
 	}
-	ctx.Transaction.Timestamp = ts
-	ctx.Transaction.InputCommitment = ctx.InputCommitment()
+	txb.Transaction.Timestamp = ts
+	txb.Transaction.InputCommitment = txb.InputCommitment()
+	txb.SignED25519(par.SenderPrivateKey)
 
-	unlockDataRef := library.UnlockParamsByReference(0)
 	for i := range consumedOuts {
 		if i == 0 {
-			unlockData := library.UnlockParamsBySignatureED25519(ctx.Transaction.EssenceBytes(), par.SenderPrivateKey)
-			ctx.UnlockBlock(0).PutUnlockParams(unlockData, library.OutputBlockLock)
-			continue
+			txb.PutSignatureUnlock(0, library.OutputBlockLock)
+		} else {
+			// always referencing the 0 output
+			err := txb.PutUnlockReference(0, library.OutputBlockLock, 0)
+			easyfl.AssertNoError(err)
 		}
-		ctx.UnlockBlock(byte(i)).PutUnlockParams(unlockDataRef, library.OutputBlockLock)
 	}
-	return ctx.Transaction.Bytes(), nil
+	return txb.Transaction.Bytes(), nil
 }
 
 //---------------------------------------------------------
@@ -283,10 +306,4 @@ func NewUnlockBlock() *UnlockParams {
 	return &UnlockParams{
 		array: lazyslice.EmptyArray(256),
 	}
-}
-
-// PutUnlockParams puts data at index. If index is out of bounds, pushes empty elements to fill the gaps
-// Unlock params in the element 'idx' corresponds to the consumed output constraint at the same index
-func (u *UnlockParams) PutUnlockParams(data []byte, idx byte) {
-	u.array.PutAtIdxGrow(idx, data)
 }

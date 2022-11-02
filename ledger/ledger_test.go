@@ -80,6 +80,46 @@ func TestMainConstraints(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr))
 		require.EqualValues(t, 1, u.NumUTXOs(addr))
 	})
+	t.Run("simple transfer", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		privKey1, _, addr1 := u.GenerateAddress(1)
+		err := u.TokensFromFaucet(addr1, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr1))
+		require.EqualValues(t, 1, u.NumUTXOs(addr1))
+
+		_, _, addrNext := u.GenerateAddress(2)
+		in, err := u.MakeED25519TransferInputs(privKey1)
+		require.NoError(t, err)
+		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000-1000, u.Balance(addr1))
+		require.EqualValues(t, 1, u.NumUTXOs(addr1))
+		require.EqualValues(t, 1000, u.Balance(addrNext))
+		require.EqualValues(t, 1, u.NumUTXOs(addrNext))
+	})
+	t.Run("transfer wrong key", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		privKey1, _, addr1 := u.GenerateAddress(1)
+		err := u.TokensFromFaucet(addr1, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr1))
+		require.EqualValues(t, 1, u.NumUTXOs(addr1))
+
+		_, _, addrNext := u.GenerateAddress(2)
+		privKeyWrong, _, _ := u.GenerateAddress(3)
+		in, err := u.MakeED25519TransferInputs(privKey1)
+		in.SenderPrivateKey = privKeyWrong
+		require.NoError(t, err)
+		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
+		easyfl.RequireErrorWith(t, err, "constraint 'addressED25519' failed")
+	})
 }
 
 func TestTimelock(t *testing.T) {

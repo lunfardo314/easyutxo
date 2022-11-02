@@ -61,6 +61,7 @@ var (
 	PathToProducedOutputs = lazyslice.Path(TransactionBranch, TxOutputs)
 	PathToUnlockParams    = lazyslice.Path(TransactionBranch, TxUnlockParams)
 	PathToInputIDs        = lazyslice.Path(TransactionBranch, TxInputIDs)
+	PathToSignature       = lazyslice.Path(TransactionBranch, TxSignature)
 	PathToInputCommitment = lazyslice.Path(TransactionBranch, TxInputCommitment)
 	PathToTimestamp       = lazyslice.Path(TransactionBranch, TxTimestamp)
 )
@@ -94,6 +95,7 @@ func init() {
 	easyfl.Extend("pathToProducedOutputs", fmt.Sprintf("0x%s", PathToProducedOutputs.Hex()))
 	easyfl.Extend("pathToUnlockParams", fmt.Sprintf("0x%s", PathToUnlockParams.Hex()))
 	easyfl.Extend("pathToInputIDs", fmt.Sprintf("0x%s", PathToInputIDs.Hex()))
+	easyfl.Extend("pathToSignature", fmt.Sprintf("0x%s", PathToSignature.Hex()))
 	easyfl.Extend("pathToInputCommitment", fmt.Sprintf("0x%s", PathToInputCommitment.Hex()))
 	easyfl.Extend("pathToTimestamp", fmt.Sprintf("0x%s", PathToTimestamp.Hex()))
 
@@ -116,6 +118,7 @@ func init() {
 
 	easyfl.Extend("txBytes", "@Path(pathToTransaction)")
 	easyfl.Extend("txID", "blake2b(txBytes)")
+	easyfl.Extend("txSignature", "@Path(pathToSignature)")
 	easyfl.Extend("txTimestampBytes", "@Path(pathToTimestamp)")
 	easyfl.Extend("txEssenceBytes", "concat(@Path(pathToInputIDs), @Path(pathToProducedOutputs), @Path(pathToInputCommitment))") // timestamp is not a part of the essence
 
@@ -142,8 +145,6 @@ func init() {
 	easyfl.Extend("selfUnlockParameters", "@Path(concat(pathToUnlockParams, selfConstraintIndex))")
 	// path referenced by the reference unlock params
 	easyfl.Extend("selfReferencedPath", "concat(selfBranch, selfUnlockParameters, selfBlockIndex)")
-	// constraint referenced by the referenced path
-	easyfl.Extend("selfReferencedConstraint", "@Path(selfReferencedPath)")
 
 	// init constraints
 	initAmountConstraint()
