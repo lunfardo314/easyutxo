@@ -84,7 +84,7 @@ func init() {
 	easyfl.EmbedShort("@Path", 1, evalAtPath)
 
 	// gives a vByte cost as big-endian uint16
-	easyfl.Extend("#vbCost16", "u16/1")
+	easyfl.Extend("vbCost16", "u16/1")
 
 	// @Array8 interprets $0 as serialized LazyArray with max 256 elements. Takes the $1 element of it. $1 is expected 1-byte long
 	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
@@ -146,13 +146,18 @@ func init() {
 	// path referenced by the reference unlock params
 	easyfl.Extend("selfReferencedPath", "concat(selfBranch, selfUnlockParameters, selfBlockIndex)")
 
+	// takes ED25519 signature from full signature, first 64 bytes
+	easyfl.Extend("signatureED25519", "slice($0, 0, 63)")
+	// takes ED25519 public key from full signature
+	easyfl.Extend("publicKeyED25519", "slice($0, 64, 95)")
+
 	// init constraints
 	initAmountConstraint()
 	initTimestampConstraint()
 	initAddressED25519Constraint()
 	initDeadlineLockConstraint()
 	initTimelockConstraint()
-	//initSenderConstraint()
+	initSenderConstraint()
 
 	easyfl.PrintLibraryStats()
 }

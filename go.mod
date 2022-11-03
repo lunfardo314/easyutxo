@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/iotaledger/trie.go v0.0.0-20221017180736-eebf1ccb33e4
-	github.com/lunfardo314/easyfl v0.0.0-20221101191201-026727aa4b90
+	github.com/lunfardo314/easyfl v0.0.0-20221103143151-18a85cf7afe2
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/crypto v0.1.0
 )

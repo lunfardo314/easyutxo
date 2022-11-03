@@ -11,7 +11,7 @@ import (
 const amountSource = `
 func storageDepositEnough: greaterOrEqualThan(
 	$0,
-	concat(u32/0, mul16_32(#vbCost16,len16(selfOutputBytes)))
+	concat(u32/0, mul16_32(vbCost16,len16(selfOutputBytes)))
 )
 
 // $0 - amount uint64 big-endian

@@ -203,16 +203,20 @@ func (u *UTXODB) NumUTXOs(addr library.Accountable, ts ...uint32) int {
 	return ret
 }
 
-func (u *UTXODB) DoTransferTx(par *txbuilder.ED25519TransferInputs, traceOption ...int) ([]byte, error) {
+func (u *UTXODB) DoTransferTx(par *txbuilder.ED25519TransferInputs) ([]byte, error) {
+	trace := state.TraceOptionNone
+	if u.trace {
+		trace = state.TraceOptionFailedConstraints
+	}
 	txBytes, err := txbuilder.MakeTransferTransaction(par)
 	if err != nil {
 		return nil, err
 	}
-	return txBytes, u.AddTransaction(txBytes, traceOption...)
+	return txBytes, u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) DoTransfer(par *txbuilder.ED25519TransferInputs, traceOption ...int) error {
-	_, err := u.DoTransferTx(par, traceOption...)
+func (u *UTXODB) DoTransfer(par *txbuilder.ED25519TransferInputs) error {
+	_, err := u.DoTransferTx(par)
 	return err
 }
 

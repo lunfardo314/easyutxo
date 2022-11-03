@@ -248,10 +248,9 @@ func TestDeadlineLock(t *testing.T) {
 	require.EqualValues(t, 10000, u.Balance(addr0))
 	require.EqualValues(t, 1, u.NumUTXOs(addr0))
 
-	privKey1, pubKey1, addr1 := u.GenerateAddress(1)
+	_, pubKey1, addr1 := u.GenerateAddress(1)
 	require.EqualValues(t, 0, u.Balance(addr1))
 	require.EqualValues(t, 0, u.NumUTXOs(addr1))
-	privKey1 = privKey1
 
 	ts := uint32(time.Now().Unix())
 
@@ -285,4 +284,41 @@ func TestDeadlineLock(t *testing.T) {
 	require.EqualValues(t, 0, u.NumUTXOs(addr1, ts+11))
 	require.EqualValues(t, 2000, int(u.Balance(addr1, ts+10)))
 	require.EqualValues(t, 0, int(u.Balance(addr1, ts+11)))
+}
+
+func TestSenderAddressED25519(t *testing.T) {
+	u := utxodb.NewUTXODB(true)
+	privKey0, _, addr0 := u.GenerateAddress(0)
+	err := u.TokensFromFaucet(addr0, 10000)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+	_, _, addr1 := u.GenerateAddress(1)
+	require.EqualValues(t, 0, u.Balance(addr1))
+	require.EqualValues(t, 0, u.NumUTXOs(addr1))
+
+	par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+	par.WithSender()
+	err = u.DoTransfer(par.
+		WithAmount(2000).
+		WithTargetLock(addr1).
+		WithSender(),
+	)
+	require.NoError(t, err)
+
+	require.EqualValues(t, 1, u.NumUTXOs(addr1))
+	require.EqualValues(t, 2000, u.Balance(addr1))
+
+	outDatas, err := u.IndexerAccess().GetUTXOsForAccountID(addr1, u.StateAccess())
+	require.NoError(t, err)
+	outs, err := txbuilder.ParseAndSortOutputData(outDatas, nil)
+	require.NoError(t, err)
+
+	require.EqualValues(t, 1, len(outs))
+	saddr, ok := outs[0].Output.SenderAddressED25519()
+	require.True(t, ok)
+	require.True(t, library.Equal(addr0, saddr))
 }

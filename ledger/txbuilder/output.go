@@ -159,6 +159,27 @@ func (o *Output) TimeLock() (uint32, bool) {
 	return 0, false
 }
 
+func (o *Output) SenderAddressED25519() (library.AddressED25519, bool) {
+	var ret *library.SenderAddressED25519
+	var err error
+	found := false
+	o.ForEachConstraint(func(idx byte, constr []byte) bool {
+		if idx == library.OutputBlockAmount || idx == library.OutputBlockTimestamp || idx == library.OutputBlockLock {
+			return true
+		}
+		ret, err = library.SenderAddressED25519FromBytes(constr)
+		if err == nil {
+			found = true
+			return false
+		}
+		return true
+	})
+	if found {
+		return ret.Address, true
+	}
+	return nil, false
+}
+
 func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, filter func(o *Output) bool, desc ...bool) ([]*OutputWithID, error) {
 	ret := make([]*OutputWithID, 0, len(outs))
 	for _, od := range outs {

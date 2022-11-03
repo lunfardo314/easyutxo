@@ -159,6 +159,7 @@ type ED25519TransferInputs struct {
 	Lock             library.Lock
 	Amount           uint64
 	AdjustToMinimum  bool
+	AddSender        bool
 	AddConstraints   [][]byte
 }
 
@@ -192,6 +193,11 @@ func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint) *ED255
 
 func (t *ED25519TransferInputs) WithOutputs(outs []*OutputWithID) *ED25519TransferInputs {
 	t.Outputs = outs
+	return t
+}
+
+func (t *ED25519TransferInputs) WithSender() *ED25519TransferInputs {
+	t.AddSender = true
 	return t
 }
 
@@ -257,6 +263,11 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 		WithAmount(amount).
 		WithTimestamp(ts).
 		WithLockConstraint(par.Lock)
+	if par.AddSender {
+		if _, err := out.PushConstraint(library.NewSenderAddressED25519(par.SenderAddress).Bytes()); err != nil {
+			return nil, err
+		}
+	}
 
 	for _, constr := range par.AddConstraints {
 		if _, err := out.PushConstraint(constr); err != nil {

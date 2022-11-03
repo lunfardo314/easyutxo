@@ -88,13 +88,6 @@ func initAddressED25519Constraint() {
 const AddressED25519ConstraintSource = `
 
 // ED25519 address constraint is 1-byte type and 32 bytes address, blake2b hash of the public key
-// ED25519 unlock parameters expected to be 96 bytes-long
-
-// takes ED25519 signature from unlock parameters, first 64 bytes 
-func signatureED25519: slice($0, 0, 63) 
-
-// takes ED25519 public key from unlock parameters
-func publicKeyED25519: slice($0, 64, 95) // the rest 32 bytes is public key 
 
 // 'unlockedWithSigED25519' specifies unlock constraint with the unlock params signature
 // the signature must be valid and hash of the public key must be equal to the provided address
