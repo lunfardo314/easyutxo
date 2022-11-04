@@ -87,22 +87,16 @@ func initAddressED25519Constraint() {
 
 const AddressED25519ConstraintSource = `
 
-// ED25519 address constraint is 1-byte type and 32 bytes address, blake2b hash of the public key
+// ED25519 address constraint wraps 32 bytes address, the blake2b hash of the public key
 
-// 'unlockedWithSigED25519' specifies unlock constraint with the unlock params signature
-// the signature must be valid and hash of the public key must be equal to the provided address
-
-// $0 = constraint data (address data)
+// $0 = address data 32 bytes
 // $1 = signature
+// $2 = public key
+// return true if transaction essence signature is valid for the address 
 
 func unlockedWithSigED25519: and(
-	validSignatureED25519(
-		txEssenceBytes,          // function 'txEssenceHash' returns transaction essence bytes 
-		signatureED25519($1),    
-		publicKeyED25519($1)     
-	),
-	equal($0, blake2b(publicKeyED25519($1)) )  
-			// address in the constraint data must be equal to the hash of the public key
+	equal($0, blake2b($2)), 		       // address in the address data must be equal to the hash of the public key
+	validSignatureED25519(txEssenceBytes, $1, $2)
 )
 
 // 'unlockedByReference'' specifies validation of the input unlock with the reference.
@@ -131,7 +125,7 @@ func addressED25519: or(
 				// if it is unlocked with reference, the signature is not checked
 			unlockedByReference,
 				// tx signature is checked
-			unlockedWithSigED25519($0, txSignature) 
+			unlockedWithSigED25519($0, signatureED25519(txSignature), publicKeyED25519(txSignature)) 
 		)
 	)
 )
