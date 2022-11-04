@@ -322,3 +322,10 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, library.Equal(addr0, saddr))
 }
+
+func TestChain(t *testing.T) {
+	t.Run("1", func(t *testing.T) {
+		_, _, _, err := easyfl.CompileExpression("chain(repeat(0,32), concat(chainTransitionModeOrigin, 0xff))")
+		require.NoError(t, err)
+	})
+}

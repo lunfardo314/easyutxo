@@ -112,7 +112,9 @@ func init() {
 	easyfl.Extend("producedOutputPathByIndex", "concat(pathToProducedOutputs,$0)")
 	easyfl.Extend("consumedOutputByIndex", "@Path(consumedOutputPathByIndex($0))")
 	easyfl.Extend("producedOutputByIndex", "@Path(producedOutputPathByIndex($0))")
-	easyfl.Extend("consumedLockByOutputIndex", "@Array8(consumedOutputByIndex($0),lockBlockIndex)")
+	easyfl.Extend("producedBlockByOutputIndex", "@Array8(producedOutputByIndex($0),$1)")
+	easyfl.Extend("consumedBlockByOutputIndex", "@Array8(consumedOutputByIndex($0),$1)")
+	easyfl.Extend("consumedLockByOutputIndex", "consumedBlockByOutputIndex(consumedOutputByIndex($0), lockBlockIndex)")
 
 	// special transaction related
 
@@ -129,6 +131,9 @@ func init() {
 	// unlock param branch (0 - transaction, 0 unlock params)
 	// invoked output block
 	easyfl.Extend("self", "@Path(@)")
+	// call prefix of the invoked constraints
+	easyfl.Extend("selfCallPrefix", "parseCallPrefix(self)")
+
 	// output index of the invocation
 	easyfl.Extend("selfOutputIndex", "slice(@, 2, 2)")
 	// block index of the invocation
@@ -161,6 +166,7 @@ func init() {
 	initDeadlineLockConstraint()
 	initTimelockConstraint()
 	initSenderConstraint()
+	initChainConstraint()
 
 	easyfl.PrintLibraryStats()
 }
