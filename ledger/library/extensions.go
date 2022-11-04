@@ -99,7 +99,7 @@ func init() {
 	easyfl.Extend("pathToInputCommitment", fmt.Sprintf("0x%s", PathToInputCommitment.Hex()))
 	easyfl.Extend("pathToTimestamp", fmt.Sprintf("0x%s", PathToTimestamp.Hex()))
 
-	// mandatory block indices
+	// mandatory block indices in the output
 	easyfl.Extend("amountBlockIndex", fmt.Sprintf("%d", OutputBlockAmount))
 	easyfl.Extend("timestampBlockIndex", fmt.Sprintf("%d", OutputBlockTimestamp))
 	easyfl.Extend("lockBlockIndex", fmt.Sprintf("%d", OutputBlockLock))
@@ -154,6 +154,9 @@ func init() {
 	// init constraints
 	initAmountConstraint()
 	initTimestampConstraint()
+	// returns timestamp of the current output
+	easyfl.Extend("selfTimestamp", "parseCallArg(selfSiblingBlock(timestampBlockIndex),#timestamp,0)")
+
 	initAddressED25519Constraint()
 	initDeadlineLockConstraint()
 	initTimelockConstraint()
