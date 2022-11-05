@@ -180,6 +180,27 @@ func (o *Output) SenderAddressED25519() (library.AddressED25519, bool) {
 	return nil, false
 }
 
+func (o *Output) ChainConstraint() (*library.ChainConstraint, bool) {
+	var ret *library.ChainConstraint
+	var err error
+	found := false
+	o.ForEachConstraint(func(idx byte, constr []byte) bool {
+		if idx == library.OutputBlockAmount || idx == library.OutputBlockTimestamp || idx == library.OutputBlockLock {
+			return true
+		}
+		ret, err = library.ChainConstraintFromBytes(constr)
+		if err == nil {
+			found = true
+			return false
+		}
+		return true
+	})
+	if found {
+		return ret, true
+	}
+	return nil, false
+}
+
 func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, filter func(o *Output) bool, desc ...bool) ([]*OutputWithID, error) {
 	ret := make([]*OutputWithID, 0, len(outs))
 	for _, od := range outs {

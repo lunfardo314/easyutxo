@@ -1,6 +1,7 @@
 package ledger_test
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"math/rand"
 	"testing"
@@ -328,7 +329,7 @@ func TestChain(t *testing.T) {
 		_, _, _, err := easyfl.CompileExpression(source)
 		require.NoError(t, err)
 	})
-	t.Run("create origin", func(t *testing.T) {
+	t.Run("create origin ok", func(t *testing.T) {
 		u := utxodb.NewUTXODB(true)
 		privKey0, _, addr0 := u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr0, 10000)
@@ -337,10 +338,6 @@ func TestChain(t *testing.T) {
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
-
-		const source = "chain(originChainData)"
-		_, _, _, err = easyfl.CompileExpression(source)
-		require.NoError(t, err)
 
 		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
 		err = u.DoTransfer(par.
@@ -353,5 +350,53 @@ func TestChain(t *testing.T) {
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+	})
+	t.Run("create origin ok 2", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		privKey0, _, addr0 := u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+		const source = "chain(originChainData)"
+		_, _, code, err := easyfl.CompileExpression(source)
+		require.NoError(t, err)
+
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithConstraintBinary(code),
+		)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+	})
+	t.Run("create origin wrong", func(t *testing.T) {
+		u := utxodb.NewUTXODB(false)
+		privKey0, _, addr0 := u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.NoError(t, err)
+
+		const source = "chain(0x0001)"
+		_, _, code, err := easyfl.CompileExpression(source)
+		require.NoError(t, err)
+
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par.WithAmount(2000).WithTargetLock(addr0)
+
+		err = u.DoTransfer(par.WithConstraintBinary(code))
+		require.Error(t, err)
+
+		err = u.DoTransfer(par.WithConstraintBinary(bytes.Repeat([]byte{0}, 35)))
+		require.Error(t, err)
+
+		err = u.DoTransfer(par.WithConstraintBinary(nil))
+		require.Error(t, err)
 	})
 }

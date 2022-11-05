@@ -186,9 +186,13 @@ func (t *ED25519TransferInputs) WithAmount(amount uint64, adjustToMinimum ...boo
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint) *ED25519TransferInputs {
-	t.AddConstraints = append(t.AddConstraints, constr.Bytes())
+func (t *ED25519TransferInputs) WithConstraintBinary(constr []byte) *ED25519TransferInputs {
+	t.AddConstraints = append(t.AddConstraints, constr)
 	return t
+}
+
+func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint) *ED25519TransferInputs {
+	return t.WithConstraintBinary(constr.Bytes())
 }
 
 func (t *ED25519TransferInputs) WithOutputs(outs []*OutputWithID) *ED25519TransferInputs {

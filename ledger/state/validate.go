@@ -87,7 +87,6 @@ func (v *ValidationContext) validateConsumedOutputs(indexRecords *[]*indexer.Ind
 }
 
 func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.IndexEntry) (uint64, error) {
-	indexRecs := *indexRecords
 	var branch lazyslice.TreePath
 	if consumedBranch {
 		branch = Path(library.ConsumedBranch, library.ConsumedOutputsBranch)
@@ -122,31 +121,70 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		}
 		sum += amount
 
-		// create update command for indexer
-		var lock library.Lock
-		lock, err = library.LockFromBytes(arr.At(int(library.OutputBlockLock)))
-		if err != nil {
+		// create update commands for indexer
+		if err = v.createIndexEntries(i, arr, consumedBranch, indexRecords); err != nil {
 			return false
-		}
-		for _, addr := range lock.IndexableTags() {
-			indexEntry := &indexer.IndexEntry{
-				AccountID: easyfl.Concat(addr.AccountID()),
-				Delete:    consumedBranch,
-			}
-			if consumedBranch {
-				indexEntry.OutputID = v.InputID(i)
-			} else {
-				indexEntry.OutputID = ledger.NewOutputID(v.TransactionID(), i)
-			}
-			indexRecs = append(indexRecs, indexEntry)
 		}
 		return true
 	}, branch)
 	if err != nil {
 		return 0, err
 	}
-	*indexRecords = indexRecs
 	return sum, nil
+}
+
+func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.IndexEntry) error {
+	if err := v.indexLock(idx, outputArray, consumedBranch, indexRecords); err != nil {
+		return err
+	}
+	v.indexChainID(idx, outputArray, consumedBranch, indexRecords)
+	return nil
+}
+
+func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.IndexEntry) error {
+	var lock library.Lock
+	lock, err := library.LockFromBytes(outputArray.At(int(library.OutputBlockLock)))
+	if err != nil {
+		return err
+	}
+	for _, addr := range lock.IndexableTags() {
+		indexEntry := &indexer.IndexEntry{
+			ID:        easyfl.Concat(addr.AccountID()),
+			Delete:    consumedBranch,
+			Partition: indexer.IndexedPartitionAccount,
+		}
+		if consumedBranch {
+			indexEntry.OutputID = v.InputID(idx)
+		} else {
+			indexEntry.OutputID = ledger.NewOutputID(v.TransactionID(), idx)
+		}
+		*indexRecords = append(*indexRecords, indexEntry)
+	}
+	return nil
+}
+
+func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.IndexEntry) {
+	outputArray.ForEach(func(i int, data []byte) bool {
+		if i == int(library.OutputBlockAmount) || i == int(library.OutputBlockTimestamp) || i == int(library.OutputBlockLock) {
+			return true
+		}
+		chainConstraint, err := library.ChainConstraintFromBytes(data)
+		if err != nil {
+			return true
+		}
+		indexEntry := &indexer.IndexEntry{
+			ID:        chainConstraint.ID[:],
+			Delete:    consumedBranch,
+			Partition: indexer.IndexedPartitionChainID,
+		}
+		if consumedBranch {
+			indexEntry.OutputID = v.InputID(idx)
+		} else {
+			indexEntry.OutputID = ledger.NewOutputID(v.TransactionID(), idx)
+		}
+		*indexRecords = append(*indexRecords, indexEntry)
+		return false // only 1 chain constraint is possible
+	})
 }
 
 func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
