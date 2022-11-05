@@ -301,7 +301,6 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.EqualValues(t, 0, u.NumUTXOs(addr1))
 
 	par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
-	par.WithSender()
 	err = u.DoTransfer(par.
 		WithAmount(2000).
 		WithTargetLock(addr1).
@@ -324,16 +323,35 @@ func TestSenderAddressED25519(t *testing.T) {
 }
 
 func TestChain(t *testing.T) {
-	t.Run("1", func(t *testing.T) {
-		const source = `chain(
-			concat(
-				repeat(0,32),
-				chainTransitionModeOrigin, 
-				0xff
-			)
-		)
-		`
+	t.Run("compile", func(t *testing.T) {
+		const source = "chain(originChainData)"
 		_, _, _, err := easyfl.CompileExpression(source)
 		require.NoError(t, err)
+	})
+	t.Run("create origin", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		privKey0, _, addr0 := u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+		const source = "chain(originChainData)"
+		_, _, _, err = easyfl.CompileExpression(source)
+		require.NoError(t, err)
+
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithConstraint(library.NewChainOrigin()),
+		)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
 	})
 }

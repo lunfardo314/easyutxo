@@ -25,12 +25,6 @@ import (
 - ChainConstraint data unlock params: forward ref
 */
 
-const (
-	ChainModeTransitionModeState = byte(iota)
-	ChainTransitionModeGovernance
-	ChainTransitionModeOrigin
-)
-
 // ChainConstraint is chain constraint
 type ChainConstraint struct {
 	// ID all-0 for origin
@@ -59,7 +53,7 @@ func NewChainOrigin() *ChainConstraint {
 	return &ChainConstraint{
 		PreviousOutput: 0xff,
 		PreviousBlock:  0xff,
-		TransitionMode: ChainTransitionModeOrigin,
+		TransitionMode: 0xff,
 	}
 }
 
@@ -119,40 +113,50 @@ func initChainConstraint() {
 }
 
 const chainConstraintSource = `
+// chain(<chain constraint data>)
+// <chain constraint data: 35 bytes:
+// - 0-31 bytes chain id 
+// - 32 byte predecessor output index 
+// - 33 byte predecessor block index 
+// - 34 byte transition mode 
 
-// parsing constraint data
+// reserved value of the chain constraint data at origin
 func originChainData: concat(repeat(0,32), 0xffffff)
 
+// parsing chain constraint data
+// $0 - chain constraint data
 func chainID : slice($0, 0, 31)
-
 func transitionMode: byte($0, 34)
+func predecessorConstraintIndex : slice($0, 32, 33) // 2 bytes
 
-func predecessorConstraintIndex : slice($0, 32, 33)
-
+// accessing to predecessor data
 func predecessorOutput : consumedConstraintByIndex(predecessorConstraintIndex($0))
-
 func predecessorInputID : inputIDByIndex(byte($0,32))
 
-// transition mode constants
-func chainTransitionModeState : 0
-func chainTransitionModeGovernance : 1
-func chainTransitionModeOrigin : 2
+// unlock parameters for the chain constraint. 3 bytes: 
+// 0 - successor output index 
+// 1 - successor block index
+// 2 - transition mode must be equal to the transition mode in te successor constrain data 
 
-// unlock parameters and predecessor reference 3 bytes: 
-// 0 - output index 
-// 1 - block in the referenced output
-// 2 - transitionMode 
-
-// for produced output
+// only called for produced output
 // $0 - self produced constraint data
 // $1 - predecessor data
-func validPredecessorData : or(
+func validPredecessorData : if(
+	isZero(chainID($1)), 
 	and(
-		// predecessor is origin, 
+		// case 1: predecessor is origin. ChainID must be blake2b hash of the corresponding input ID 
 		equal($1, originChainData),
 		equal(chainID($0), blake2b(predecessorInputID($0)))
 	),
-	equal(chainID($0), chainID($1))
+	and(
+		// case 2: normal transition
+		equal(chainID($0), chainID($1)),
+		equal(
+			// enforcing equal transition mode on unlock data and on the produced output
+			transitionMode($0),
+			byte(unlockParamsByConstraintIndex(predecessorConstraintIndex($0)),2)
+		)
+	)
 )
 
 // $0 - predecessor constraint index
@@ -166,10 +170,19 @@ func chainPredecessorData:
 // $0 - self chain data (consumed)
 // $1 - successor constraint parsed data (produced)
 func validUnlockSuccessorData : and(
-	equal(chainID($0),chainID($1)),
-	equal(predecessorConstraintIndex($1), selfConstraintIndex)
+		if (
+			// if chainID = 0, it must be origin data
+			// otherwise chain IDs must be equal on both sides
+			isZero(chainID($0)),
+			equal($0, originChainData),
+			equal(chainID($0),chainID($1))
+		),
+		// the successor (produced) must point to the consumed (self)
+		equal(predecessorConstraintIndex($1), selfConstraintIndex)
 )
 
+// chain successor data is computed form in the context of the consumed output
+// from the selfUnlock data
 func chainSuccessorData : 
 	parseCallArg(
 		producedConstraintByIndex(slice(selfUnlockParameters,0,1)),
@@ -177,6 +190,7 @@ func chainSuccessorData :
 		0
 	)
 
+// checks validity of chain transition
 // $0 - 35 bytes chain data 
 func chainTransition : or(
 	and(
@@ -185,19 +199,26 @@ func chainTransition : or(
 		validUnlockSuccessorData($0, chainSuccessorData)
 	), 
 	and(
-		// 'produced' side case
+		// 'produced' side case checking if predecessor is valid
 		isPathToProducedOutput(@),
 		validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) ))
 	)
 )
 
-// $0 - 35 bytes: 32 bytes chain id, 1 byte predecessor output ID, 1 byte predecessor block id, 1 byte transition mode 
+// chain(data)
+// $0 - 35 bytes data: 32 bytes chain id || 1 byte predecessor output index || 1 byte predecessor block index || 1 byte transition mode 
 func chain: and(
-	not(equal(selfOutputIndex, 0xff)),  // chain constraint cannot be on output with index 0xff
+	not(equal(selfOutputIndex, 0xff)),  // chain constraint cannot be on output with index 0xff = 255
 	or(
-		and( // chain origin
-			isPathToProducedOutput(@),
-			equal($0, originChainData)  // enforced reserved values at origin
+		// checking chain origin  
+		if(
+			// if it is produced output with zero-chainID, it must have all valid constraint data of the origin
+			and(
+				isZero(chainID($0)),
+				isPathToProducedOutput(@)
+			),
+			equal($0, originChainData),  // enforcing reserved values at origin
+			nil	
 		),
 		// transition
 		chainTransition($0)

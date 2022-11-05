@@ -109,15 +109,18 @@ func init() {
 	easyfl.Extend("isPathToProducedOutput", "hasPrefix($0, pathToProducedOutputs)")
 
 	easyfl.Extend("consumedOutputPathByIndex", "concat(pathToConsumedOutputs,$0)")
+	easyfl.Extend("unlockParamsPathByIndex", "concat(pathToUnlockParams,$0)")
 	easyfl.Extend("producedOutputPathByIndex", "concat(pathToProducedOutputs,$0)")
 
 	// takes 1-byte as output index
 	easyfl.Extend("consumedOutputByIndex", "@Path(consumedOutputPathByIndex($0))")
+	easyfl.Extend("unlockParamsByIndex", "@Path(unlockParamsPathByIndex($0))")
 	easyfl.Extend("producedOutputByIndex", "@Path(producedOutputPathByIndex($0))")
 
 	// takes $0 'constraint index' as 2 bytes: 0 for output index, 1 for block index
-	easyfl.Extend("producedConstraintByIndex", "@Array8(producedOutputByIndex(byte($0,0)),byte($0,1))")
-	easyfl.Extend("consumedConstraintByIndex", "@Array8(consumedOutputByIndex(byte($0,0)),byte($0,1))")
+	easyfl.Extend("producedConstraintByIndex", "@Array8(producedOutputByIndex(byte($0,0)), byte($0,1))")
+	easyfl.Extend("consumedConstraintByIndex", "@Array8(consumedOutputByIndex(byte($0,0)), byte($0,1))")
+	easyfl.Extend("unlockParamsByConstraintIndex", "@Array8(unlockParamsByIndex(byte($0,0)), byte($0,1))")
 
 	easyfl.Extend("consumedLockByOutputIndex", "consumedConstraintByIndex(concat($0, lockBlockIndex))")
 
