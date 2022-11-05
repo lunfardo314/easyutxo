@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 )
 
@@ -44,7 +43,7 @@ type ChainConstraint struct {
 
 const (
 	ChainConstraintName     = "chain"
-	chainConstraintTemplate = ChainConstraintName + "(0x%s,0x%s)"
+	chainConstraintTemplate = ChainConstraintName + "(0x%s)"
 )
 
 func NewChainConstraint(id [32]byte, mode, prevOut, prevBlock byte) *ChainConstraint {
@@ -53,6 +52,14 @@ func NewChainConstraint(id [32]byte, mode, prevOut, prevBlock byte) *ChainConstr
 		TransitionMode: mode,
 		PreviousOutput: prevOut,
 		PreviousBlock:  prevBlock,
+	}
+}
+
+func NewChainOrigin() *ChainConstraint {
+	return &ChainConstraint{
+		PreviousOutput: 0xff,
+		PreviousBlock:  0xff,
+		TransitionMode: ChainTransitionModeOrigin,
 	}
 }
 
@@ -70,28 +77,27 @@ func (ch *ChainConstraint) String() string {
 
 func (ch *ChainConstraint) source() string {
 	return fmt.Sprintf(chainConstraintTemplate,
-		hex.EncodeToString(ch.ID[:]), hex.EncodeToString(easyfl.Concat(ch.TransitionMode, ch.PreviousOutput, ch.PreviousBlock)))
+		hex.EncodeToString(easyfl.Concat(ch.ID[:], ch.PreviousOutput, ch.PreviousBlock, ch.TransitionMode)))
 }
 
 func ChainConstraintFromBytes(data []byte) (*ChainConstraint, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 2)
+	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
 	if err != nil {
 		return nil, err
 	}
 	if sym != ChainConstraintName {
 		return nil, fmt.Errorf("not a chain constraint")
 	}
-	id := easyfl.StripDataPrefix(args[0])
-	ref := easyfl.StripDataPrefix(args[1])
-	if len(id) != 32 || len(ref) != 3 {
+	constraintData := easyfl.StripDataPrefix(args[0])
+	if len(constraintData) != 32+3 {
 		return nil, fmt.Errorf("wrong data len")
 	}
 	ret := &ChainConstraint{
-		TransitionMode: ref[0],
-		PreviousOutput: ref[1],
-		PreviousBlock:  ref[2],
+		PreviousOutput: constraintData[32],
+		PreviousBlock:  constraintData[33],
+		TransitionMode: constraintData[34],
 	}
-	copy(ret.ID[:], id)
+	copy(ret.ID[:], constraintData[:32])
 
 	return ret, nil
 }
@@ -99,14 +105,13 @@ func ChainConstraintFromBytes(data []byte) (*ChainConstraint, error) {
 func initChainConstraint() {
 	easyfl.MustExtendMany(chainConstraintSource)
 
-	example := NewChainConstraint([32]byte{}, 0, 0, 0)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 2)
+	example := NewChainOrigin()
+	back, err := ChainConstraintFromBytes(example.Bytes())
 	easyfl.AssertNoError(err)
-	id := easyfl.StripDataPrefix(args[0])
-	ref := easyfl.StripDataPrefix(args[1])
-	common.Assert(sym == ChainConstraintName, "inconsistency in 'chain constraint' 1")
-	common.Assert(bytes.Equal(id, make([]byte, 32)), "inconsistency in 'chain constraint' 2")
-	common.Assert(bytes.Equal(ref, []byte{0, 0, 0}), "inconsistency in 'chain constraint' 3")
+	easyfl.Assert(bytes.Equal(back.Bytes(), example.Bytes()), "inconsistency in "+ChainConstraintName)
+
+	_, prefix, _, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
+	easyfl.AssertNoError(err)
 
 	registerConstraint(ChainConstraintName, prefix, func(data []byte) (Constraint, error) {
 		return ChainConstraintFromBytes(data)
@@ -115,71 +120,88 @@ func initChainConstraint() {
 
 const chainConstraintSource = `
 
+// parsing constraint data
+func originChainData: concat(repeat(0,32), 0xffffff)
+
+func chainID : slice($0, 0, 31)
+
+func transitionMode: byte($0, 34)
+
+func predecessorConstraintIndex : slice($0, 32, 33)
+
+func predecessorOutput : consumedConstraintByIndex(predecessorConstraintIndex($0))
+
+func predecessorInputID : inputIDByIndex(byte($0,32))
+
 // transition mode constants
 func chainTransitionModeState : 0
 func chainTransitionModeGovernance : 1
 func chainTransitionModeOrigin : 2
 
 // unlock parameters and predecessor reference 3 bytes: 
-// 0 - transitionMode 
-// 1 - output index 
-// 2 - block in the referenced output
+// 0 - output index 
+// 1 - block in the referenced output
+// 2 - transitionMode 
 
-// $0 - chain id
-// $1 - predecessor ref 2 bytes (output, block)
-func validPredecessor : equal(
-	$0,
+// for produced output
+// $0 - self produced constraint data
+// $1 - predecessor data
+func validPredecessorData : or(
+	and(
+		// predecessor is origin, 
+		equal($1, originChainData),
+		equal(chainID($0), blake2b(predecessorInputID($0)))
+	),
+	equal(chainID($0), chainID($1))
+)
+
+// $0 - predecessor constraint index
+func chainPredecessorData: 
 	parseCallArg(
-		consumedBlockByOutputIndex(
-			byte($1, 1), 
-			byte($1, 2)
-		),
+		consumedConstraintByIndex($0),
 		selfCallPrefix,
 		0
 	)
+
+// $0 - self chain data (consumed)
+// $1 - successor constraint parsed data (produced)
+func validUnlockSuccessorData : and(
+	equal(chainID($0),chainID($1)),
+	equal(predecessorConstraintIndex($1), selfConstraintIndex)
 )
 
-// $0 - chain id 
-// must correctly point to the same constraint and the same chain id
-// only makes sense for the 'consumed' side
-func validSuccessor : equal(
-	$0,
+func chainSuccessorData : 
 	parseCallArg(
-		producedBlockByOutputIndex(
-			byte(selfUnlockParameters, 1), 
-			byte(selfUnlockParameters, 2)
-		),
+		producedConstraintByIndex(slice(selfUnlockParameters,0,1)),
 		selfCallPrefix,
 		0
 	)
-)
 
-// $0 - id
-// $1 - mode/predecessor ref 3 bytes
+// $0 - 35 bytes chain data 
 func chainTransition : or(
 	and(
 		// 'consumed' side case, checking if successor is valid
 		isPathToConsumedOutput(@),
-		validSuccessor($0)
+		validUnlockSuccessorData($0, chainSuccessorData)
 	), 
 	and(
 		// 'produced' side case
 		isPathToProducedOutput(@),
-		validPredecessor($0, $1)
+		validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) ))
 	)
 )
 
-// $0 - 32 byte chain id
-// $1 - 3- byte transition mode/predecessor reference concat(transitionMode, outputIdx, blockIdx)
-func chain: or(
-	and( // chain origin
-		isPathToProducedOutput(@),
-		equal(byte($1,0), chainTransitionModeOrigin),
-		equal($0, repeat(0,32)),         // chain id must be 32 byte 0s
-		equal($1, 0xffff)                // predecessor ref must be reserved value of 0xffff
-	),
-	// transition
-	chainTransition($0, $1)
-)	
+// $0 - 35 bytes: 32 bytes chain id, 1 byte predecessor output ID, 1 byte predecessor block id, 1 byte transition mode 
+func chain: and(
+	not(equal(selfOutputIndex, 0xff)),  // chain constraint cannot be on output with index 0xff
+	or(
+		and( // chain origin
+			isPathToProducedOutput(@),
+			equal($0, originChainData)  // enforced reserved values at origin
+		),
+		// transition
+		chainTransition($0)
+	)
+)
 
 `

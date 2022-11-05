@@ -110,11 +110,18 @@ func init() {
 
 	easyfl.Extend("consumedOutputPathByIndex", "concat(pathToConsumedOutputs,$0)")
 	easyfl.Extend("producedOutputPathByIndex", "concat(pathToProducedOutputs,$0)")
+
+	// takes 1-byte as output index
 	easyfl.Extend("consumedOutputByIndex", "@Path(consumedOutputPathByIndex($0))")
 	easyfl.Extend("producedOutputByIndex", "@Path(producedOutputPathByIndex($0))")
-	easyfl.Extend("producedBlockByOutputIndex", "@Array8(producedOutputByIndex($0),$1)")
-	easyfl.Extend("consumedBlockByOutputIndex", "@Array8(consumedOutputByIndex($0),$1)")
-	easyfl.Extend("consumedLockByOutputIndex", "consumedBlockByOutputIndex(consumedOutputByIndex($0), lockBlockIndex)")
+
+	// takes $0 'constraint index' as 2 bytes: 0 for output index, 1 for block index
+	easyfl.Extend("producedConstraintByIndex", "@Array8(producedOutputByIndex(byte($0,0)),byte($0,1))")
+	easyfl.Extend("consumedConstraintByIndex", "@Array8(consumedOutputByIndex(byte($0,0)),byte($0,1))")
+
+	easyfl.Extend("consumedLockByOutputIndex", "consumedConstraintByIndex(concat($0, lockBlockIndex))")
+
+	easyfl.Extend("inputIDByIndex", "@Path(concat(pathToInputIDs,$0))")
 
 	// special transaction related
 
