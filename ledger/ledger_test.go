@@ -324,23 +324,23 @@ func TestSenderAddressED25519(t *testing.T) {
 }
 
 func TestChain(t *testing.T) {
-	t.Run("compile", func(t *testing.T) {
-		const source = "chain(originChainData)"
-		_, _, _, err := easyfl.CompileExpression(source)
-		require.NoError(t, err)
-	})
-	t.Run("create origin ok", func(t *testing.T) {
-		u := utxodb.NewUTXODB(true)
-		privKey0, _, addr0 := u.GenerateAddress(0)
+	var privKey0 ed25519.PrivateKey
+	var u *utxodb.UTXODB
+	var addr0 library.AddressED25519
+	initTest := func() {
+		u = utxodb.NewUTXODB(true)
+		privKey0, _, addr0 = u.GenerateAddress(0)
 		err := u.TokensFromFaucet(addr0, 10000)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
-
+	}
+	initTest2 := func() []*ledger.OutputDataWithChainID {
+		initTest()
 		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
-		err = u.DoTransfer(par.
+		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
 			WithConstraint(library.NewChainOrigin()),
@@ -350,16 +350,21 @@ func TestChain(t *testing.T) {
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+		require.EqualValues(t, 2, len(outs))
+		chains, err := txbuilder.ParseChainConstraints(outs)
+		require.NoError(t, err)
+		return chains
+	}
+	t.Run("compile", func(t *testing.T) {
+		const source = "chain(originChainData)"
+		_, _, _, err := easyfl.CompileExpression(source)
+		require.NoError(t, err)
+	})
+	t.Run("create origin ok", func(t *testing.T) {
+		initTest2()
 	})
 	t.Run("create origin ok 2", func(t *testing.T) {
-		u := utxodb.NewUTXODB(true)
-		privKey0, _, addr0 := u.GenerateAddress(0)
-		err := u.TokensFromFaucet(addr0, 10000)
-		require.NoError(t, err)
-		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
-		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
-		require.EqualValues(t, 10000, u.Balance(addr0))
-		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+		initTest()
 
 		const source = "chain(originChainData)"
 		_, _, code, err := easyfl.CompileExpression(source)
@@ -377,11 +382,24 @@ func TestChain(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 2, u.NumUTXOs(addr0))
 	})
-	t.Run("create origin wrong", func(t *testing.T) {
-		u := utxodb.NewUTXODB(false)
-		privKey0, _, addr0 := u.GenerateAddress(0)
-		err := u.TokensFromFaucet(addr0, 10000)
+	t.Run("create origin twice in same output", func(t *testing.T) {
+		initTest()
+
+		const source = "chain(originChainData)"
+		_, _, code, err := easyfl.CompileExpression(source)
 		require.NoError(t, err)
+
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		err = u.DoTransfer(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithConstraintBinary(code).
+			WithConstraintBinary(code),
+		)
+		easyfl.RequireErrorWith(t, err, "duplicated constraints")
+	})
+	t.Run("create origin wrong 1", func(t *testing.T) {
+		initTest()
 
 		const source = "chain(0x0001)"
 		_, _, code, err := easyfl.CompileExpression(source)
@@ -398,5 +416,17 @@ func TestChain(t *testing.T) {
 
 		err = u.DoTransfer(par.WithConstraintBinary(nil))
 		require.Error(t, err)
+	})
+	t.Run("create origin indexer", func(t *testing.T) {
+		chains := initTest2()
+		require.EqualValues(t, 1, len(chains))
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chains[0].ChainID, u.StateAccess())
+		require.NoError(t, err)
+		o, err := txbuilder.OutputFromBytes(chs.OutputData)
+		require.NoError(t, err)
+		ch, ok := o.ChainConstraint()
+		require.True(t, ok)
+		require.True(t, ch.IsOrigin())
+		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID))
 	})
 }

@@ -97,10 +97,11 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 	var sum uint64
 	var extraDepositWeight uint32
 	path := easyfl.Concat(branch, 0)
+
 	v.tree.ForEach(func(i byte, data []byte) bool {
 		path[len(path)-1] = i
 		arr := lazyslice.ArrayFromBytes(data, 256)
-		if extraDepositWeight, err = v.runOutput(arr, path); err != nil {
+		if extraDepositWeight, err = v.runOutput(consumedBranch, arr, path); err != nil {
 			return false
 		}
 		minDeposit := library.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
@@ -217,11 +218,22 @@ func (v *ValidationContext) UnlockParams(consumedOutputIdx, constraintIdx byte) 
 }
 
 // runOutput checks constraints of the output one-by-one
-func (v *ValidationContext) runOutput(outputArray *lazyslice.Array, path lazyslice.TreePath) (uint32, error) {
+func (v *ValidationContext) runOutput(consumedBranch bool, outputArray *lazyslice.Array, path lazyslice.TreePath) (uint32, error) {
 	blockPath := easyfl.Concat(path, byte(0))
 	var err error
 	extraStorageDepositWeight := uint32(0)
+	checkDuplicates := make(map[string]struct{})
+
 	outputArray.ForEach(func(idx int, data []byte) bool {
+		// checking for duplicated constraints in produced outputs
+		if !consumedBranch {
+			sd := string(data)
+			if _, already := checkDuplicates[sd]; already {
+				err = fmt.Errorf("duplicated constraints not allowed. Path %s", PathToString(blockPath))
+				return false
+			}
+			checkDuplicates[sd] = struct{}{}
+		}
 		blockPath[len(blockPath)-1] = byte(idx)
 		var res []byte
 		var name string

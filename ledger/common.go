@@ -23,6 +23,11 @@ type (
 		OutputData []byte
 	}
 
+	OutputDataWithChainID struct {
+		OutputDataWithID
+		ChainID []byte
+	}
+
 	StateAccess interface {
 		GetUTXO(id *OutputID) ([]byte, bool)
 	}

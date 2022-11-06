@@ -20,13 +20,34 @@ type Command struct {
 	ID        []byte
 	OutputID  ledger.OutputID
 	Delete    bool
-	Partition byte
+	Partition Partition
 }
 
+type Partition byte
+
 const (
-	PartitionAccount = byte(iota)
+	PartitionAccount = Partition(byte(iota))
 	PartitionChainID
 )
+
+func (p Partition) String() string {
+	switch p {
+	case PartitionAccount:
+		return "account"
+	case PartitionChainID:
+		return "chain"
+	}
+	return "unknown partition"
+}
+
+func (p Partition) Bytes() []byte {
+	return []byte{byte(p)}
+}
+
+func (cmd *Command) String() string {
+	return fmt.Sprintf("indexer command: partition: %s, id: %s, oid: %s, del: %v",
+		cmd.Partition, easyfl.Fmt(cmd.ID[:]), cmd.OutputID.String(), cmd.Delete)
+}
 
 func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *Indexer {
 	w := store.BatchedWriter()
@@ -80,14 +101,14 @@ func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateAccess) (*led
 	if len(id) != 32 {
 		return nil, fmt.Errorf("GetUTXOForChainID: chainID length must be 32-byte long")
 	}
-	key := easyfl.Concat(PartitionChainID, byte(32), id)
+	key := easyfl.Concat(PartitionChainID, id)
 
 	inr.mutex.RLock()
 	defer inr.mutex.RUnlock()
 
 	outID := inr.store.Get(key)
 	if len(outID) == 0 {
-		return nil, fmt.Errorf("GetUTXOForChainID: indexer records for chainID '%s' has not not been found", easyfl.Fmt(id))
+		return nil, fmt.Errorf("GetUTXOForChainID: indexer record for chainID '%s' has not not been found", easyfl.Fmt(id))
 	}
 	oid, err := ledger.OutputIDFromBytes(outID)
 	if err != nil {
@@ -119,6 +140,7 @@ func (cmd *Command) run(w common.KVWriter) error {
 	if len(cmd.ID) > 255 {
 		return fmt.Errorf("indexer: ID length should be <= 255")
 	}
+	fmt.Printf("+++++ %s\n", cmd.String())
 	var key, value []byte
 	switch cmd.Partition {
 	case PartitionAccount:
@@ -127,16 +149,16 @@ func (cmd *Command) run(w common.KVWriter) error {
 		if !cmd.Delete {
 			value = []byte{0xff}
 		}
+
 	case PartitionChainID:
 		if len(cmd.ID) != 32 {
-			if len(cmd.ID) > 255 {
-				return fmt.Errorf("indexer: chainID should be 32 bytes")
-			}
-			key = easyfl.Concat(PartitionChainID, cmd.ID)
-			if !cmd.Delete {
-				value = cmd.OutputID[:]
-			}
+			return fmt.Errorf("indexer: chainID should be 32 bytes")
 		}
+		key = easyfl.Concat(PartitionChainID, cmd.ID)
+		if !cmd.Delete {
+			value = cmd.OutputID[:]
+		}
+
 	default:
 		return fmt.Errorf("unsupported indeexer partition '%d'", cmd.Partition)
 	}

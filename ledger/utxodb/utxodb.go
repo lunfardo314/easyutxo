@@ -215,6 +215,21 @@ func (u *UTXODB) DoTransferTx(par *txbuilder.ED25519TransferInputs) ([]byte, err
 	return txBytes, u.AddTransaction(txBytes, trace)
 }
 
+func (u *UTXODB) DoTransferOutputs(par *txbuilder.ED25519TransferInputs) ([]*ledger.OutputDataWithID, error) {
+	trace := state.TraceOptionNone
+	if u.trace {
+		trace = state.TraceOptionFailedConstraints
+	}
+	txBytes, retOuts, err := txbuilder.MakeTransferTransactionOutputs(par)
+	if err != nil {
+		return nil, err
+	}
+	if err = u.AddTransaction(txBytes, trace); err != nil {
+		return nil, err
+	}
+	return retOuts, nil
+}
+
 func (u *UTXODB) DoTransfer(par *txbuilder.ED25519TransferInputs) error {
 	_, err := u.DoTransferTx(par)
 	return err

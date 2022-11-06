@@ -229,6 +229,11 @@ func (t *ED25519TransferInputs) AdjustedAmount() uint64 {
 }
 
 func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
+	ret, _, err := MakeTransferTransactionOutputs(par)
+	return ret, err
+}
+
+func MakeTransferTransactionOutputs(par *ED25519TransferInputs) ([]byte, []*ledger.OutputDataWithID, error) {
 	ts := uint32(time.Now().Unix())
 	if par.Timestamp > 0 {
 		ts = par.Timestamp
@@ -240,7 +245,7 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 
 	for _, o := range par.Outputs {
 		if numConsumedOutputs >= 256 {
-			return nil, fmt.Errorf("exceeded max number of consumed outputs 256")
+			return nil, nil, fmt.Errorf("exceeded max number of consumed outputs 256")
 		}
 		consumedOuts = append(consumedOuts, o)
 		if o.Output.Timestamp() >= ts {
@@ -254,13 +259,13 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 	}
 
 	if availableTokens < amount {
-		return nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
+		return nil, nil, fmt.Errorf("not enough tokens in address %s: needed %d, got %d",
 			par.SenderAddress.String(), par.Amount, availableTokens)
 	}
 	txb := NewTransactionBuilder()
 	for _, o := range consumedOuts {
 		if _, err := txb.ConsumeOutput(o.Output, o.ID); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	out := NewOutput().
@@ -269,17 +274,17 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 		WithLockConstraint(par.Lock)
 	if par.AddSender {
 		if _, err := out.PushConstraint(library.NewSenderAddressED25519(par.SenderAddress).Bytes()); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	for _, constr := range par.AddConstraints {
 		if _, err := out.PushConstraint(constr); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if _, err := txb.ProduceOutput(out); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if availableTokens > amount {
 		reminderOut := NewOutput().
@@ -287,7 +292,7 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 			WithTimestamp(ts).
 			WithLockConstraint(par.SenderAddress)
 		if _, err := txb.ProduceOutput(reminderOut); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	txb.Transaction.Timestamp = ts
@@ -303,7 +308,17 @@ func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
 			easyfl.AssertNoError(err)
 		}
 	}
-	return txb.Transaction.Bytes(), nil
+	retOut := make([]*ledger.OutputDataWithID, 0)
+	txBytes := txb.Transaction.Bytes()
+	txid := ledger.TransactionID(blake2b.Sum256(txBytes))
+
+	for i, o := range txb.Transaction.Outputs {
+		retOut = append(retOut, &ledger.OutputDataWithID{
+			ID:         ledger.NewOutputID(txid, byte(i)),
+			OutputData: o.Bytes(),
+		})
+	}
+	return txBytes, retOut, nil
 }
 
 //---------------------------------------------------------
@@ -316,4 +331,29 @@ func NewUnlockBlock() *UnlockParams {
 	return &UnlockParams{
 		array: lazyslice.EmptyArray(256),
 	}
+}
+
+func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*ledger.OutputDataWithChainID, error) {
+	ret := make([]*ledger.OutputDataWithChainID, 0)
+	for _, odata := range outs {
+		o, err := OutputFromBytes(odata.OutputData)
+		if err != nil {
+			return nil, err
+		}
+		ch, ok := o.ChainConstraint()
+		if !ok {
+			continue
+		}
+		d := &ledger.OutputDataWithChainID{
+			OutputDataWithID: *odata,
+		}
+		if ch.IsOrigin() {
+			h := blake2b.Sum256(odata.ID[:])
+			d.ChainID = h[:]
+		} else {
+			d.ChainID = odata.ID[:]
+		}
+		ret = append(ret, d)
+	}
+	return ret, nil
 }
