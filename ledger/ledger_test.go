@@ -420,27 +420,28 @@ func TestChain(t *testing.T) {
 	t.Run("create origin indexer", func(t *testing.T) {
 		chains := initTest2()
 		require.EqualValues(t, 1, len(chains))
-		chs, err := u.IndexerAccess().GetUTXOForChainID(chains[0].ChainID, u.StateAccess())
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chains[0].ChainID[:], u.StateAccess())
 		require.NoError(t, err)
 		o, err := txbuilder.OutputFromBytes(chs.OutputData)
 		require.NoError(t, err)
 		ch, idx := o.ChainConstraint()
 		require.True(t, idx != 0xff)
 		require.True(t, ch.IsOrigin())
-		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID))
+		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID[:]))
 	})
 	t.Run("create-destroy", func(t *testing.T) {
 		chains := initTest2()
 		require.EqualValues(t, 1, len(chains))
 		chainID := chains[0].ChainID
-		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID, u.StateAccess())
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
 		require.NoError(t, err)
+
 		chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
 		require.NoError(t, err)
 		ch, predecessorConstraintIndex := chainIN.ChainConstraint()
 		require.True(t, predecessorConstraintIndex != 0xff)
 		require.True(t, ch.IsOrigin())
-		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID))
+		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID[:]))
 
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
@@ -469,8 +470,43 @@ func TestChain(t *testing.T) {
 		err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
 		require.NoError(t, err)
 
-		_, err = u.IndexerAccess().GetUTXOForChainID(chainID, u.StateAccess())
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
 		easyfl.RequireErrorWith(t, err, "has not not been found")
+
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+	})
+	t.Run("create-transit", func(t *testing.T) {
+
+		// TODO double check
+
+		chains := initTest2()
+		require.EqualValues(t, 1, len(chains))
+		chainID := chains[0].ChainID
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		require.NoError(t, err)
+
+		chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
+		require.NoError(t, err)
+
+		ts := chainIN.Timestamp() + 1
+		txb := txbuilder.NewTransactionBuilder()
+		err = txb.InsertChainTransition(chains[0], ts)
+		require.NoError(t, err)
+
+		txb.Transaction.Timestamp = ts
+		txb.Transaction.InputCommitment = txb.InputCommitment()
+
+		txb.SignED25519(privKey0)
+
+		txbytes := txb.Transaction.Bytes()
+		err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+		require.NoError(t, err)
+
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		require.NoError(t, err)
 
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))

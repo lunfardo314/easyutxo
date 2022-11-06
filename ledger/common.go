@@ -25,7 +25,7 @@ type (
 
 	OutputDataWithChainID struct {
 		OutputDataWithID
-		ChainID                    []byte
+		ChainID                    [32]byte
 		PredecessorConstraintIndex byte
 	}
 
