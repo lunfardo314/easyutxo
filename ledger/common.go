@@ -25,7 +25,8 @@ type (
 
 	OutputDataWithChainID struct {
 		OutputDataWithID
-		ChainID []byte
+		ChainID                    []byte
+		PredecessorConstraintIndex byte
 	}
 
 	StateAccess interface {

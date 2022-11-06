@@ -140,7 +140,7 @@ func (cmd *Command) run(w common.KVWriter) error {
 	if len(cmd.ID) > 255 {
 		return fmt.Errorf("indexer: ID length should be <= 255")
 	}
-	fmt.Printf("+++++ %s\n", cmd.String())
+	//fmt.Printf("+++++ %s\n", cmd.String())
 	var key, value []byte
 	switch cmd.Partition {
 	case PartitionAccount:

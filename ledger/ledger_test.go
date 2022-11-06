@@ -424,9 +424,57 @@ func TestChain(t *testing.T) {
 		require.NoError(t, err)
 		o, err := txbuilder.OutputFromBytes(chs.OutputData)
 		require.NoError(t, err)
-		ch, ok := o.ChainConstraint()
-		require.True(t, ok)
+		ch, idx := o.ChainConstraint()
+		require.True(t, idx != 0xff)
 		require.True(t, ch.IsOrigin())
 		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID))
+	})
+	t.Run("create-destroy", func(t *testing.T) {
+		chains := initTest2()
+		require.EqualValues(t, 1, len(chains))
+		chainID := chains[0].ChainID
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID, u.StateAccess())
+		require.NoError(t, err)
+		chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
+		require.NoError(t, err)
+		ch, predecessorConstraintIndex := chainIN.ChainConstraint()
+		require.True(t, predecessorConstraintIndex != 0xff)
+		require.True(t, ch.IsOrigin())
+		t.Logf("chain created: %s", easyfl.Fmt(chains[0].ChainID))
+
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+
+		ts := chainIN.Timestamp() + 1
+		txb := txbuilder.NewTransactionBuilder()
+		consumedIndex, err := txb.ConsumeOutput(chainIN, chains[0].ID)
+		require.NoError(t, err)
+		outNonChain := txbuilder.NewOutput().
+			WithAmount(chainIN.Amount()).
+			WithTimestamp(ts).
+			WithLockConstraint(chainIN.Lock())
+		_, err = txb.ProduceOutput(outNonChain)
+		require.NoError(t, err)
+
+		txb.Transaction.Timestamp = ts
+		txb.Transaction.InputCommitment = txb.InputCommitment()
+
+		txb.PutUnlockParams(consumedIndex, predecessorConstraintIndex, []byte{0xff, 0xff, 0xff})
+		txb.PutSignatureUnlock(consumedIndex, library.ConstraintIndexLock)
+		txb.SignED25519(privKey0)
+
+		txbytes := txb.Transaction.Bytes()
+		err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+		require.NoError(t, err)
+
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID, u.StateAccess())
+		easyfl.RequireErrorWith(t, err, "has not not been found")
+
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
 	})
 }

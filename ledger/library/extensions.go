@@ -68,10 +68,9 @@ var (
 
 // Mandatory output block indices
 const (
-	OutputBlockAmount = byte(iota)
-	OutputBlockTimestamp
-	OutputBlockLock
-	OutputNumMandatoryBlocks
+	ConstraintIndexAmount = byte(iota)
+	ConstraintIndexTimestamp
+	ConstraintIndexLock
 )
 
 func init() {
@@ -100,9 +99,9 @@ func init() {
 	easyfl.Extend("pathToTimestamp", fmt.Sprintf("0x%s", PathToTimestamp.Hex()))
 
 	// mandatory block indices in the output
-	easyfl.Extend("amountBlockIndex", fmt.Sprintf("%d", OutputBlockAmount))
-	easyfl.Extend("timestampBlockIndex", fmt.Sprintf("%d", OutputBlockTimestamp))
-	easyfl.Extend("lockBlockIndex", fmt.Sprintf("%d", OutputBlockLock))
+	easyfl.Extend("amountBlockIndex", fmt.Sprintf("%d", ConstraintIndexAmount))
+	easyfl.Extend("timestampBlockIndex", fmt.Sprintf("%d", ConstraintIndexTimestamp))
+	easyfl.Extend("lockBlockIndex", fmt.Sprintf("%d", ConstraintIndexLock))
 
 	// recognize what kind of path
 	easyfl.Extend("isPathToConsumedOutput", "hasPrefix($0, pathToConsumedOutputs)")

@@ -38,42 +38,42 @@ func OutputFromBytes(data []byte) (*Output, error) {
 	if ret.arr.NumElements() < 3 {
 		return nil, fmt.Errorf("at least 3 constraints expected")
 	}
-	if _, err := library.AmountFromBytes(ret.arr.At(int(library.OutputBlockAmount))); err != nil {
+	if _, err := library.AmountFromBytes(ret.arr.At(int(library.ConstraintIndexAmount))); err != nil {
 		return nil, err
 	}
-	if _, err := library.TimestampFromBytes(ret.arr.At(int(library.OutputBlockTimestamp))); err != nil {
+	if _, err := library.TimestampFromBytes(ret.arr.At(int(library.ConstraintIndexTimestamp))); err != nil {
 		return nil, err
 	}
-	if _, err := library.LockFromBytes(ret.arr.At(int(library.OutputBlockLock))); err != nil {
+	if _, err := library.LockFromBytes(ret.arr.At(int(library.ConstraintIndexLock))); err != nil {
 		return nil, err
 	}
 	return ret, nil
 }
 
 func (o *Output) WithAmount(amount uint64) *Output {
-	o.arr.PutAtIdxGrow(library.OutputBlockAmount, library.NewAmount(amount).Bytes())
+	o.arr.PutAtIdxGrow(library.ConstraintIndexAmount, library.NewAmount(amount).Bytes())
 	return o
 }
 
 func (o *Output) WithTimestamp(ts uint32) *Output {
-	o.arr.PutAtIdxGrow(library.OutputBlockTimestamp, library.NewTimestamp(ts).Bytes())
+	o.arr.PutAtIdxGrow(library.ConstraintIndexTimestamp, library.NewTimestamp(ts).Bytes())
 	return o
 }
 
 func (o *Output) Amount() uint64 {
-	ret, err := library.AmountFromBytes(o.arr.At(int(library.OutputBlockAmount)))
+	ret, err := library.AmountFromBytes(o.arr.At(int(library.ConstraintIndexAmount)))
 	easyfl.AssertNoError(err)
 	return uint64(ret)
 }
 
 func (o *Output) Timestamp() uint32 {
-	ret, err := library.TimestampFromBytes(o.arr.At(int(library.OutputBlockTimestamp)))
+	ret, err := library.TimestampFromBytes(o.arr.At(int(library.ConstraintIndexTimestamp)))
 	easyfl.AssertNoError(err)
 	return uint32(ret)
 }
 
 func (o *Output) WithLockConstraint(lock library.Lock) *Output {
-	o.PutConstraint(lock.Bytes(), library.OutputBlockLock)
+	o.PutConstraint(lock.Bytes(), library.ConstraintIndexLock)
 	return o
 }
 
@@ -83,6 +83,12 @@ func (o *Output) AsArray() *lazyslice.Array {
 
 func (o *Output) Bytes() []byte {
 	return o.arr.Bytes()
+}
+
+func (o *Output) Clone() *Output {
+	ret, err := OutputFromBytes(o.Bytes())
+	easyfl.AssertNoError(err)
+	return ret
 }
 
 func (o *Output) PushConstraint(c []byte) (byte, error) {
@@ -116,7 +122,7 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constr []byte) bool) {
 //	var ret []byte
 //	var found bool
 //	o.ForEachConstraint(func(idx byte, constr []byte) bool {
-//		if idx == OutputBlockAmount || idx == OutputBlockTimestamp || idx == OutputBlockLock {
+//		if idx == ConstraintIndexAmount || idx == ConstraintIndexTimestamp || idx == ConstraintIndexLock {
 //			return true
 //		}
 //		ret, found = constraint.SenderFromConstraint(constr)
@@ -132,7 +138,7 @@ func (o *Output) ForEachConstraint(fun func(idx byte, constr []byte) bool) {
 //}
 
 func (o *Output) Lock() library.Lock {
-	ret, err := library.LockFromBytes(o.arr.At(int(library.OutputBlockLock)))
+	ret, err := library.LockFromBytes(o.arr.At(int(library.ConstraintIndexLock)))
 	easyfl.AssertNoError(err)
 	return ret
 }
@@ -142,7 +148,7 @@ func (o *Output) TimeLock() (uint32, bool) {
 	var err error
 	found := false
 	o.ForEachConstraint(func(idx byte, constr []byte) bool {
-		if idx == library.OutputBlockAmount || idx == library.OutputBlockTimestamp || idx == library.OutputBlockLock {
+		if idx == library.ConstraintIndexAmount || idx == library.ConstraintIndexTimestamp || idx == library.ConstraintIndexLock {
 			return true
 		}
 		ret, err = library.TimelockFromBytes(constr)
@@ -164,7 +170,7 @@ func (o *Output) SenderAddressED25519() (library.AddressED25519, bool) {
 	var err error
 	found := false
 	o.ForEachConstraint(func(idx byte, constr []byte) bool {
-		if idx == library.OutputBlockAmount || idx == library.OutputBlockTimestamp || idx == library.OutputBlockLock {
+		if idx == library.ConstraintIndexAmount || idx == library.ConstraintIndexTimestamp || idx == library.ConstraintIndexLock {
 			return true
 		}
 		ret, err = library.SenderAddressED25519FromBytes(constr)
@@ -180,25 +186,25 @@ func (o *Output) SenderAddressED25519() (library.AddressED25519, bool) {
 	return nil, false
 }
 
-func (o *Output) ChainConstraint() (*library.ChainConstraint, bool) {
+func (o *Output) ChainConstraint() (*library.ChainConstraint, byte) {
 	var ret *library.ChainConstraint
 	var err error
-	found := false
+	found := byte(0xff)
 	o.ForEachConstraint(func(idx byte, constr []byte) bool {
-		if idx == library.OutputBlockAmount || idx == library.OutputBlockTimestamp || idx == library.OutputBlockLock {
+		if idx == library.ConstraintIndexAmount || idx == library.ConstraintIndexTimestamp || idx == library.ConstraintIndexLock {
 			return true
 		}
 		ret, err = library.ChainConstraintFromBytes(constr)
 		if err == nil {
-			found = true
+			found = idx
 			return false
 		}
 		return true
 	})
-	if found {
-		return ret, true
+	if found != 0xff {
+		return ret, found
 	}
-	return nil, false
+	return nil, 0xff
 }
 
 func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, filter func(o *Output) bool, desc ...bool) ([]*OutputWithID, error) {

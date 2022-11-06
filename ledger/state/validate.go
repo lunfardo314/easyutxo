@@ -106,7 +106,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		}
 		minDeposit := library.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
 		var am library.Amount
-		am, err = library.AmountFromBytes(arr.At(int(library.OutputBlockAmount)))
+		am, err = library.AmountFromBytes(arr.At(int(library.ConstraintIndexAmount)))
 		if err != nil {
 			return false
 		}
@@ -144,7 +144,7 @@ func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.
 
 func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
 	var lock library.Lock
-	lock, err := library.LockFromBytes(outputArray.At(int(library.OutputBlockLock)))
+	lock, err := library.LockFromBytes(outputArray.At(int(library.ConstraintIndexLock)))
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, co
 
 func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) {
 	outputArray.ForEach(func(i int, data []byte) bool {
-		if i == int(library.OutputBlockAmount) || i == int(library.OutputBlockTimestamp) || i == int(library.OutputBlockLock) {
+		if i == int(library.ConstraintIndexAmount) || i == int(library.ConstraintIndexTimestamp) || i == int(library.ConstraintIndexLock) {
 			return true
 		}
 		chainConstraint, err := library.ChainConstraintFromBytes(data)

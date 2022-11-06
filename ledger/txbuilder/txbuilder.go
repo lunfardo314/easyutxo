@@ -69,18 +69,22 @@ func (txb *TransactionBuilder) ConsumeOutput(out *Output, oid ledger.OutputID) (
 	return byte(len(txb.ConsumedOutputs) - 1), nil
 }
 
+func (txb *TransactionBuilder) PutUnlockParams(outputIndex, constraintIndex byte, unlockParamData []byte) {
+	txb.Transaction.UnlockBlocks[outputIndex].array.PutAtIdxGrow(constraintIndex, unlockParamData)
+}
+
 // PutSignatureUnlock marker 0xff references signature of the transaction.
 // It can be distinguished from any reference because it cannot be stringly less than any other reference
-func (txb *TransactionBuilder) PutSignatureUnlock(outputIndex, blockIndex byte) {
-	txb.Transaction.UnlockBlocks[outputIndex].array.PutAtIdxGrow(blockIndex, []byte{0xff})
+func (txb *TransactionBuilder) PutSignatureUnlock(outputIndex, constraintIndex byte) {
+	txb.PutUnlockParams(outputIndex, constraintIndex, []byte{0xff})
 }
 
 // PutUnlockReference references some preceding output
-func (txb *TransactionBuilder) PutUnlockReference(outputIndex, blockIndex, referencedOutputIndex byte) error {
+func (txb *TransactionBuilder) PutUnlockReference(outputIndex, constraintIndex, referencedOutputIndex byte) error {
 	if referencedOutputIndex >= outputIndex {
 		return fmt.Errorf("referenced output index must be strongly less than the unlocked output index")
 	}
-	txb.Transaction.UnlockBlocks[outputIndex].array.PutAtIdxGrow(blockIndex, []byte{referencedOutputIndex})
+	txb.PutUnlockParams(outputIndex, constraintIndex, []byte{referencedOutputIndex})
 	return nil
 }
 
@@ -186,12 +190,21 @@ func (t *ED25519TransferInputs) WithAmount(amount uint64, adjustToMinimum ...boo
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraintBinary(constr []byte) *ED25519TransferInputs {
-	t.AddConstraints = append(t.AddConstraints, constr)
+func (t *ED25519TransferInputs) WithConstraintBinary(constr []byte, idx ...byte) *ED25519TransferInputs {
+	if len(idx) == 0 {
+		t.AddConstraints = append(t.AddConstraints, constr)
+	} else {
+		easyfl.Assert(idx[0] == 0xff || idx[0] <= 2, "WithConstraintBinary: wrong constraint index")
+		t.AddConstraints[idx[0]] = constr
+	}
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint) *ED25519TransferInputs {
+func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint, idx ...byte) *ED25519TransferInputs {
+	return t.WithConstraintBinary(constr.Bytes(), idx...)
+}
+
+func (t *ED25519TransferInputs) WithConstraintAtIndex(constr library.Constraint) *ED25519TransferInputs {
 	return t.WithConstraintBinary(constr.Bytes())
 }
 
@@ -301,10 +314,10 @@ func MakeTransferTransactionOutputs(par *ED25519TransferInputs) ([]byte, []*ledg
 
 	for i := range consumedOuts {
 		if i == 0 {
-			txb.PutSignatureUnlock(0, library.OutputBlockLock)
+			txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
 		} else {
 			// always referencing the 0 output
-			err := txb.PutUnlockReference(byte(i), library.OutputBlockLock, 0)
+			err := txb.PutUnlockReference(byte(i), library.ConstraintIndexLock, 0)
 			easyfl.AssertNoError(err)
 		}
 	}
@@ -333,19 +346,29 @@ func NewUnlockBlock() *UnlockParams {
 	}
 }
 
-func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*ledger.OutputDataWithChainID, error) {
-	ret := make([]*ledger.OutputDataWithChainID, 0)
+func ForEachOutput(outs []*ledger.OutputDataWithID, fun func(o *Output, odata *ledger.OutputDataWithID) bool) error {
 	for _, odata := range outs {
 		o, err := OutputFromBytes(odata.OutputData)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		ch, ok := o.ChainConstraint()
-		if !ok {
-			continue
+		if !fun(o, odata) {
+			return nil
+		}
+	}
+	return nil
+}
+
+func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*ledger.OutputDataWithChainID, error) {
+	ret := make([]*ledger.OutputDataWithChainID, 0)
+	err := ForEachOutput(outs, func(o *Output, odata *ledger.OutputDataWithID) bool {
+		ch, constraintIndex := o.ChainConstraint()
+		if constraintIndex == 0xff {
+			return true
 		}
 		d := &ledger.OutputDataWithChainID{
-			OutputDataWithID: *odata,
+			OutputDataWithID:           *odata,
+			PredecessorConstraintIndex: constraintIndex,
 		}
 		if ch.IsOrigin() {
 			h := blake2b.Sum256(odata.ID[:])
@@ -354,6 +377,10 @@ func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*ledger.OutputDat
 			d.ChainID = odata.ID[:]
 		}
 		ret = append(ret, d)
+		return true
+	})
+	if err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
