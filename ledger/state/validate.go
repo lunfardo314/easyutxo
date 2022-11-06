@@ -45,10 +45,10 @@ func (v *ValidationContext) checkConstraint(constraintData []byte, constraintPat
 	return ret, name, nil
 }
 
-func (v *ValidationContext) Validate() ([]*indexer.IndexEntry, error) {
+func (v *ValidationContext) Validate() ([]*indexer.Command, error) {
 	var inSum, outSum uint64
 	var err error
-	ret := make([]*indexer.IndexEntry, 0)
+	ret := make([]*indexer.Command, 0)
 
 	err = easyfl.CatchPanicOrError(func() error {
 		var err1 error
@@ -78,15 +78,15 @@ func (v *ValidationContext) Validate() ([]*indexer.IndexEntry, error) {
 	return ret, nil
 }
 
-func (v *ValidationContext) validateProducedOutputs(indexRecords *[]*indexer.IndexEntry) (uint64, error) {
+func (v *ValidationContext) validateProducedOutputs(indexRecords *[]*indexer.Command) (uint64, error) {
 	return v.validateOutputs(false, indexRecords)
 }
 
-func (v *ValidationContext) validateConsumedOutputs(indexRecords *[]*indexer.IndexEntry) (uint64, error) {
+func (v *ValidationContext) validateConsumedOutputs(indexRecords *[]*indexer.Command) (uint64, error) {
 	return v.validateOutputs(true, indexRecords)
 }
 
-func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.IndexEntry) (uint64, error) {
+func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.Command) (uint64, error) {
 	var branch lazyslice.TreePath
 	if consumedBranch {
 		branch = Path(library.ConsumedBranch, library.ConsumedOutputsBranch)
@@ -133,7 +133,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 	return sum, nil
 }
 
-func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.IndexEntry) error {
+func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
 	if err := v.indexLock(idx, outputArray, consumedBranch, indexRecords); err != nil {
 		return err
 	}
@@ -141,17 +141,17 @@ func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.
 	return nil
 }
 
-func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.IndexEntry) error {
+func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
 	var lock library.Lock
 	lock, err := library.LockFromBytes(outputArray.At(int(library.OutputBlockLock)))
 	if err != nil {
 		return err
 	}
 	for _, addr := range lock.IndexableTags() {
-		indexEntry := &indexer.IndexEntry{
+		indexEntry := &indexer.Command{
 			ID:        easyfl.Concat(addr.AccountID()),
 			Delete:    consumedBranch,
-			Partition: indexer.IndexedPartitionAccount,
+			Partition: indexer.PartitionAccount,
 		}
 		if consumedBranch {
 			indexEntry.OutputID = v.InputID(idx)
@@ -163,7 +163,7 @@ func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, co
 	return nil
 }
 
-func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.IndexEntry) {
+func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) {
 	outputArray.ForEach(func(i int, data []byte) bool {
 		if i == int(library.OutputBlockAmount) || i == int(library.OutputBlockTimestamp) || i == int(library.OutputBlockLock) {
 			return true
@@ -172,17 +172,35 @@ func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array,
 		if err != nil {
 			return true
 		}
-		indexEntry := &indexer.IndexEntry{
-			ID:        chainConstraint.ID[:],
-			Delete:    consumedBranch,
-			Partition: indexer.IndexedPartitionChainID,
+		cmd := &indexer.Command{
+			Partition: indexer.PartitionChainID,
 		}
 		if consumedBranch {
-			indexEntry.OutputID = v.InputID(idx)
+			if !bytes.Equal(v.UnlockParams(idx, byte(i)), []byte{0xff, 0xff, 0xff}) {
+				// found consumed chain. It is not being destroyed, do nothing
+				// leave loop as it only can be one chain constraint on output
+				return false
+			}
+			// chain is being destroyed. Delete index record
+			cmd.Delete = true
+			if chainConstraint.IsOrigin() {
+				// origin is destroyed, rare but possible
+				inpID := v.InputID(idx)
+				h := blake2b.Sum256(inpID[:])
+				cmd.ID = h[:]
+			} else {
+				cmd.ID = chainConstraint.ID[:]
+			}
 		} else {
-			indexEntry.OutputID = ledger.NewOutputID(v.TransactionID(), idx)
+			cmd.OutputID = ledger.NewOutputID(v.TransactionID(), idx)
+			if chainConstraint.IsOrigin() {
+				h := blake2b.Sum256(cmd.OutputID.Bytes())
+				cmd.ID = h[:]
+			} else {
+				cmd.ID = chainConstraint.ID[:]
+			}
 		}
-		*indexRecords = append(*indexRecords, indexEntry)
+		*indexRecords = append(*indexRecords, cmd)
 		return false // only 1 chain constraint is possible
 	})
 }
@@ -192,6 +210,10 @@ func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
 	ret, err := ledger.OutputIDFromBytes(data)
 	easyfl.AssertNoError(err)
 	return ret
+}
+
+func (v *ValidationContext) UnlockParams(consumedOutputIdx, constraintIdx byte) []byte {
+	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxUnlockParams, consumedOutputIdx, constraintIdx))
 }
 
 // runOutput checks constraints of the output one-by-one

@@ -47,7 +47,7 @@ func genesisOutput(genesisAddr library.AddressED25519, initialSupply uint64, ts 
 	return ret.Bytes(), ledger.OutputID{}
 }
 
-func (u *FinalState) AddTransaction(txBytes []byte, traceOption ...int) ([]*indexer.IndexEntry, error) {
+func (u *FinalState) AddTransaction(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
 

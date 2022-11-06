@@ -29,6 +29,7 @@ type (
 
 	IndexerAccess interface {
 		GetUTXOsForAccountID(accountID library.Accountable, state StateAccess) ([]*OutputDataWithID, error)
+		GetUTXOForChainID(id []byte, state StateAccess) (*OutputDataWithID, error)
 	}
 
 	StateStore interface {
@@ -39,6 +40,7 @@ type (
 	IndexerStore interface {
 		common.BatchedUpdatable
 		common.Traversable
+		common.KVReader
 	}
 )
 

@@ -57,6 +57,22 @@ func NewChainOrigin() *ChainConstraint {
 	}
 }
 
+func (ch *ChainConstraint) IsOrigin() bool {
+	if ch.ID != [32]byte{} {
+		return false
+	}
+	if ch.PreviousOutput != 0xff {
+		return false
+	}
+	if ch.PreviousBlock != 0xff {
+		return false
+	}
+	if ch.TransitionMode != 0xff {
+		return false
+	}
+	return true
+}
+
 func (ch *ChainConstraint) Name() string {
 	return ChainConstraintName
 }
@@ -122,6 +138,7 @@ const chainConstraintSource = `
 
 // reserved value of the chain constraint data at origin
 func originChainData: concat(repeat(0,32), 0xffffff)
+func destroyUnlockParams : 0xffffff
 
 // parsing chain constraint data
 // $0 - chain constraint data
@@ -169,7 +186,7 @@ func chainPredecessorData:
 
 // $0 - self chain data (consumed)
 // $1 - successor constraint parsed data (produced)
-func validUnlockSuccessorData : and(
+func validSuccessorData : and(
 		if (
 			// if chainID = 0, it must be origin data
 			// otherwise chain IDs must be equal on both sides
@@ -194,9 +211,13 @@ func chainSuccessorData :
 // $0 - 35 bytes chain data 
 func chainTransition : or(
 	and(
-		// 'consumed' side case, checking if successor is valid
+		// 'consumed' side case, checking if unlock params and successor is valid
 		isPathToConsumedOutput(@),
-		validUnlockSuccessorData($0, chainSuccessorData)
+		or(
+			equal(selfUnlockParameters, destroyUnlockParams),  // consumed chain output is being destroyed
+			validSuccessorData($0, chainSuccessorData)     // or it must be unlocked by pointing to the successor
+		)
+		
 	), 
 	and(
 		// 'produced' side case checking if predecessor is valid

@@ -15,7 +15,8 @@ type Indexer struct {
 	store ledger.IndexerStore
 }
 
-type IndexEntry struct {
+// Command specifies update of 1 kv-pair in the indexer
+type Command struct {
 	ID        []byte
 	OutputID  ledger.OutputID
 	Delete    bool
@@ -23,8 +24,8 @@ type IndexEntry struct {
 }
 
 const (
-	IndexedPartitionAccount = byte(iota)
-	IndexedPartitionChainID
+	PartitionAccount = byte(iota)
+	PartitionChainID
 )
 
 func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *Indexer {
@@ -32,7 +33,7 @@ func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *I
 	var nullOutputID ledger.OutputID
 	addrBytes := originAddr.Bytes()
 	// account ID prefixed with length
-	w.Set(easyfl.Concat(IndexedPartitionAccount, byte(len(addrBytes)), addrBytes, nullOutputID[:]), []byte{0xff})
+	w.Set(easyfl.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, nullOutputID[:]), []byte{0xff})
 	if err := w.Commit(); err != nil {
 		panic(err)
 	}
@@ -47,7 +48,7 @@ func (inr *Indexer) GetUTXOsForAccountID(addr library.Accountable, state ledger.
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
 	}
-	accountPrefix := easyfl.Concat(IndexedPartitionAccount, byte(len(acc)), acc)
+	accountPrefix := easyfl.Concat(PartitionAccount, byte(len(acc)), acc)
 
 	inr.mutex.RLock()
 	defer inr.mutex.RUnlock()
@@ -75,55 +76,72 @@ func (inr *Indexer) GetUTXOsForAccountID(addr library.Accountable, state ledger.
 	return ret, err
 }
 
-// TODO refactor indexing of chainIDs
-
 func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateAccess) (*ledger.OutputDataWithID, error) {
 	if len(id) != 32 {
-		return nil, fmt.Errorf("chainID length must be 32-byte long")
+		return nil, fmt.Errorf("GetUTXOForChainID: chainID length must be 32-byte long")
 	}
-	var ret *ledger.OutputDataWithID
-	err := fmt.Errorf("can't find indexed output with chain id %s", easyfl.Fmt(id))
-	accountPrefix := easyfl.Concat(IndexedPartitionChainID, byte(32), id)
-	inr.store.Iterator(accountPrefix).Iterate(func(k, _ []byte) bool {
-		ret = &ledger.OutputDataWithID{
-			ID:         ledger.OutputID{},
-			OutputData: nil,
-		}
-		ret.ID, err = ledger.OutputIDFromBytes(k[len(accountPrefix):])
-		if err != nil {
-			return false
-		}
-		var found bool
-		ret.OutputData, found = state.GetUTXO(&ret.ID)
-		if found {
-			err = nil
-			return false
-		}
-		return true
-	})
+	key := easyfl.Concat(PartitionChainID, byte(32), id)
+
+	inr.mutex.RLock()
+	defer inr.mutex.RUnlock()
+
+	outID := inr.store.Get(key)
+	if len(outID) == 0 {
+		return nil, fmt.Errorf("GetUTXOForChainID: indexer records for chainID '%s' has not not been found", easyfl.Fmt(id))
+	}
+	oid, err := ledger.OutputIDFromBytes(outID)
 	if err != nil {
 		return nil, err
 	}
-	return ret, nil
+	outData, found := state.GetUTXO(&oid)
+	if !found {
+		return nil, fmt.Errorf("GetUTXOForChainID: chain id: %s, outputID: %s. Output has not been found", easyfl.Fmt(id), oid)
+	}
+	return &ledger.OutputDataWithID{
+		ID:         oid,
+		OutputData: outData,
+	}, nil
 }
 
 // accountID can be of different size, so it is prefixed with length
 
-func (inr *Indexer) Update(entries []*IndexEntry) error {
+func (inr *Indexer) Update(commands []*Command) error {
 	w := inr.store.BatchedWriter()
-	for _, e := range entries {
-		if len(e.ID) > 255 {
-			return fmt.Errorf("indexer ID length should be <= 255")
-		}
-		// ID is prefixed with length
-		key := easyfl.Concat(e.Partition, byte(len(e.ID)), e.ID, e.OutputID[:])
-		if e.Delete {
-			w.Set(key, nil)
-		} else {
-			w.Set(key, []byte{0xff})
+	for _, e := range commands {
+		if err := e.run(w); err != nil {
+			return err
 		}
 	}
 	return w.Commit()
+}
+
+func (cmd *Command) run(w common.KVWriter) error {
+	if len(cmd.ID) > 255 {
+		return fmt.Errorf("indexer: ID length should be <= 255")
+	}
+	var key, value []byte
+	switch cmd.Partition {
+	case PartitionAccount:
+		// ID is prefixed with length
+		key = easyfl.Concat(PartitionAccount, byte(len(cmd.ID)), cmd.ID, cmd.OutputID[:])
+		if !cmd.Delete {
+			value = []byte{0xff}
+		}
+	case PartitionChainID:
+		if len(cmd.ID) != 32 {
+			if len(cmd.ID) > 255 {
+				return fmt.Errorf("indexer: chainID should be 32 bytes")
+			}
+			key = easyfl.Concat(PartitionChainID, cmd.ID)
+			if !cmd.Delete {
+				value = cmd.OutputID[:]
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported indeexer partition '%d'", cmd.Partition)
+	}
+	w.Set(key, value)
+	return nil
 }
 
 // NewInMemory mostly for testing
