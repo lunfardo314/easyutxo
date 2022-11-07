@@ -154,7 +154,7 @@ func (txb *TransactionBuilder) SignED25519(privKey ed25519.PrivateKey) {
 	txb.Transaction.Signature = easyfl.Concat(sig, []byte(pubKey))
 }
 
-type ED25519TransferInputs struct {
+type TransferInputs struct {
 	SenderPrivateKey ed25519.PrivateKey
 	SenderPublicKey  ed25519.PublicKey
 	SenderAddress    library.AddressED25519
@@ -167,10 +167,10 @@ type ED25519TransferInputs struct {
 	AddConstraints   [][]byte
 }
 
-func NewED25519TransferInputs(senderKey ed25519.PrivateKey, ts uint32) *ED25519TransferInputs {
+func NewTransferInputs(senderKey ed25519.PrivateKey, ts uint32) *TransferInputs {
 	sourcePubKey := senderKey.Public().(ed25519.PublicKey)
 	sourceAddr := library.AddressED25519FromPublicKey(sourcePubKey)
-	return &ED25519TransferInputs{
+	return &TransferInputs{
 		SenderPrivateKey: senderKey,
 		SenderPublicKey:  sourcePubKey,
 		SenderAddress:    sourceAddr,
@@ -179,18 +179,18 @@ func NewED25519TransferInputs(senderKey ed25519.PrivateKey, ts uint32) *ED25519T
 	}
 }
 
-func (t *ED25519TransferInputs) WithTargetLock(lock library.Lock) *ED25519TransferInputs {
+func (t *TransferInputs) WithTargetLock(lock library.Lock) *TransferInputs {
 	t.Lock = lock
 	return t
 }
 
-func (t *ED25519TransferInputs) WithAmount(amount uint64, adjustToMinimum ...bool) *ED25519TransferInputs {
+func (t *TransferInputs) WithAmount(amount uint64, adjustToMinimum ...bool) *TransferInputs {
 	t.Amount = amount
 	t.AdjustToMinimum = len(adjustToMinimum) > 0 && adjustToMinimum[0]
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraintBinary(constr []byte, idx ...byte) *ED25519TransferInputs {
+func (t *TransferInputs) WithConstraintBinary(constr []byte, idx ...byte) *TransferInputs {
 	if len(idx) == 0 {
 		t.AddConstraints = append(t.AddConstraints, constr)
 	} else {
@@ -200,26 +200,26 @@ func (t *ED25519TransferInputs) WithConstraintBinary(constr []byte, idx ...byte)
 	return t
 }
 
-func (t *ED25519TransferInputs) WithConstraint(constr library.Constraint, idx ...byte) *ED25519TransferInputs {
+func (t *TransferInputs) WithConstraint(constr library.Constraint, idx ...byte) *TransferInputs {
 	return t.WithConstraintBinary(constr.Bytes(), idx...)
 }
 
-func (t *ED25519TransferInputs) WithConstraintAtIndex(constr library.Constraint) *ED25519TransferInputs {
+func (t *TransferInputs) WithConstraintAtIndex(constr library.Constraint) *TransferInputs {
 	return t.WithConstraintBinary(constr.Bytes())
 }
 
-func (t *ED25519TransferInputs) WithOutputs(outs []*OutputWithID) *ED25519TransferInputs {
+func (t *TransferInputs) WithOutputs(outs []*OutputWithID) *TransferInputs {
 	t.Outputs = outs
 	return t
 }
 
-func (t *ED25519TransferInputs) WithSender() *ED25519TransferInputs {
+func (t *TransferInputs) WithSender() *TransferInputs {
 	t.AddSender = true
 	return t
 }
 
 // AdjustedAmount adjust amount to minimum storage deposit requirements
-func (t *ED25519TransferInputs) AdjustedAmount() uint64 {
+func (t *TransferInputs) AdjustedAmount() uint64 {
 	if !t.AdjustToMinimum {
 		// not adjust. Will render wrong transaction if not enough tokens
 		return t.Amount
@@ -241,12 +241,12 @@ func (t *ED25519TransferInputs) AdjustedAmount() uint64 {
 	return t.Amount
 }
 
-func MakeTransferTransaction(par *ED25519TransferInputs) ([]byte, error) {
+func MakeTransferTransaction(par *TransferInputs) ([]byte, error) {
 	ret, _, err := MakeTransferTransactionOutputs(par)
 	return ret, err
 }
 
-func MakeTransferTransactionOutputs(par *ED25519TransferInputs) ([]byte, []*ledger.OutputDataWithID, error) {
+func MakeTransferTransactionOutputs(par *TransferInputs) ([]byte, []*ledger.OutputDataWithID, error) {
 	ts := uint32(time.Now().Unix())
 	if par.Timestamp > 0 {
 		ts = par.Timestamp

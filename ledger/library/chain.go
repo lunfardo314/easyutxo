@@ -86,6 +86,12 @@ func (ch *ChainConstraint) source() string {
 		hex.EncodeToString(easyfl.Concat(ch.ID[:], ch.PreviousOutput, ch.PreviousBlock, ch.TransitionMode)))
 }
 
+func (ch *ChainConstraint) ChainLock() ChainLock {
+	ret, err := ChainLockFromChainID(ch.ID[:])
+	easyfl.AssertNoError(err)
+	return ret
+}
+
 func ChainConstraintFromBytes(data []byte) (*ChainConstraint, error) {
 	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
 	if err != nil {

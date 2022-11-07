@@ -106,7 +106,7 @@ func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64
 	if err != nil {
 		return err
 	}
-	par := txbuilder.NewED25519TransferInputs(u.genesisPrivateKey, uint32(time.Now().Unix())).
+	par := txbuilder.NewTransferInputs(u.genesisPrivateKey, uint32(time.Now().Unix())).
 		WithAmount(amount, true).
 		WithTargetLock(addr).
 		WithOutputs(outs)
@@ -132,11 +132,11 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	return priv, pub, addr
 }
 
-func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, ts uint32, desc ...bool) (*txbuilder.ED25519TransferInputs, error) {
+func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, ts uint32, desc ...bool) (*txbuilder.TransferInputs, error) {
 	if ts == 0 {
 		ts = uint32(time.Now().Unix())
 	}
-	ret := txbuilder.NewED25519TransferInputs(privKey, ts)
+	ret := txbuilder.NewTransferInputs(privKey, ts)
 	outsData, err := u.indexer.GetUTXOsForAccountID(ret.SenderAddress, u.state)
 	if err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ func (u *UTXODB) NumUTXOs(addr library.Accountable, ts ...uint32) int {
 	return ret
 }
 
-func (u *UTXODB) DoTransferTx(par *txbuilder.ED25519TransferInputs) ([]byte, error) {
+func (u *UTXODB) DoTransferTx(par *txbuilder.TransferInputs) ([]byte, error) {
 	trace := state.TraceOptionNone
 	if u.trace {
 		trace = state.TraceOptionFailedConstraints
@@ -215,7 +215,7 @@ func (u *UTXODB) DoTransferTx(par *txbuilder.ED25519TransferInputs) ([]byte, err
 	return txBytes, u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) DoTransferOutputs(par *txbuilder.ED25519TransferInputs) ([]*ledger.OutputDataWithID, error) {
+func (u *UTXODB) DoTransferOutputs(par *txbuilder.TransferInputs) ([]*ledger.OutputDataWithID, error) {
 	trace := state.TraceOptionNone
 	if u.trace {
 		trace = state.TraceOptionFailedConstraints
@@ -230,7 +230,7 @@ func (u *UTXODB) DoTransferOutputs(par *txbuilder.ED25519TransferInputs) ([]*led
 	return retOuts, nil
 }
 
-func (u *UTXODB) DoTransfer(par *txbuilder.ED25519TransferInputs) error {
+func (u *UTXODB) DoTransfer(par *txbuilder.TransferInputs) error {
 	_, err := u.DoTransferTx(par)
 	return err
 }

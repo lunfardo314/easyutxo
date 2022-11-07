@@ -720,9 +720,12 @@ func TestChain3(t *testing.T) {
 }
 
 func TestChainLock(t *testing.T) {
-	var privKey0 ed25519.PrivateKey
+	var privKey0, privKey1 ed25519.PrivateKey
+	var addr0, addr1 library.AddressED25519
 	var u *utxodb.UTXODB
-	var addr0 library.AddressED25519
+	var chainID [32]byte
+	var chainAddr library.ChainLock
+
 	initTest := func() {
 		u = utxodb.NewUTXODB(true)
 		privKey0, _, addr0 = u.GenerateAddress(0)
@@ -733,7 +736,7 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 	}
-	initTest2 := func() []*ledger.OutputDataWithChainID {
+	initTest2 := func() *ledger.OutputDataWithChainID {
 		initTest()
 		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
 		outs, err := u.DoTransferOutputs(par.
@@ -749,30 +752,48 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 2, len(outs))
 		chains, err := txbuilder.ParseChainConstraints(outs)
 		require.NoError(t, err)
-		return chains
+		require.EqualValues(t, 1, len(chains))
+
+		chainID = chains[0].ChainID
+		chainAddr, err = library.ChainLockFromChainID(chainID[:])
+		require.NoError(t, err)
+		require.EqualValues(t, chainID[:], chainAddr.ChainID())
+
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		require.NoError(t, err)
+
+		privKey1, _, addr1 = u.GenerateAddress(1)
+		err = u.TokensFromFaucet(addr1, 20000)
+		require.NoError(t, err)
+		require.EqualValues(t, 20000, u.Balance(addr1))
+		return chains[0]
 	}
-	chains := initTest2()
-	require.EqualValues(t, 1, len(chains))
-	theChainData := chains[0]
-	chainID := theChainData.ChainID
-	_, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
-	require.NoError(t, err)
+	sendFun := func(amount uint64, ts uint32) {
+		par, err := u.MakeED25519TransferInputs(privKey1, ts)
+		require.NoError(t, err)
+		err = u.DoTransfer(par.
+			WithAmount(amount).
+			WithTargetLock(chainAddr),
+		)
+		require.NoError(t, err)
+	}
+	t.Run("send", func(t *testing.T) {
+		initTest2()
+		require.EqualValues(t, 20000, u.Balance(addr1))
 
-	ts := uint32(time.Now().Unix()) + 5
-	privKey1, _, addr1 := u.GenerateAddress(1)
-	err = u.TokensFromFaucet(addr1, 2000)
-	require.NoError(t, err)
+		ts := uint32(time.Now().Unix()) + 5
 
-	par, err := u.MakeED25519TransferInputs(privKey1, ts)
-	require.NoError(t, err)
+		sendFun(1000, ts)
+		sendFun(2000, ts+1)
+		require.EqualValues(t, 20000-3000, int(u.Balance(addr1)))
+		require.EqualValues(t, 3000, u.Balance(chainAddr))
 
-	chainLock, err := library.ChainLockFromChainID(chainID[:])
-	require.NoError(t, err)
+		outs, err := u.IndexerAccess().GetUTXOsForAccountID(chainAddr, u.StateAccess())
+		require.NoError(t, err)
+		require.EqualValues(t, 2, len(outs))
 
-	err = u.DoTransfer(par.
-		WithAmount(1000).
-		WithTargetLock(chainLock),
-	)
-	require.NoError(t, err)
+		// TODO
+		//u.MakeED25519TransferInputs()
+	})
 
 }

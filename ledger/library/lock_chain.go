@@ -53,7 +53,7 @@ func (a ChainLock) IndexableTags() []Accountable {
 	return []Accountable{a}
 }
 
-func (a ChainLock) UnlockableWith(acc AccountID, ts uint32) bool {
+func (a ChainLock) UnlockableWith(acc AccountID, _ uint32) bool {
 	return bytes.Equal(a.AccountID(), acc)
 }
 
@@ -67,6 +67,10 @@ func (a ChainLock) Name() string {
 
 func (a ChainLock) String() string {
 	return a.source()
+}
+
+func (a ChainLock) ChainID() []byte {
+	return easyfl.Concat([]byte(a))
 }
 
 func NewChainLockUnlockParamData(chainOutputIndex, chainConstraintIndex byte) []byte {
