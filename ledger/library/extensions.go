@@ -144,7 +144,7 @@ func init() {
 	easyfl.Extend("selfCallPrefix", "parseCallPrefix(self)")
 
 	// output index of the invocation
-	easyfl.Extend("selfOutputIndex", "slice(@, 2, 2)")
+	easyfl.Extend("selfOutputIndex", "byte(@, 2)")
 	// block index of the invocation
 	easyfl.Extend("selfBlockIndex", "tail(@, 3)")
 	// branch (2 bytes) of the constraint invocation
@@ -176,6 +176,7 @@ func init() {
 	initTimelockConstraint()
 	initSenderConstraint()
 	initChainConstraint()
+	initChainLockConstraint()
 
 	easyfl.PrintLibraryStats()
 }

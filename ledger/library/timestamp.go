@@ -10,9 +10,12 @@ import (
 
 const timestampSource = `
 // $0 - 4 bytes Unix seconds big-endian 
-func timestamp: or(
-	and( isPathToProducedOutput(@), equal($0, txTimestampBytes) ),
-	and( isPathToConsumedOutput(@), lessThan($0, txTimestampBytes) )	
+func timestamp: and(
+	equal(selfBlockIndex,1),  // must be a block 1
+	or(
+		and( isPathToProducedOutput(@), equal($0, txTimestampBytes) ),
+		and( isPathToConsumedOutput(@), lessThan($0, txTimestampBytes) )	
+	)
 )
 `
 

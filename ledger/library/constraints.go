@@ -116,6 +116,8 @@ func LockFromBytes(data []byte) (Lock, error) {
 		return AddressED25519FromBytes(data)
 	case deadlineLockName:
 		return DeadlineLockFromBytes(data)
+	case ChainLockName:
+		return ChainLockFromBytes(data)
 	}
 	return nil, fmt.Errorf("not a lock constraint '%s'", name)
 }

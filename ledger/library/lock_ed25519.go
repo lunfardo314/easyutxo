@@ -114,19 +114,23 @@ func unlockedByReference: and(
 // Second condition not evaluated if the first is true 
 
 // $0 - ED25519 address, 32 byte blake2b hash of the public key
-func addressED25519: or(
-	and(
-		isPathToProducedOutput(@), 
-		equal(len8($0), 32) 
-	),
-    and(
-		isPathToConsumedOutput(@), 
-		or(
-				// if it is unlocked with reference, the signature is not checked
-			unlockedByReference,
-				// tx signature is checked
-			unlockedWithSigED25519($0, signatureED25519(txSignature), publicKeyED25519(txSignature)) 
+func addressED25519: and(
+	equal(selfBlockIndex,2), // locks must be at block 2
+	or(
+		and(
+			isPathToProducedOutput(@), 
+			equal(len8($0), 32) 
+		),
+		and(
+			isPathToConsumedOutput(@), 
+			or(
+					// if it is unlocked with reference, the signature is not checked
+				unlockedByReference,
+					// tx signature is checked
+				unlockedWithSigED25519($0, signatureED25519(txSignature), publicKeyED25519(txSignature)) 
+			)
 		)
 	)
 )
+
 `

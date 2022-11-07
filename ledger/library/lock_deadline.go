@@ -100,9 +100,12 @@ func DeadlineLockFromBytes(data []byte) (*DeadlineLock, error) {
 
 const deadlineLockSource = `
 
-func deadlineLock: if(
-	lessThan($0, txTimestampBytes),
-	$1, 
-	$2
+func deadlineLock: and(
+	equal(selfBlockIndex,2), // locks must be at block 2
+	if(
+		lessThan($0, txTimestampBytes),
+		$1, 
+		$2
+	)
 )
 `

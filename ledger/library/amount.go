@@ -15,12 +15,15 @@ func storageDepositEnough: greaterOrEqualThan(
 )
 
 // $0 - amount uint64 big-endian
-func amount: or(
-	isPathToConsumedOutput(@),               // not checked in consumed branch
-	and(
-		isPathToProducedOutput(@),           // checked in produced branch
-		equal(len8($0),8),             // length must be 8
-		storageDepositEnough($0)       // must satisfy minimum storage deposit requirements
+func amount: and(
+	equal(selfBlockIndex,0), // amount must be at block 0
+	or(
+		isPathToConsumedOutput(@),               // not checked in consumed branch
+		and(
+			isPathToProducedOutput(@),           // checked in produced branch
+			equal(len8($0),8),             // length must be 8
+			storageDepositEnough($0)       // must satisfy minimum storage deposit requirements
+		)
 	)
 )
 `

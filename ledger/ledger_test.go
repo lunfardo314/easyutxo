@@ -717,5 +717,62 @@ func TestChain3(t *testing.T) {
 	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 	require.EqualValues(t, 10000, u.Balance(addr0))
 	require.EqualValues(t, 2, u.NumUTXOs(addr0))
+}
+
+func TestChainLock(t *testing.T) {
+	var privKey0 ed25519.PrivateKey
+	var u *utxodb.UTXODB
+	var addr0 library.AddressED25519
+	initTest := func() {
+		u = utxodb.NewUTXODB(true)
+		privKey0, _, addr0 = u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+	}
+	initTest2 := func() []*ledger.OutputDataWithChainID {
+		initTest()
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		outs, err := u.DoTransferOutputs(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithConstraint(library.NewChainOrigin()),
+		)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+		require.EqualValues(t, 2, len(outs))
+		chains, err := txbuilder.ParseChainConstraints(outs)
+		require.NoError(t, err)
+		return chains
+	}
+	chains := initTest2()
+	require.EqualValues(t, 1, len(chains))
+	theChainData := chains[0]
+	chainID := theChainData.ChainID
+	_, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	require.NoError(t, err)
+
+	ts := uint32(time.Now().Unix()) + 5
+	privKey1, _, addr1 := u.GenerateAddress(1)
+	err = u.TokensFromFaucet(addr1, 2000)
+	require.NoError(t, err)
+
+	par, err := u.MakeED25519TransferInputs(privKey1, ts)
+	require.NoError(t, err)
+
+	chainLock, err := library.ChainLockFromChainID(chainID[:])
+	require.NoError(t, err)
+
+	err = u.DoTransfer(par.
+		WithAmount(1000).
+		WithTargetLock(chainLock),
+	)
+	require.NoError(t, err)
 
 }
