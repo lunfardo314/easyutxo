@@ -154,34 +154,6 @@ func (txb *TransactionBuilder) SignED25519(privKey ed25519.PrivateKey) {
 	txb.Transaction.Signature = easyfl.Concat(sig, []byte(pubKey))
 }
 
-// InsertChainTransition inserts a simple chain transition. Takes output with chain constraint from parameters,
-// Produces identical output, only modifies timestamp. Unlocks chain-input lock with signature reference
-func (txb *TransactionBuilder) InsertChainTransition(inChainData *ledger.OutputDataWithChainID, ts uint32) error {
-	chainIN, err := OutputFromBytes(inChainData.OutputData)
-	if err != nil {
-		return err
-	}
-	_, predecessorConstraintIndex := chainIN.ChainConstraint()
-	if predecessorConstraintIndex == 0xff {
-		return fmt.Errorf("can't find chain constrain in the output")
-	}
-	predecessorOutputIndex, err := txb.ConsumeOutput(chainIN, inChainData.ID)
-	if err != nil {
-		return err
-	}
-	chainOut := chainIN.Clone().WithTimestamp(ts)
-	successor := library.NewChainConstraint(inChainData.ChainID, 0, predecessorOutputIndex, predecessorConstraintIndex)
-	chainOut.PutConstraint(successor.Bytes(), predecessorConstraintIndex)
-	successorOutputIndex, err := txb.ProduceOutput(chainOut)
-	if err != nil {
-		return err
-	}
-	txb.PutUnlockParams(predecessorOutputIndex, predecessorConstraintIndex, []byte{successorOutputIndex, predecessorConstraintIndex, 0})
-	txb.PutSignatureUnlock(successorOutputIndex, library.ConstraintIndexLock)
-
-	return nil
-}
-
 type ED25519TransferInputs struct {
 	SenderPrivateKey ed25519.PrivateKey
 	SenderPublicKey  ed25519.PublicKey
@@ -411,4 +383,32 @@ func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*ledger.OutputDat
 		return nil, err
 	}
 	return ret, nil
+}
+
+// InsertSimpleChainTransition inserts a simple chain transition. Takes output with chain constraint from parameters,
+// Produces identical output, only modifies timestamp. Unlocks chain-input lock with signature reference
+func (txb *TransactionBuilder) InsertSimpleChainTransition(inChainData *ledger.OutputDataWithChainID, ts uint32) error {
+	chainIN, err := OutputFromBytes(inChainData.OutputData)
+	if err != nil {
+		return err
+	}
+	_, predecessorConstraintIndex := chainIN.ChainConstraint()
+	if predecessorConstraintIndex == 0xff {
+		return fmt.Errorf("can't find chain constrain in the output")
+	}
+	predecessorOutputIndex, err := txb.ConsumeOutput(chainIN, inChainData.ID)
+	if err != nil {
+		return err
+	}
+	chainOut := chainIN.Clone().WithTimestamp(ts)
+	successor := library.NewChainConstraint(inChainData.ChainID, predecessorOutputIndex, predecessorConstraintIndex, 0)
+	chainOut.PutConstraint(successor.Bytes(), predecessorConstraintIndex)
+	successorOutputIndex, err := txb.ProduceOutput(chainOut)
+	if err != nil {
+		return err
+	}
+	txb.PutUnlockParams(predecessorOutputIndex, predecessorConstraintIndex, []byte{successorOutputIndex, predecessorConstraintIndex, 0})
+	txb.PutSignatureUnlock(successorOutputIndex, library.ConstraintIndexLock)
+
+	return nil
 }

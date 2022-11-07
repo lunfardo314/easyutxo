@@ -1,9 +1,11 @@
-package txbuilder
+package txbuilder_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"github.com/lunfardo314/easyutxo/ledger/utxodb"
 	"github.com/stretchr/testify/require"
 )
@@ -72,9 +74,9 @@ func TestBasics(t *testing.T) {
 			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 
-		par, err := u.MakeED25519TransferInputs(privKey)
+		par, err := u.MakeED25519TransferInputs(privKey, uint32(time.Now().Unix()))
 		require.NoError(t, err)
-		txBytes, err := MakeTransferTransaction(par.
+		txBytes, err := txbuilder.MakeTransferTransaction(par.
 			WithAmount(u.Balance(addr)).
 			WithTargetLock(addr),
 		)
@@ -140,7 +142,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, u.Balance(addr0))
 		require.EqualValues(t, 0, u.NumUTXOs(addr0))
 
-		outs, err := u.GetUTXOsForAddress(addr1)
+		outs, err := u.IndexerAccess().GetUTXOsForAccountID(addr1, u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, howMany, len(outs))
 		//for _, o := range outs {
@@ -154,7 +156,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, u.Balance(addr1))
 		require.EqualValues(t, 0, u.NumUTXOs(addr1))
 
-		outs, err = u.GetUTXOsForAddress(addr0)
+		outs, err = u.IndexerAccess().GetUTXOsForAccountID(addr0, u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outs))
 

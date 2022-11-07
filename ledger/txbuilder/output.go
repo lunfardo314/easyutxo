@@ -186,6 +186,7 @@ func (o *Output) SenderAddressED25519() (library.AddressED25519, bool) {
 	return nil, false
 }
 
+// ChainConstraint finds and parses chain constraint. Returns its constraintIndex or 0xff if not found
 func (o *Output) ChainConstraint() (*library.ChainConstraint, byte) {
 	var ret *library.ChainConstraint
 	var err error

@@ -40,7 +40,7 @@ const (
 	chainConstraintTemplate = ChainConstraintName + "(0x%s)"
 )
 
-func NewChainConstraint(id [32]byte, mode, prevOut, prevBlock byte) *ChainConstraint {
+func NewChainConstraint(id [32]byte, prevOut, prevBlock, mode byte) *ChainConstraint {
 	return &ChainConstraint{
 		ID:             id,
 		TransitionMode: mode,
@@ -50,11 +50,7 @@ func NewChainConstraint(id [32]byte, mode, prevOut, prevBlock byte) *ChainConstr
 }
 
 func NewChainOrigin() *ChainConstraint {
-	return &ChainConstraint{
-		PreviousOutput: 0xff,
-		PreviousBlock:  0xff,
-		TransitionMode: 0xff,
-	}
+	return NewChainConstraint([32]byte{}, 0xff, 0xff, 0xff)
 }
 
 func (ch *ChainConstraint) IsOrigin() bool {
@@ -158,23 +154,26 @@ func predecessorInputID : inputIDByIndex(byte($0,32))
 // only called for produced output
 // $0 - self produced constraint data
 // $1 - predecessor data
-func validPredecessorData : if(
-	isZero(chainID($1)), 
-	and(
-		// case 1: predecessor is origin. ChainID must be blake2b hash of the corresponding input ID 
-		equal($1, originChainData),
-		equal(chainID($0), blake2b(predecessorInputID($0)))
-	),
-	and(
-		// case 2: normal transition
-		equal(chainID($0), chainID($1)),
-		equal(
-			// enforcing equal transition mode on unlock data and on the produced output
-			transitionMode($0),
-			byte(unlockParamsByConstraintIndex(predecessorConstraintIndex($0)),2)
+func validPredecessorData : and(
+	if(
+		isZero(chainID($1)), 
+		and(
+			// case 1: predecessor is origin. ChainID must be blake2b hash of the corresponding input ID 
+			equal($1, originChainData),
+			equal(chainID($0), blake2b(predecessorInputID($0)))
+		),
+		and(
+			// case 2: normal transition
+			equal(chainID($0), chainID($1)),
 		)
+	),
+	equal(
+		// enforcing equal transition mode on unlock data and on the produced output
+		transitionMode($0),
+		byte(unlockParamsByConstraintIndex(predecessorConstraintIndex($0)),2)
 	)
 )
+
 
 // $0 - predecessor constraint index
 func chainPredecessorData: 

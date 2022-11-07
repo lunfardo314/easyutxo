@@ -323,7 +323,7 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.True(t, library.Equal(addr0, saddr))
 }
 
-func TestChain(t *testing.T) {
+func TestChain1(t *testing.T) {
 	var privKey0 ed25519.PrivateKey
 	var u *utxodb.UTXODB
 	var addr0 library.AddressED25519
@@ -478,23 +478,101 @@ func TestChain(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 2, u.NumUTXOs(addr0))
 	})
-	t.Run("create-transit", func(t *testing.T) {
+}
 
-		// TODO double check
-
+func TestChain2(t *testing.T) {
+	var privKey0 ed25519.PrivateKey
+	var u *utxodb.UTXODB
+	var addr0 library.AddressED25519
+	initTest := func() {
+		u = utxodb.NewUTXODB(true)
+		privKey0, _, addr0 = u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+	}
+	initTest2 := func() []*ledger.OutputDataWithChainID {
+		initTest()
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		outs, err := u.DoTransferOutputs(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithConstraint(library.NewChainOrigin()),
+		)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+		require.EqualValues(t, 2, len(outs))
+		chains, err := txbuilder.ParseChainConstraints(outs)
+		require.NoError(t, err)
+		return chains
+	}
+	runOption := func(option1, option2 int) error {
 		chains := initTest2()
 		require.EqualValues(t, 1, len(chains))
-		chainID := chains[0].ChainID
+		theChainData := chains[0]
+		chainID := theChainData.ChainID
 		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
 		require.NoError(t, err)
 
 		chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
 		require.NoError(t, err)
 
+		_, constraintIdx := chainIN.ChainConstraint()
+		require.True(t, constraintIdx != 0xff)
+
 		ts := chainIN.Timestamp() + 1
 		txb := txbuilder.NewTransactionBuilder()
-		err = txb.InsertChainTransition(chains[0], ts)
+		predIdx, err := txb.ConsumeOutput(chainIN, chains[0].ID)
 		require.NoError(t, err)
+
+		var nextChainConstraint *library.ChainConstraint
+		// options of making it wrong
+		switch option1 {
+		case 0:
+			// good
+			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+		case 1:
+			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, 0xff, constraintIdx, 0)
+		case 2:
+			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, 0xff, 0)
+		case 3:
+			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, 0xff, 0xff, 0)
+		case 4:
+			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 1)
+		case 5:
+			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, 0xff, 0xff, 0xff)
+		default:
+			panic("wrong test option 1")
+		}
+
+		chainOut := chainIN.Clone().WithTimestamp(ts)
+		chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
+		succIdx, err := txb.ProduceOutput(chainOut)
+		require.NoError(t, err)
+
+		// options of wrong unlock params
+		switch option2 {
+		case 0:
+			// good
+			txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
+		case 1:
+			txb.PutUnlockParams(predIdx, constraintIdx, []byte{0xff, constraintIdx, 0})
+		case 2:
+			txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, 0xff, 0})
+		case 3:
+			txb.PutUnlockParams(predIdx, constraintIdx, []byte{0xff, 0xff, 0})
+		case 4:
+			txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 1})
+		default:
+			panic("wrong test option 2")
+		}
+		txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
 
 		txb.Transaction.Timestamp = ts
 		txb.Transaction.InputCommitment = txb.InputCommitment()
@@ -503,7 +581,9 @@ func TestChain(t *testing.T) {
 
 		txbytes := txb.Transaction.Bytes()
 		err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
-		require.NoError(t, err)
+		if err != nil {
+			return err
+		}
 
 		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
 		require.NoError(t, err)
@@ -512,5 +592,130 @@ func TestChain(t *testing.T) {
 		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+		return nil
+	}
+	t.Run("transit 0,0", func(t *testing.T) {
+		err := runOption(0, 0)
+		require.NoError(t, err)
 	})
+	t.Run("transit 1,0", func(t *testing.T) {
+		err := runOption(1, 0)
+		require.Error(t, err)
+	})
+	t.Run("transit 2,0", func(t *testing.T) {
+		err := runOption(2, 0)
+		require.Error(t, err)
+	})
+	t.Run("transit 3,0", func(t *testing.T) {
+		err := runOption(3, 0)
+		require.Error(t, err)
+	})
+	t.Run("transit 4,0", func(t *testing.T) {
+		err := runOption(4, 0)
+		require.Error(t, err)
+	})
+	t.Run("transit 5,0", func(t *testing.T) {
+		err := runOption(5, 0)
+		require.Error(t, err)
+	})
+	t.Run("transit 0,1", func(t *testing.T) {
+		err := runOption(0, 1)
+		require.Error(t, err)
+	})
+	t.Run("transit 0,2", func(t *testing.T) {
+		err := runOption(0, 2)
+		require.Error(t, err)
+	})
+	t.Run("transit 0,3", func(t *testing.T) {
+		err := runOption(0, 3)
+		require.Error(t, err)
+	})
+	t.Run("transit 0,4", func(t *testing.T) {
+		err := runOption(0, 4)
+		require.Error(t, err)
+	})
+	t.Run("transit 4,4", func(t *testing.T) {
+		err := runOption(4, 4)
+		require.NoError(t, err)
+	})
+}
+
+func TestChain3(t *testing.T) {
+	var privKey0 ed25519.PrivateKey
+	var u *utxodb.UTXODB
+	var addr0 library.AddressED25519
+	initTest := func() {
+		u = utxodb.NewUTXODB(true)
+		privKey0, _, addr0 = u.GenerateAddress(0)
+		err := u.TokensFromFaucet(addr0, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 1, u.NumUTXOs(addr0))
+	}
+	initTest2 := func() []*ledger.OutputDataWithChainID {
+		initTest()
+		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		outs, err := u.DoTransferOutputs(par.
+			WithAmount(2000).
+			WithTargetLock(addr0).
+			WithConstraint(library.NewChainOrigin()),
+		)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr0))
+		require.EqualValues(t, 2, u.NumUTXOs(addr0))
+		require.EqualValues(t, 2, len(outs))
+		chains, err := txbuilder.ParseChainConstraints(outs)
+		require.NoError(t, err)
+		return chains
+	}
+	chains := initTest2()
+	require.EqualValues(t, 1, len(chains))
+	theChainData := chains[0]
+	chainID := theChainData.ChainID
+	chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	require.NoError(t, err)
+
+	chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
+	require.NoError(t, err)
+
+	_, constraintIdx := chainIN.ChainConstraint()
+	require.True(t, constraintIdx != 0xff)
+
+	ts := chainIN.Timestamp() + 1
+	txb := txbuilder.NewTransactionBuilder()
+	predIdx, err := txb.ConsumeOutput(chainIN, chains[0].ID)
+	require.NoError(t, err)
+
+	var nextChainConstraint *library.ChainConstraint
+	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+
+	chainOut := chainIN.Clone().WithTimestamp(ts)
+	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
+	succIdx, err := txb.ProduceOutput(chainOut)
+	require.NoError(t, err)
+
+	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
+	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+
+	txb.Transaction.Timestamp = ts
+	txb.Transaction.InputCommitment = txb.InputCommitment()
+
+	txb.SignED25519(privKey0)
+
+	txbytes := txb.Transaction.Bytes()
+	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+	require.NoError(t, err)
+
+	_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	require.NoError(t, err)
+
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 2, u.NumUTXOs(addr0))
+
 }
