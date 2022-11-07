@@ -91,15 +91,24 @@ func initChainLockConstraint() {
 
 const ChainLockConstraintSource = `
 
-func selfReferencedChainID : 
+func selfReferencedChainID :
 	slice(
 		parseCallArg(
 			consumedConstraintByIndex(selfUnlockParameters),
 			#chain,
 			0
-		),
-	0,
-	31
+		), 
+		0, 31
+	)
+
+// $0 - chainID
+func validChainUnlock : and(
+	equal($0, selfReferencedChainID), // chain id must be equal to the referenced chain id 
+	equal(
+		// the chain must be unlocked for state transition (mode = 0) 
+		byte(unlockParamsByConstraintIndex(selfUnlockParameters),3),
+		0
+	)
 )
 
 func chainLock : and(
@@ -112,7 +121,7 @@ func chainLock : and(
 		and(
 			isPathToConsumedOutput(@),
 			not(equal(selfOutputIndex, byte(selfUnlockParameters,0))), // prevent self referencing 
-			equal($0, selfReferencedChainID)
+			validChainUnlock($0)
 		)
 	)
 )
