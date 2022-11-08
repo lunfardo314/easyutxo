@@ -792,10 +792,19 @@ func TestChainLock(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 2, len(outs))
 
+		require.EqualValues(t, 10000, int(u.Balance(addr0)))
 		par, err := u.MakeTransferData(privKey0, chainAddr, ts)
-		require.NoError(t, err)
 		par.WithAmount(500).WithTargetLock(addr0)
-		// TODO
+		require.NoError(t, err)
+		txBytes, err := txbuilder.MakeTransferTransaction(par)
+		require.NoError(t, err)
+
+		v, err := u.ValidationContextFromTransaction(txBytes)
+		require.NoError(t, err)
+		t.Logf("%s", txbuilder.ValidationContextToString(v))
+
+		//require.EqualValues(t, 2500, int(u.Balance(chainAddr)))
+		//require.EqualValues(t, 10500, int(u.Balance(addr0)))
 	})
 
 }

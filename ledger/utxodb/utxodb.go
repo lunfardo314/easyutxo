@@ -137,18 +137,45 @@ func (u *UTXODB) MakeTransferData(privKey ed25519.PrivateKey, sourceAccount libr
 		ts = uint32(time.Now().Unix())
 	}
 	ret := txbuilder.NewTransferData(privKey, sourceAccount, ts)
-	outsData, err := u.indexer.GetUTXOsLockedInAccount(ret.SourceAccount, u.state)
+
+	switch addr := ret.SourceAccount.(type) {
+	case library.AddressED25519:
+		if err := u.makeTransferInputsED25519(ret, desc...); err != nil {
+			return nil, err
+		}
+		return ret, nil
+	case library.ChainLock:
+		if err := u.makeTransferDataChainLock(ret, addr, desc...); err != nil {
+			return nil, err
+		}
+	default:
+		panic(fmt.Sprintf("wrong source account type %T", sourceAccount))
+	}
+	return ret, nil
+}
+
+func (u *UTXODB) makeTransferInputsED25519(par *txbuilder.TransferData, desc ...bool) error {
+	outsData, err := u.indexer.GetUTXOsLockedInAccount(par.SourceAccount, u.state)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	outs, err := txbuilder.ParseAndSortOutputData(outsData, func(o *txbuilder.Output) bool {
-		return o.Lock().UnlockableWith(ret.SourceAccount.AccountID(), ts)
+		return o.Lock().UnlockableWith(par.SourceAccount.AccountID(), par.Timestamp)
 	}, desc...)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	ret.WithOutputs(outs)
-	return ret, nil
+	par.WithOutputs(outs)
+	return nil
+}
+
+func (u *UTXODB) makeTransferDataChainLock(par *txbuilder.TransferData, chainLock library.ChainLock, desc ...bool) error {
+	outChain, outs, err := txbuilder.GetChainAccount(chainLock.ChainID(), u.IndexerAccess(), u.StateAccess())
+	if err != nil {
+		return err
+	}
+	par.WithOutputs(outs).WithChainOutput(outChain)
+	return nil
 }
 
 func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.Lock, amount uint64) error {

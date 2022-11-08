@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
@@ -113,6 +114,38 @@ func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.Output
 	}, Path(library.TransactionBranch, library.TxInputIDs))
 }
 
-func (v *ValidationContext) NumProducedOutputs() byte {
-	return byte(v.tree.NumElements([]byte{library.TransactionBranch, library.TxOutputs}))
+func (v *ValidationContext) ConsumedOutputData(idx byte) []byte {
+	return v.tree.BytesAtPath(Path(library.ConsumedBranch, library.ConsumedOutputsBranch, idx))
+}
+
+func (v *ValidationContext) UnlockData(idx byte) []byte {
+	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxUnlockParams, idx))
+}
+
+func (v *ValidationContext) ProducedOutputData(idx byte) []byte {
+	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxOutputs, idx))
+}
+
+func (v *ValidationContext) NumProducedOutputs() int {
+	return v.tree.NumElements([]byte{library.TransactionBranch, library.TxOutputs})
+}
+
+func (v *ValidationContext) NumInputs() int {
+	return v.tree.NumElements([]byte{library.TransactionBranch, library.TxInputIDs})
+}
+
+func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
+	data := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputIDs, idx))
+	ret, err := ledger.OutputIDFromBytes(data)
+	easyfl.AssertNoError(err)
+	return ret
+}
+
+func (v *ValidationContext) TimestampData() ([]byte, uint32) {
+	ret := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxTimestamp))
+	retTs := uint32(0)
+	if len(ret) == 4 {
+		retTs = binary.BigEndian.Uint32(ret)
+	}
+	return ret, retTs
 }

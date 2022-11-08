@@ -73,7 +73,7 @@ func (v *ValidationContext) Validate() ([]*indexer.Command, error) {
 		return nil, err
 	}
 	if inSum != outSum {
-		return nil, fmt.Errorf("unbalanced amount between inputs and outputs")
+		return nil, fmt.Errorf("unbalanced amount between inputs and outputs: inputs %d, outputs %d", inSum, outSum)
 	}
 	return ret, nil
 }
@@ -204,13 +204,6 @@ func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array,
 		*indexRecords = append(*indexRecords, cmd)
 		return false // only 1 chain constraint is possible
 	})
-}
-
-func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
-	data := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputIDs, idx))
-	ret, err := ledger.OutputIDFromBytes(data)
-	easyfl.AssertNoError(err)
-	return ret
 }
 
 func (v *ValidationContext) UnlockParams(consumedOutputIdx, constraintIdx byte) []byte {

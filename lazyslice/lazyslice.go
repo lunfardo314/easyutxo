@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/lunfardo314/easyfl"
 )
@@ -179,6 +180,20 @@ func (a *Array) ensureBytes() {
 func (a *Array) At(idx int) []byte {
 	a.ensureParsed()
 	return a.parsed[idx]
+}
+
+func (a *Array) Parsed() [][]byte {
+	a.ensureParsed()
+	return a.parsed
+}
+
+func (a *Array) ParsedString() string {
+	p := a.Parsed()
+	ret := make([]string, len(p))
+	for i := range p {
+		ret[i] = easyfl.Fmt(p[i])
+	}
+	return fmt.Sprintf("[%s]", strings.Join(ret, ","))
 }
 
 func (a *Array) NumElements() int {

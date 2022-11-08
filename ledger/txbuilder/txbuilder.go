@@ -251,7 +251,13 @@ func (t *TransferData) AdjustedAmount() uint64 {
 }
 
 func MakeTransferTransaction(par *TransferData) ([]byte, error) {
-	ret, _, err := MakeSimpleTransferTransactionOutputs(par)
+	var err error
+	var ret []byte
+	if par.ChainOutput == nil {
+		ret, _, err = MakeSimpleTransferTransactionOutputs(par)
+	} else {
+		ret, _, err = MakeChainTransferTransactionOutputs(par)
+	}
 	return ret, err
 }
 
@@ -392,8 +398,9 @@ func MakeChainTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.O
 		}
 	}
 	chainConstr := library.NewChainConstraint(par.ChainOutput.ChainID, 0, par.ChainOutput.PredecessorConstraintIndex, 0)
+	easyfl.Assert(availableTokens > amount, "availableTokens > amount")
 	chainSuccessorOutput := par.ChainOutput.Output.Clone().
-		WithAmount(amount - availableTokens).
+		WithAmount(availableTokens - amount).
 		WithTimestamp(ts)
 	chainSuccessorOutput.PutConstraint(chainConstr.Bytes(), par.ChainOutput.PredecessorConstraintIndex)
 	if _, err = txb.ProduceOutput(chainSuccessorOutput); err != nil {

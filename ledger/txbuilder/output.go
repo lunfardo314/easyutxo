@@ -240,3 +240,21 @@ func ParseAndSortOutputData(outs []*ledger.OutputDataWithID, filter func(o *Outp
 	}
 	return ret, nil
 }
+
+func (o *Output) ToString(prefix ...string) string {
+	ret := ""
+	pref := ""
+	if len(prefix) > 0 {
+		pref = prefix[0]
+	}
+	o.arr.ForEach(func(i int, data []byte) bool {
+		c, err := library.FromBytes(data)
+		if err != nil {
+			ret += fmt.Sprintf("%s%d: %v\n", pref, i, err)
+		} else {
+			ret += fmt.Sprintf("%s%d: %s\n", pref, i, c.String())
+		}
+		return true
+	})
+	return ret
+}
