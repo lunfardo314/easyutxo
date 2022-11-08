@@ -63,7 +63,7 @@ func TestMainConstraints(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, u.Supply(), out.Amount())
 		require.True(t, library.Equal(u.GenesisAddress(), out.Lock()))
-		outsData, err := u.IndexerAccess().GetUTXOsForAccountID(u.GenesisAddress(), u.StateAccess())
+		outsData, err := u.IndexerAccess().GetUTXOsLockedInAccount(u.GenesisAddress(), u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outsData))
 		require.EqualValues(t, ledger.OutputID{}, outsData[0].ID)
@@ -92,7 +92,7 @@ func TestMainConstraints(t *testing.T) {
 		require.EqualValues(t, 1, u.NumUTXOs(addr1))
 
 		_, _, addrNext := u.GenerateAddress(2)
-		in, err := u.MakeED25519TransferInputs(privKey1, 0)
+		in, err := u.MakeTransferData(privKey1, nil, 0)
 		require.NoError(t, err)
 		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
 		require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestMainConstraints(t *testing.T) {
 
 		_, _, addrNext := u.GenerateAddress(2)
 		privKeyWrong, _, _ := u.GenerateAddress(3)
-		in, err := u.MakeED25519TransferInputs(privKey1, 0)
+		in, err := u.MakeTransferData(privKey1, nil, 0)
 		in.SenderPrivateKey = privKeyWrong
 		require.NoError(t, err)
 		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
@@ -136,7 +136,7 @@ func TestTimelock(t *testing.T) {
 		priv1, _, addr1 := u.GenerateAddress(1)
 
 		ts := uint32(time.Now().Unix()) + 5
-		par, err := u.MakeED25519TransferInputs(privKey0, ts)
+		par, err := u.MakeTransferData(privKey0, nil, ts)
 		require.NoError(t, err)
 		par.WithAmount(200).
 			WithTargetLock(addr1).
@@ -151,7 +151,7 @@ func TestTimelock(t *testing.T) {
 		require.EqualValues(t, 200, u.Balance(addr1))
 
 		t.Logf("timelock: %x", ts+1)
-		par, err = u.MakeED25519TransferInputs(privKey0, ts+1)
+		par, err = u.MakeTransferData(privKey0, nil, ts+1)
 		require.NoError(t, err)
 		par.WithAmount(2000).
 			WithTargetLock(addr1).
@@ -161,7 +161,7 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1, ts+2)
+		par, err = u.MakeTransferData(priv1, nil, ts+2)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
@@ -172,7 +172,7 @@ func TestTimelock(t *testing.T) {
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
 		t.Logf("tx time: %x", ts+12)
-		par, err = u.MakeED25519TransferInputs(priv1, ts+12)
+		par, err = u.MakeTransferData(priv1, nil, ts+12)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
@@ -194,7 +194,7 @@ func TestTimelock(t *testing.T) {
 		priv1, _, addr1 := u.GenerateAddress(1)
 
 		ts := uint32(time.Now().Unix()) + 5
-		par, err := u.MakeED25519TransferInputs(privKey0, ts)
+		par, err := u.MakeTransferData(privKey0, nil, ts)
 		require.NoError(t, err)
 		txBytes, err := txbuilder.MakeTransferTransaction(par.
 			WithAmount(200).
@@ -208,7 +208,7 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(privKey0, ts+1)
+		par, err = u.MakeTransferData(privKey0, nil, ts+1)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
@@ -219,7 +219,7 @@ func TestTimelock(t *testing.T) {
 
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1, ts+2)
+		par, err = u.MakeTransferData(priv1, nil, ts+2)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
@@ -228,7 +228,7 @@ func TestTimelock(t *testing.T) {
 		easyfl.RequireErrorWith(t, err, "failed")
 		require.EqualValues(t, 2200, u.Balance(addr1))
 
-		par, err = u.MakeED25519TransferInputs(priv1, ts+12)
+		par, err = u.MakeTransferData(priv1, nil, ts+12)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(2000).
@@ -255,7 +255,7 @@ func TestDeadlineLock(t *testing.T) {
 
 	ts := uint32(time.Now().Unix())
 
-	par, err := u.MakeED25519TransferInputs(privKey0, ts)
+	par, err := u.MakeTransferData(privKey0, nil, ts)
 	require.NoError(t, err)
 	deadlineLock := library.NewDeadlineLock(
 		ts+10,
@@ -301,7 +301,7 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.EqualValues(t, 0, u.Balance(addr1))
 	require.EqualValues(t, 0, u.NumUTXOs(addr1))
 
-	par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+	par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 	err = u.DoTransfer(par.
 		WithAmount(2000).
 		WithTargetLock(addr1).
@@ -312,7 +312,7 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.EqualValues(t, 1, u.NumUTXOs(addr1))
 	require.EqualValues(t, 2000, u.Balance(addr1))
 
-	outDatas, err := u.IndexerAccess().GetUTXOsForAccountID(addr1, u.StateAccess())
+	outDatas, err := u.IndexerAccess().GetUTXOsLockedInAccount(addr1, u.StateAccess())
 	require.NoError(t, err)
 	outs, err := txbuilder.ParseAndSortOutputData(outDatas, nil)
 	require.NoError(t, err)
@@ -337,9 +337,9 @@ func TestChain1(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 	}
-	initTest2 := func() []*ledger.OutputDataWithChainID {
+	initTest2 := func() []*txbuilder.OutputWithChainID {
 		initTest()
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
@@ -370,7 +370,7 @@ func TestChain1(t *testing.T) {
 		_, _, code, err := easyfl.CompileExpression(source)
 		require.NoError(t, err)
 
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		err = u.DoTransfer(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
@@ -389,7 +389,7 @@ func TestChain1(t *testing.T) {
 		_, _, code, err := easyfl.CompileExpression(source)
 		require.NoError(t, err)
 
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		err = u.DoTransfer(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
@@ -405,7 +405,7 @@ func TestChain1(t *testing.T) {
 		_, _, code, err := easyfl.CompileExpression(source)
 		require.NoError(t, err)
 
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		par.WithAmount(2000).WithTargetLock(addr0)
 
 		err = u.DoTransfer(par.WithConstraintBinary(code))
@@ -455,7 +455,7 @@ func TestChain1(t *testing.T) {
 		outNonChain := txbuilder.NewOutput().
 			WithAmount(chainIN.Amount()).
 			WithTimestamp(ts).
-			WithLockConstraint(chainIN.Lock())
+			WithLock(chainIN.Lock())
 		_, err = txb.ProduceOutput(outNonChain)
 		require.NoError(t, err)
 
@@ -494,9 +494,9 @@ func TestChain2(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 	}
-	initTest2 := func() []*ledger.OutputDataWithChainID {
+	initTest2 := func() []*txbuilder.OutputWithChainID {
 		initTest()
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
@@ -654,9 +654,9 @@ func TestChain3(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 	}
-	initTest2 := func() []*ledger.OutputDataWithChainID {
+	initTest2 := func() []*txbuilder.OutputWithChainID {
 		initTest()
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
@@ -736,9 +736,9 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 10000, u.Balance(addr0))
 		require.EqualValues(t, 1, u.NumUTXOs(addr0))
 	}
-	initTest2 := func() *ledger.OutputDataWithChainID {
+	initTest2 := func() *txbuilder.OutputWithChainID {
 		initTest()
-		par, err := u.MakeED25519TransferInputs(privKey0, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey0, nil, uint32(time.Now().Unix()))
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
@@ -769,7 +769,7 @@ func TestChainLock(t *testing.T) {
 		return chains[0]
 	}
 	sendFun := func(amount uint64, ts uint32) {
-		par, err := u.MakeED25519TransferInputs(privKey1, ts)
+		par, err := u.MakeTransferData(privKey1, nil, ts)
 		require.NoError(t, err)
 		err = u.DoTransfer(par.
 			WithAmount(amount).
@@ -788,12 +788,14 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 20000-3000, int(u.Balance(addr1)))
 		require.EqualValues(t, 3000, u.Balance(chainAddr))
 
-		outs, err := u.IndexerAccess().GetUTXOsForAccountID(chainAddr, u.StateAccess())
+		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(chainAddr, u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, 2, len(outs))
 
+		par, err := u.MakeTransferData(privKey0, chainAddr, ts)
+		require.NoError(t, err)
+		par.WithAmount(500).WithTargetLock(addr0)
 		// TODO
-		//u.MakeED25519TransferInputs()
 	})
 
 }

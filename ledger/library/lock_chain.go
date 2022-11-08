@@ -41,39 +41,43 @@ func ChainLockFromBytes(data []byte) (ChainLock, error) {
 	return chainIdBin, nil
 }
 
-func (a ChainLock) source() string {
-	return fmt.Sprintf(chainLockTemplate, hex.EncodeToString(a))
+func (cl ChainLock) source() string {
+	return fmt.Sprintf(chainLockTemplate, hex.EncodeToString(cl))
 }
 
-func (a ChainLock) Bytes() []byte {
-	return mustBinFromSource(a.source())
+func (cl ChainLock) Bytes() []byte {
+	return mustBinFromSource(cl.source())
 }
 
-func (a ChainLock) IndexableTags() []Accountable {
-	return []Accountable{a}
+func (cl ChainLock) IndexableTags() []Accountable {
+	return []Accountable{cl}
 }
 
-func (a ChainLock) UnlockableWith(acc AccountID, _ uint32) bool {
-	return bytes.Equal(a.AccountID(), acc)
+func (cl ChainLock) UnlockableWith(acc AccountID, _ uint32) bool {
+	return bytes.Equal(cl.AccountID(), acc)
 }
 
-func (a ChainLock) AccountID() AccountID {
-	return a.Bytes()
+func (cl ChainLock) AccountID() AccountID {
+	return cl.Bytes()
 }
 
-func (a ChainLock) Name() string {
+func (cl ChainLock) Name() string {
 	return ChainLockName
 }
 
-func (a ChainLock) String() string {
-	return a.source()
+func (cl ChainLock) String() string {
+	return cl.source()
 }
 
-func (a ChainLock) ChainID() []byte {
-	return easyfl.Concat([]byte(a))
+func (cl ChainLock) AsLock() Lock {
+	return cl
 }
 
-func NewChainLockUnlockParamData(chainOutputIndex, chainConstraintIndex byte) []byte {
+func (cl ChainLock) ChainID() []byte {
+	return easyfl.Concat([]byte(cl))
+}
+
+func NewChainLockUnlockParams(chainOutputIndex, chainConstraintIndex byte) []byte {
 	return []byte{chainOutputIndex, chainConstraintIndex}
 }
 

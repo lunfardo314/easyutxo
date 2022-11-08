@@ -20,6 +20,7 @@ type (
 	Accountable interface {
 		Constraint
 		AccountID() AccountID
+		AsLock() Lock
 	}
 
 	Lock interface {

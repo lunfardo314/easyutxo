@@ -19,6 +19,12 @@ type OutputWithID struct {
 	Output *Output
 }
 
+type OutputWithChainID struct {
+	OutputWithID
+	ChainID                    [32]byte
+	PredecessorConstraintIndex byte
+}
+
 func NewOutput() *Output {
 	ret := &Output{
 		arr: lazyslice.EmptyArray(256),
@@ -28,7 +34,7 @@ func NewOutput() *Output {
 }
 
 func OutputBasic(amount uint64, ts uint32, lock library.Lock) *Output {
-	return NewOutput().WithAmount(amount).WithTimestamp(ts).WithLockConstraint(lock)
+	return NewOutput().WithAmount(amount).WithTimestamp(ts).WithLock(lock)
 }
 
 func OutputFromBytes(data []byte) (*Output, error) {
@@ -72,7 +78,7 @@ func (o *Output) Timestamp() uint32 {
 	return uint32(ret)
 }
 
-func (o *Output) WithLockConstraint(lock library.Lock) *Output {
+func (o *Output) WithLock(lock library.Lock) *Output {
 	o.PutConstraint(lock.Bytes(), library.ConstraintIndexLock)
 	return o
 }

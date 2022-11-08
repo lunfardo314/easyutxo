@@ -34,7 +34,7 @@ type (
 	}
 
 	IndexerAccess interface {
-		GetUTXOsForAccountID(accountID library.Accountable, state StateAccess) ([]*OutputDataWithID, error)
+		GetUTXOsLockedInAccount(accountID library.Accountable, state StateAccess) ([]*OutputDataWithID, error)
 		GetUTXOForChainID(id []byte, state StateAccess) (*OutputDataWithID, error)
 	}
 

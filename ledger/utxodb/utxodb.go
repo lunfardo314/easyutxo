@@ -98,7 +98,7 @@ func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	outsData, err := u.indexer.GetUTXOsForAccountID(u.genesisAddress, u.state)
+	outsData, err := u.indexer.GetUTXOsLockedInAccount(u.genesisAddress, u.state)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64
 	if err != nil {
 		return err
 	}
-	par := txbuilder.NewTransferInputs(u.genesisPrivateKey, uint32(time.Now().Unix())).
+	par := txbuilder.NewTransferData(u.genesisPrivateKey, nil, uint32(time.Now().Unix())).
 		WithAmount(amount, true).
 		WithTargetLock(addr).
 		WithOutputs(outs)
@@ -132,17 +132,17 @@ func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKe
 	return priv, pub, addr
 }
 
-func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, ts uint32, desc ...bool) (*txbuilder.TransferInputs, error) {
+func (u *UTXODB) MakeTransferData(privKey ed25519.PrivateKey, sourceAccount library.Accountable, ts uint32, desc ...bool) (*txbuilder.TransferData, error) {
 	if ts == 0 {
 		ts = uint32(time.Now().Unix())
 	}
-	ret := txbuilder.NewTransferInputs(privKey, ts)
-	outsData, err := u.indexer.GetUTXOsForAccountID(ret.SenderAddress, u.state)
+	ret := txbuilder.NewTransferData(privKey, sourceAccount, ts)
+	outsData, err := u.indexer.GetUTXOsLockedInAccount(ret.SourceAccount, u.state)
 	if err != nil {
 		return nil, err
 	}
 	outs, err := txbuilder.ParseAndSortOutputData(outsData, func(o *txbuilder.Output) bool {
-		return o.Lock().UnlockableWith(ret.SenderAddress.AccountID(), ts)
+		return o.Lock().UnlockableWith(ret.SourceAccount.AccountID(), ts)
 	}, desc...)
 	if err != nil {
 		return nil, err
@@ -152,15 +152,12 @@ func (u *UTXODB) MakeED25519TransferInputs(privKey ed25519.PrivateKey, ts uint32
 }
 
 func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.Lock, amount uint64) error {
-	par, err := u.MakeED25519TransferInputs(privKey, 0)
+	par, err := u.MakeTransferData(privKey, nil, 0)
 	if err != nil {
 		return err
 	}
 	par.WithAmount(amount).
 		WithTargetLock(targetLock)
-	//if len(addSender) > 0 && addSender[0] {
-	//	par.WithConstraint(constraint.SenderConstraintBin(par.SenderAddress, 0))
-	//}
 	txBytes, err := txbuilder.MakeTransferTransaction(par)
 	if err != nil {
 		return err
@@ -173,7 +170,7 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.L
 }
 
 func (u *UTXODB) account(addr library.Accountable, ts ...uint32) (uint64, int) {
-	outs, err := u.indexer.GetUTXOsForAccountID(addr, u.state)
+	outs, err := u.indexer.GetUTXOsLockedInAccount(addr, u.state)
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
 	var filter func(o *txbuilder.Output) bool
@@ -203,7 +200,7 @@ func (u *UTXODB) NumUTXOs(addr library.Accountable, ts ...uint32) int {
 	return ret
 }
 
-func (u *UTXODB) DoTransferTx(par *txbuilder.TransferInputs) ([]byte, error) {
+func (u *UTXODB) DoTransferTx(par *txbuilder.TransferData) ([]byte, error) {
 	trace := state.TraceOptionNone
 	if u.trace {
 		trace = state.TraceOptionFailedConstraints
@@ -215,12 +212,12 @@ func (u *UTXODB) DoTransferTx(par *txbuilder.TransferInputs) ([]byte, error) {
 	return txBytes, u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) DoTransferOutputs(par *txbuilder.TransferInputs) ([]*ledger.OutputDataWithID, error) {
+func (u *UTXODB) DoTransferOutputs(par *txbuilder.TransferData) ([]*ledger.OutputDataWithID, error) {
 	trace := state.TraceOptionNone
 	if u.trace {
 		trace = state.TraceOptionFailedConstraints
 	}
-	txBytes, retOuts, err := txbuilder.MakeTransferTransactionOutputs(par)
+	txBytes, retOuts, err := txbuilder.MakeSimpleTransferTransactionOutputs(par)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +227,7 @@ func (u *UTXODB) DoTransferOutputs(par *txbuilder.TransferInputs) ([]*ledger.Out
 	return retOuts, nil
 }
 
-func (u *UTXODB) DoTransfer(par *txbuilder.TransferInputs) error {
+func (u *UTXODB) DoTransfer(par *txbuilder.TransferData) error {
 	_, err := u.DoTransferTx(par)
 	return err
 }

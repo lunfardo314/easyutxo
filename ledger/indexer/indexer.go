@@ -64,7 +64,7 @@ func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *I
 	}
 }
 
-func (inr *Indexer) GetUTXOsForAccountID(addr library.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOsLockedInAccount(addr library.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
 	acc := addr.AccountID()
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")

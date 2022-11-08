@@ -69,6 +69,10 @@ func (a AddressED25519) String() string {
 	return a.source()
 }
 
+func (a AddressED25519) AsLock() Lock {
+	return a
+}
+
 func initAddressED25519Constraint() {
 	easyfl.MustExtendMany(AddressED25519ConstraintSource)
 
