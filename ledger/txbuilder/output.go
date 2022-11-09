@@ -250,9 +250,9 @@ func (o *Output) ToString(prefix ...string) string {
 	o.arr.ForEach(func(i int, data []byte) bool {
 		c, err := library.FromBytes(data)
 		if err != nil {
-			ret += fmt.Sprintf("%s%d: %v\n", pref, i, err)
+			ret += fmt.Sprintf("%s%d: %v (%d bytes)\n", pref, i, err, len(data))
 		} else {
-			ret += fmt.Sprintf("%s%d: %s\n", pref, i, c.String())
+			ret += fmt.Sprintf("%s%d: %s (%d bytes)\n", pref, i, c.String(), len(data))
 		}
 		return true
 	})

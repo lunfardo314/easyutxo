@@ -88,3 +88,50 @@ The node runs the following steps fo each transaction received by the wire:
 The above loop is the only global assumption of the ledger. It is completely agnostic of what constraint are provided. 
 This way UTXO behavior is encoded into the constraints on outputs. 
 
+### Examples
+
+Example of user-readable transaction printout:
+```json
+  Transaction. ID: 32xdf79cf3a04c4030d733553db328611413929da07c0be6ee5ac6a3385f0d45c42, size: 390
+  Timestamp: 4x636b89b1 (1667991985)
+  Input commitment: 32x8152eb3defc209036763c044e2b509953708536458a39e07434dc397bc800bb8
+  Inputs (consumed outputs): 
+    #0: [1]32xf0a31a9cf03579b51e5365b5738a8c7980c7f2e8bebcdc62766a6e31d1bffb84 (97 bytes)
+       0: amount(u64/2000) (11 bytes)
+       1: timestamp(u32/1667991981) (7 bytes)
+       2: addressED25519(0xb400219a67085d3a22c1fee43844ab06995e1e1d2384b3f98ceddba6e2b75273) (35 bytes)
+       3: chain(0x0000000000000000000000000000000000000000000000000000000000000000ffffff) (38 bytes)
+       Unlock data: [0x,0x,1xff,3x000300]
+    #1: [1]32xc3b6521c9415f8be70d15de2827d66b46e9167b6ecec9ed4e4b60e64774363e2 (58 bytes)
+       0: amount(u64/1000) (11 bytes)
+       1: timestamp(u32/1667991984) (7 bytes)
+       2: chainLock(0xb3051a25fef3ee5163c469646600323e654b871e8aec34330ce85e81ec42fc04) (35 bytes)
+       Unlock data: [0x,0x,2x0003]
+  Outputs (produced): 
+    #0 (97 bytes) :
+       0: amount(u64/2500) (11 bytes)
+       1: timestamp(u32/1667991985) (7 bytes)
+       2: addressED25519(0xb400219a67085d3a22c1fee43844ab06995e1e1d2384b3f98ceddba6e2b75273) (35 bytes)
+       3: chain(0xb3051a25fef3ee5163c469646600323e654b871e8aec34330ce85e81ec42fc04000300) (38 bytes)
+    #1 (58 bytes) :
+       0: amount(u64/500) (11 bytes)
+       1: timestamp(u32/1667991985) (7 bytes)
+       2: addressED25519(0xb400219a67085d3a22c1fee43844ab06995e1e1d2384b3f98ceddba6e2b75273) (35 bytes)
+```
+
+Example of output constraint in _EasyFL_ (`timelock` in this case):
+```Go
+// enforces output can be unlocked only after specified time
+// $0 is Unix seconds of the time lock
+func timelock: or(
+	and( 
+		isPathToProducedOutput(@), 
+		equal(len8($0), 4),             // must be 4-bytes long
+		lessThan(txTimestampBytes, $0)  // time lock must be after the transaction (not very necessary)
+	), 
+	and( 
+		isPathToConsumedOutput(@), 
+		lessThan($0, txTimestampBytes)  // is unlocked if tx timestamp is strongly after the time lock 
+	) 
+)
+```

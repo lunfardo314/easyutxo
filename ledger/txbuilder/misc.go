@@ -10,15 +10,16 @@ import (
 
 func ValidationContextToString(v *state.ValidationContext) string {
 	txid := v.TransactionID()
-	ret := fmt.Sprintf("TransactionID: %s\n", txid.String())
+	ret := fmt.Sprintf("\nTransaction. ID: %s, size: %d\n", txid.String(), len(v.TransactionBytes()))
 	tsBin, ts := v.TimestampData()
 	ret += fmt.Sprintf("Timestamp: %s (%d)\n", easyfl.Fmt(tsBin), ts)
+	ret += fmt.Sprintf("Input commitment: %s\n", easyfl.Fmt(v.InputCommitment()))
 
-	ret += "inputs: \n"
+	ret += "Inputs (consumed outputs): \n"
 	for i := byte(0); int(i) < v.NumInputs(); i++ {
 		oid := v.InputID(i)
-		ret += fmt.Sprintf("  #%d: %s\n", i, oid.String())
 		odata := v.ConsumedOutputData(i)
+		ret += fmt.Sprintf("  #%d: %s (%d bytes)\n", i, oid.String(), len(odata))
 		o, err := OutputFromBytes(odata)
 		if err != nil {
 			ret += fmt.Sprintf("     failed to parse output: %v\n", err)
@@ -29,10 +30,10 @@ func ValidationContextToString(v *state.ValidationContext) string {
 		arr := lazyslice.ArrayFromBytes(unlockBin)
 		ret += fmt.Sprintf("     Unlock data: %s\n", arr.ParsedString())
 	}
-	ret += "outputs: \n"
+	ret += "Outputs (produced): \n"
 	for i := byte(0); int(i) < v.NumProducedOutputs(); i++ {
-		ret += fmt.Sprintf("  #%d:\n", i)
 		odata := v.ProducedOutputData(i)
+		ret += fmt.Sprintf("  #%d (%d bytes) :\n", i, len(odata))
 		o, err := OutputFromBytes(odata)
 		if err != nil {
 			ret += fmt.Sprintf("     failed to parse output: %v\n", err)

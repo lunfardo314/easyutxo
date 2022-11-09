@@ -48,7 +48,7 @@ func (a Amount) Bytes() []byte {
 }
 
 func (a Amount) String() string {
-	return fmt.Sprintf("%s(%d)", amountName, uint64(a))
+	return a.source()
 }
 
 func NewAmount(a uint64) Amount {

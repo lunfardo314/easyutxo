@@ -74,7 +74,7 @@ func TestBasics(t *testing.T) {
 			require.EqualValues(t, numOuts, u.NumUTXOs(addr))
 		}
 
-		par, err := u.MakeTransferData(privKey, uint32(time.Now().Unix()))
+		par, err := u.MakeTransferData(privKey, nil, uint32(time.Now().Unix()))
 		require.NoError(t, err)
 		txBytes, err := txbuilder.MakeTransferTransaction(par.
 			WithAmount(u.Balance(addr)).
@@ -145,10 +145,6 @@ func TestBasics(t *testing.T) {
 		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(addr1, u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, howMany, len(outs))
-		//for _, o := range outs {
-		//	_, ok := o.Output.Sender()
-		//	require.False(t, ok)
-		//}
 
 		err = u.TransferTokens(privKey1, addr0, howMany*100)
 		require.EqualValues(t, howMany*100, u.Balance(addr0))
