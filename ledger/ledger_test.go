@@ -759,6 +759,11 @@ func TestChainLock(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, chainID[:], chainAddr.ChainID())
 
+		onLocked, onChainOut, err := u.BalanceOnChain(chainID[:])
+		require.NoError(t, err)
+		require.EqualValues(t, 0, onLocked)
+		require.EqualValues(t, 2000, onChainOut)
+
 		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
 		require.NoError(t, err)
 
@@ -787,6 +792,12 @@ func TestChainLock(t *testing.T) {
 		sendFun(2000, ts+1)
 		require.EqualValues(t, 20000-3000, int(u.Balance(addr1)))
 		require.EqualValues(t, 3000, u.Balance(chainAddr))
+		require.EqualValues(t, 2, u.NumUTXOs(chainAddr))
+
+		onLocked, onChainOut, err := u.BalanceOnChain(chainID[:])
+		require.NoError(t, err)
+		require.EqualValues(t, 3000, onLocked)
+		require.EqualValues(t, 2000, onChainOut)
 
 		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(chainAddr, u.StateAccess())
 		require.NoError(t, err)
@@ -803,8 +814,15 @@ func TestChainLock(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("%s", txbuilder.ValidationContextToString(v))
 
-		//require.EqualValues(t, 2500, int(u.Balance(chainAddr)))
-		//require.EqualValues(t, 10500, int(u.Balance(addr0)))
+		require.EqualValues(t, 10000, int(u.Balance(addr0)))
+		err = u.AddTransaction(txBytes, state.TraceOptionFailedConstraints)
+		require.NoError(t, err)
+
+		onLocked, onChainOut, err = u.BalanceOnChain(chainID[:])
+		require.NoError(t, err)
+		require.EqualValues(t, 2000, int(onLocked))
+		require.EqualValues(t, 2500, int(onChainOut))
+		require.EqualValues(t, 11000, int(u.Balance(addr0))) // also includes 500 on chain
 	})
 
 }

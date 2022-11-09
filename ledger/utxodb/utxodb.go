@@ -170,11 +170,12 @@ func (u *UTXODB) makeTransferInputsED25519(par *txbuilder.TransferData, desc ...
 }
 
 func (u *UTXODB) makeTransferDataChainLock(par *txbuilder.TransferData, chainLock library.ChainLock, desc ...bool) error {
-	outChain, outs, err := txbuilder.GetChainAccount(chainLock.ChainID(), u.IndexerAccess(), u.StateAccess())
+	outChain, outs, err := txbuilder.GetChainAccount(chainLock.ChainID(), u.IndexerAccess(), u.StateAccess(), desc...)
 	if err != nil {
 		return err
 	}
-	par.WithOutputs(outs).WithChainOutput(outChain)
+	par.WithOutputs(outs).
+		WithChainOutput(outChain)
 	return nil
 }
 
@@ -216,9 +217,23 @@ func (u *UTXODB) account(addr library.Accountable, ts ...uint32) (uint64, int) {
 }
 
 // Balance returns balance of address unlockable at timestamp ts, if provided. Otherwise, all outputs taken
+// For chains, this does not include te chain-output itself
 func (u *UTXODB) Balance(addr library.Accountable, ts ...uint32) uint64 {
 	ret, _ := u.account(addr, ts...)
 	return ret
+}
+
+// BalanceOnChain returns balance locked in chain and separately balance on chain output
+func (u *UTXODB) BalanceOnChain(chainID []byte) (uint64, uint64, error) {
+	outChain, outs, err := txbuilder.GetChainAccount(chainID, u.IndexerAccess(), u.StateAccess())
+	if err != nil {
+		return 0, 0, err
+	}
+	amount := uint64(0)
+	for _, odata := range outs {
+		amount += odata.Output.Amount()
+	}
+	return amount, outChain.Output.Amount(), nil
 }
 
 // NumUTXOs returns number of outputs of address unlockable at timestamp ts, if provided. Otherwise, all outputs taken

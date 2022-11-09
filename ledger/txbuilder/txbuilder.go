@@ -508,7 +508,7 @@ func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*OutputWithChainI
 	return ret, nil
 }
 
-func GetChainAccount(chainID []byte, ind ledger.IndexerAccess, state ledger.StateAccess) (*OutputWithChainID, []*OutputWithID, error) {
+func GetChainAccount(chainID []byte, ind ledger.IndexerAccess, state ledger.StateAccess, desc ...bool) (*OutputWithChainID, []*OutputWithID, error) {
 	chainLock, err := library.ChainLockFromChainID(chainID)
 	if err != nil {
 		return nil, nil, err
@@ -528,7 +528,7 @@ func GetChainAccount(chainID []byte, ind ledger.IndexerAccess, state ledger.Stat
 	if err != nil {
 		return nil, nil, err
 	}
-	ret, err := ParseAndSortOutputData(retData, nil)
+	ret, err := ParseAndSortOutputData(retData, nil, desc...)
 	if err != nil {
 		return nil, nil, err
 	}
