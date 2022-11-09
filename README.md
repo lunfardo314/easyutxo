@@ -1,5 +1,5 @@
 # EasyUTXO
-A simple UTXO ledger with advanced concepts
+A simple yet extendable, programmable and powerful UTXO ledger model with advanced concepts
 
 EasyUTXO is a work in progress. This _readme_ is preliminary
 
