@@ -91,7 +91,7 @@ This way UTXO behavior is encoded into the constraints on outputs.
 ### Examples
 
 Example of user-readable transaction printout:
-```json
+```
   Transaction. ID: 32xdf79cf3a04c4030d733553db328611413929da07c0be6ee5ac6a3385f0d45c42, size: 390
   Timestamp: 4x636b89b1 (1667991985)
   Input commitment: 32x8152eb3defc209036763c044e2b509953708536458a39e07434dc397bc800bb8
