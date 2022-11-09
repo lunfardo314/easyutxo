@@ -13,10 +13,12 @@ IOTA (Stardust release).
 The _EasyUTXO_ model of the UTXO ledger intends to go beyond the Stardust ledger model, 
 which is hardcoded and language-dependent to certain extent. The _EasyUTXO_ introduces **programmability** of the ledger transition 
 function (transaction model), while same time preserving robustness and determinism of the UTXO ledger model 
-by adding **formal verifiability** and **minimizing the trust assumptions**.  
+by adding **formal verifiability** and **minimizing the global trust assumptions**. 
+The reference code _EasyUTXO_ model is written in Go, however the transaction model (UTXO types/behavior) are completely 
+platform independent.
 
 The above is achieved by:
-* building very generic and minimalistic transaction model (the trust minimization)
+* building very generic and minimalistic transaction model (the minimization of assumptions)
 * programming almost all the state transition logic as the _finite functional constraints_, expressed in the
 [EasyFL](https://github.com/lunfardo314/easyfl) functional constraint language. 
 
