@@ -84,6 +84,14 @@ func EmptyArray(maxNumElements ...int) *Array {
 	return ArrayFromBytes(emptyArrayPrefix.Bytes(), maxNumElements...)
 }
 
+func MakeArrayFromData(element ...[]byte) *Array {
+	ret := EmptyArray(len(element))
+	for _, el := range element {
+		ret.Push(el)
+	}
+	return ret
+}
+
 func MakeArray(element ...interface{}) *Array {
 	ret := EmptyArray(len(element))
 	for _, el := range element {

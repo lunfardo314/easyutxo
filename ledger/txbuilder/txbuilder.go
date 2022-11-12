@@ -29,6 +29,7 @@ type (
 		Signature       []byte
 		Timestamp       uint32
 		InputCommitment [32]byte
+		LocalLibraries  [][]byte
 	}
 
 	UnlockParams struct {
@@ -45,6 +46,7 @@ func NewTransactionBuilder() *TransactionBuilder {
 			UnlockBlocks:    make([]*UnlockParams, 0),
 			Timestamp:       0,
 			InputCommitment: [32]byte{},
+			LocalLibraries:  make([][]byte, 0),
 		},
 	}
 }
@@ -130,6 +132,7 @@ func (tx *transaction) ToArray() *lazyslice.Array {
 	binary.BigEndian.PutUint32(ts[:], tx.Timestamp)
 	elems[library.TxTimestamp] = ts[:]
 	elems[library.TxInputCommitment] = tx.InputCommitment[:]
+	elems[library.TxLocalLibraries] = lazyslice.MakeArrayFromData(tx.LocalLibraries...)
 	return lazyslice.MakeArray(elems...)
 }
 

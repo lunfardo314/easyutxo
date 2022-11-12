@@ -49,6 +49,7 @@ const (
 	TxSignature
 	TxTimestamp
 	TxInputCommitment
+	TxLocalLibraries
 	TxTreeIndexMax
 )
 
@@ -63,6 +64,7 @@ var (
 	PathToInputIDs        = lazyslice.Path(TransactionBranch, TxInputIDs)
 	PathToSignature       = lazyslice.Path(TransactionBranch, TxSignature)
 	PathToInputCommitment = lazyslice.Path(TransactionBranch, TxInputCommitment)
+	PathToLocalLibrary    = lazyslice.Path(TransactionBranch, TxLocalLibraries)
 	PathToTimestamp       = lazyslice.Path(TransactionBranch, TxTimestamp)
 )
 
@@ -88,6 +90,8 @@ func init() {
 	// @Array8 interprets $0 as serialized LazyArray with max 256 elements. Takes the $1 element of it. $1 is expected 1-byte long
 	easyfl.EmbedLong("@Array8", 2, evalAtArray8)
 
+	easyfl.EmbedLong("callLocalLibrary", -1, evalCallLocalLibrary)
+
 	// path constants
 	easyfl.Extend("pathToTransaction", fmt.Sprintf("%d", TransactionBranch))
 	easyfl.Extend("pathToConsumedOutputs", fmt.Sprintf("0x%s", PathToConsumedOutputs.Hex()))
@@ -96,6 +100,7 @@ func init() {
 	easyfl.Extend("pathToInputIDs", fmt.Sprintf("0x%s", PathToInputIDs.Hex()))
 	easyfl.Extend("pathToSignature", fmt.Sprintf("0x%s", PathToSignature.Hex()))
 	easyfl.Extend("pathToInputCommitment", fmt.Sprintf("0x%s", PathToInputCommitment.Hex()))
+	easyfl.Extend("pathToLocalLibrary", fmt.Sprintf("0x%s", PathToLocalLibrary.Hex()))
 	easyfl.Extend("pathToTimestamp", fmt.Sprintf("0x%s", PathToTimestamp.Hex()))
 
 	// mandatory block indices in the output
@@ -220,4 +225,29 @@ func evalAtArray8(ctx *easyfl.CallParams) []byte {
 		panic("evalAtArray8: 1-byte value expected")
 	}
 	return arr.At(int(idx[0]))
+}
+
+// CompileLocalLibrary compiles local library and serializes it as lazy array
+func CompileLocalLibrary(source string) ([]byte, error) {
+	libBin, err := easyfl.CompileLocalLibrary(source)
+	if err != nil {
+		return nil, err
+	}
+	ret := lazyslice.MakeArrayFromData(libBin...)
+	return ret.Bytes(), nil
+}
+
+// arg 0 - local library binary (as lazy array)
+// arg 1 - 1-byte index of then function in the library
+// arg 2 ... arg 15 optional arguments
+func evalCallLocalLibrary(ctx *easyfl.CallParams) []byte {
+	arr := lazyslice.ArrayFromBytes(ctx.Arg(0))
+	libData := arr.Parsed()
+	idx := ctx.Arg(1)
+	if len(idx) != 1 || int(idx[0]) >= len(libData) {
+		ctx.TracePanic("evalCallLocalLibrary: wrong function index")
+	}
+	ret := easyfl.CallLocalLibrary(ctx.Slice(2, ctx.Arity()), libData, int(idx[0]))
+	ctx.Trace("evalCallLocalLibrary: lib#%d -> %s", idx[0], easyfl.Fmt(ret))
+	return ret
 }
