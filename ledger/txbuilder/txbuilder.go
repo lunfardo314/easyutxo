@@ -170,6 +170,13 @@ type TransferData struct {
 	AdjustToMinimum  bool
 	AddSender        bool
 	AddConstraints   [][]byte
+	UnlockData       []*UnlockData
+}
+
+type UnlockData struct {
+	OutputIndex     byte
+	ConstraintIndex byte
+	Data            []byte
 }
 
 func NewTransferData(senderKey ed25519.PrivateKey, sourceAccount library.Accountable, ts uint32) *TransferData {
@@ -183,6 +190,7 @@ func NewTransferData(senderKey ed25519.PrivateKey, sourceAccount library.Account
 		SourceAccount:    sourceAccount,
 		Timestamp:        ts,
 		AddConstraints:   make([][]byte, 0),
+		UnlockData:       make([]*UnlockData, 0),
 	}
 }
 
@@ -227,6 +235,15 @@ func (t *TransferData) WithChainOutput(out *OutputWithChainID) *TransferData {
 
 func (t *TransferData) WithSender() *TransferData {
 	t.AddSender = true
+	return t
+}
+
+func (t *TransferData) WithUnlockData(consumedOutputIndex, constraintIndex byte, data []byte) *TransferData {
+	t.UnlockData = append(t.UnlockData, &UnlockData{
+		OutputIndex:     consumedOutputIndex,
+		ConstraintIndex: constraintIndex,
+		Data:            data,
+	})
 	return t
 }
 
@@ -355,6 +372,9 @@ func MakeSimpleTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.
 		}
 	}
 
+	for _, un := range par.UnlockData {
+		txb.PutUnlockParams(un.OutputIndex, un.ConstraintIndex, un.Data)
+	}
 	txb.Transaction.Timestamp = ts
 	txb.Transaction.InputCommitment = txb.InputCommitment()
 	txb.SignED25519(par.SenderPrivateKey)

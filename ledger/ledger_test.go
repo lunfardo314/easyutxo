@@ -16,6 +16,7 @@ import (
 	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"github.com/lunfardo314/easyutxo/ledger/utxodb"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/blake2b"
 )
 
 func TestOutput(t *testing.T) {
@@ -857,4 +858,80 @@ func TestLocalLibrary(t *testing.T) {
 		t.Logf("src = '%s', len = %d", src, len(libBin))
 		easyfl.MustError(src)
 	})
+}
+
+func TestHashUnlock(t *testing.T) {
+	const secretUnlockScript = "func fun1: and" // always returns true
+	libBin, err := library.CompileLocalLibrary(secretUnlockScript)
+	require.NoError(t, err)
+	t.Logf("library size: %d", len(libBin))
+	libHash := blake2b.Sum256(libBin)
+	t.Logf("library hash: %s", easyfl.Fmt(libHash[:]))
+
+	u := utxodb.NewUTXODB(true)
+	privKey0, _, addr0 := u.GenerateAddress(0)
+	err = u.TokensFromFaucet(addr0, 10000)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+	constraintSource := fmt.Sprintf("or(isPathToProducedOutput(@),callLocalLibrary(selfHashUnlock(0x%s), 0))", hex.EncodeToString(libHash[:]))
+	_, _, constraintBin, err := easyfl.CompileExpression(constraintSource)
+	require.NoError(t, err)
+	t.Logf("constraint source: %s", constraintSource)
+	t.Logf("constraint size: %d", len(constraintBin))
+
+	par, err := u.MakeTransferData(privKey0, nil, 0)
+	require.NoError(t, err)
+	constr := library.NewGeneralScript(constraintBin)
+	t.Logf("constraint: %s", constr)
+	par.WithAmount(1000).
+		WithTargetLock(addr0).
+		WithConstraint(constr)
+	txbytes, err := txbuilder.MakeTransferTransaction(par)
+	require.NoError(t, err)
+
+	ctx, err := state.ValidationContextFromTransaction(txbytes, u.StateAccess())
+	require.NoError(t, err)
+
+	t.Logf("%s", txbuilder.ValidationContextToString(ctx))
+	outsData, err := u.DoTransferOutputs(par)
+	require.NoError(t, err)
+
+	outs, err := txbuilder.ParseAndSortOutputData(outsData, func(o *txbuilder.Output) bool {
+		return o.Amount() == 1000
+	})
+	require.NoError(t, err)
+
+	// produce transaction without providing hash unlocking library for the output with script
+	par = txbuilder.NewTransferData(privKey0, addr0, 0)
+	par.WithOutputs(outs).
+		WithAmount(1000).
+		WithTargetLock(addr0)
+
+	txbytes, err = txbuilder.MakeTransferTransaction(par)
+	require.NoError(t, err)
+
+	ctx, err = state.ValidationContextFromTransaction(txbytes, u.StateAccess())
+	require.NoError(t, err)
+
+	t.Logf("---- transaction without hash unlock: FAILING %s", txbuilder.ValidationContextToString(ctx))
+	err = u.DoTransfer(par)
+	require.Error(t, err)
+
+	// now adding unlock data the unlocking library/script
+	par.WithUnlockData(0, 3, libBin)
+
+	txbytes, err = txbuilder.MakeTransferTransaction(par)
+	require.NoError(t, err)
+
+	ctx, err = state.ValidationContextFromTransaction(txbytes, u.StateAccess())
+	require.NoError(t, err)
+
+	t.Logf("---- transaction with hash unlock, the library/script: SUCCESS %s", txbuilder.ValidationContextToString(ctx))
+	t.Logf("%s", txbuilder.ValidationContextToString(ctx))
+	err = u.DoTransfer(par)
+	require.NoError(t, err)
 }

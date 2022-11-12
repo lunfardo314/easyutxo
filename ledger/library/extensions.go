@@ -165,6 +165,9 @@ func init() {
 	// path referenced by the reference unlock params
 	easyfl.Extend("selfReferencedPath", "concat(selfBranch, selfUnlockParameters, selfBlockIndex)")
 
+	// returns selfUnlockParameters if blake2b hash of it is equal to the given hash, otherwise nil
+	easyfl.Extend("selfHashUnlock", "if(equal($0, blake2b(selfUnlockParameters)),selfUnlockParameters,nil)")
+
 	// takes ED25519 signature from full signature, first 64 bytes
 	easyfl.Extend("signatureED25519", "slice($0, 0, 63)")
 	// takes ED25519 public key from full signature
