@@ -103,6 +103,10 @@ func (v *ValidationContext) InputCommitment() []byte {
 	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputCommitment))
 }
 
+func (v *ValidationContext) Signature() []byte {
+	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxSignature))
+}
+
 func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.OutputID) bool) {
 	v.tree.ForEach(func(i byte, data []byte) bool {
 		oid, err := ledger.OutputIDFromBytes(data)

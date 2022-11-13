@@ -6,6 +6,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger/state"
+	"golang.org/x/crypto/blake2b"
 )
 
 func ValidationContextToString(v *state.ValidationContext) string {
@@ -14,6 +15,12 @@ func ValidationContextToString(v *state.ValidationContext) string {
 	tsBin, ts := v.TimestampData()
 	ret += fmt.Sprintf("Timestamp: %s (%d)\n", easyfl.Fmt(tsBin), ts)
 	ret += fmt.Sprintf("Input commitment: %s\n", easyfl.Fmt(v.InputCommitment()))
+	sign := v.Signature()
+	ret += fmt.Sprintf("Signature: %s\n", easyfl.Fmt(sign))
+	if len(sign) == 96 {
+		sender := blake2b.Sum256(sign[64:])
+		ret += fmt.Sprintf("     ED25519 sender address: %s\n", easyfl.Fmt(sender[:]))
+	}
 
 	ret += "Inputs (consumed outputs): \n"
 	for i := byte(0); int(i) < v.NumInputs(); i++ {
