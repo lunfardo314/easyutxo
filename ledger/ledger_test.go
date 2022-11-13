@@ -122,7 +122,23 @@ func TestMainConstraints(t *testing.T) {
 		in.SenderPrivateKey = privKeyWrong
 		require.NoError(t, err)
 		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1000))
-		easyfl.RequireErrorWith(t, err, "failed")
+		easyfl.RequireErrorWith(t, err, "addressED25519 unlock failed")
+	})
+	t.Run("not enough deposit", func(t *testing.T) {
+		u := utxodb.NewUTXODB(true)
+		privKey1, _, addr1 := u.GenerateAddress(1)
+		err := u.TokensFromFaucet(addr1, 10000)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+		require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+		require.EqualValues(t, 10000, u.Balance(addr1))
+		require.EqualValues(t, 1, u.NumUTXOs(addr1))
+
+		_, _, addrNext := u.GenerateAddress(2)
+		in, err := u.MakeTransferData(privKey1, nil, 0)
+		require.NoError(t, err)
+		err = u.DoTransfer(in.WithTargetLock(addrNext).WithAmount(1))
+		easyfl.RequireErrorWith(t, err, "not enough storage deposit")
 	})
 }
 

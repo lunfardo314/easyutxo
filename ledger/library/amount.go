@@ -9,9 +9,13 @@ import (
 )
 
 const amountSource = `
-func storageDepositEnough: greaterOrEqualThan(
-	$0,
-	concat(u32/0, mul16_32(vbCost16,len16(selfOutputBytes)))
+func storageDepositEnough: if(
+	greaterOrEqualThan(
+		$0,
+		concat(u32/0, mul16_32(vbCost16,len16(selfOutputBytes)))
+	),
+	true,
+	!!!not_enough_storage_deposit
 )
 
 // $0 - amount uint64 big-endian
