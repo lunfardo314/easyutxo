@@ -46,7 +46,7 @@ The above makes _EasyUTXO_ a powerful yet safe architectural abstraction layer f
 
 ### Output
 UTXO ledger consists of UTXOs (**U**nspent **T**ransa**X**ion **O**utputs). Each output is an array of _constraints_:
-_(C1, C1m ..., CN)_. Each constraint _Ci_ is an _EasyFL_ expression (formula) in its compressed binary form.
+_(C1, C1m ..., CN)_. Each constraint _Ci_ is an _EasyFL_ expression (formula) in its bytecode form.
 
 For the output to be valid, all constraints of the output are evaluated. If all formulas does not panic and return _true_, 
 the output is valid. If constraint evaluates to _false_ or panics, the whole output is invalidated.
@@ -120,18 +120,18 @@ Example of user-readable transaction printout:
 ```
 
 Example of output constraint in _EasyFL_ (`timelock` in this case):
-```Go
+```go
 // enforces output can be unlocked only after specified time
 // $0 is Unix seconds of the time lock
 func timelock: or(
-	and( 
-		isPathToProducedOutput(@), 
-		equal(len8($0), 4),             // must be 4-bytes long
-		lessThan(txTimestampBytes, $0)  // time lock must be after the transaction (not very necessary)
-	), 
-	and( 
-		isPathToConsumedOutput(@), 
-		lessThan($0, txTimestampBytes)  // is unlocked if tx timestamp is strongly after the time lock 
-	) 
+    and(
+        selfIsProducedOutput,
+        equal(len8($0), 4),             // must be 4-bytes long
+        lessThan(txTimestampBytes, $0)  // time lock must be after the transaction (not very necessary)
+    ),
+    and(
+        selfIsConsumedOutput,
+        lessThan($0, txTimestampBytes)  // is unlocked if tx timestamp is strongly after the time lock 
+    )
 )
 ```
