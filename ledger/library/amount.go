@@ -22,9 +22,9 @@ func storageDepositEnough: if(
 func amount: and(
 	equal(selfBlockIndex,0), // amount must be at block 0
 	or(
-		isPathToConsumedOutput(@),               // not checked in consumed branch
+		selfIsConsumedOutput,               // not checked in consumed branch
 		and(
-			isPathToProducedOutput(@),           // checked in produced branch
+			selfIsProducedOutput,           // checked in produced branch
 			equal(len8($0),8),             // length must be 8
 			storageDepositEnough($0)       // must satisfy minimum storage deposit requirements
 		)
@@ -63,7 +63,7 @@ func initAmountConstraint() {
 	easyfl.MustExtendMany(amountSource)
 	// sanity check
 	example := NewAmount(1337)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
+	sym, prefix, args, err := easyfl.ParseBytecodeOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	amountBin := easyfl.StripDataPrefix(args[0])
 	common.Assert(sym == amountName && len(amountBin) == 8 && binary.BigEndian.Uint64(amountBin) == 1337, "'amount' consistency check failed")
@@ -73,7 +73,7 @@ func initAmountConstraint() {
 }
 
 func AmountFromBytes(data []byte) (Amount, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data)
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data)
 	if err != nil {
 		return 0, err
 	}

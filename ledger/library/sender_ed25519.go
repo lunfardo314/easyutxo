@@ -39,7 +39,7 @@ func (s *SenderAddressED25519) source() string {
 }
 
 func SenderAddressED25519FromBytes(data []byte) (*SenderAddressED25519, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func initSenderConstraint() {
 
 	addr := AddressED25519Null()
 	example := NewSenderAddressED25519(addr)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
+	sym, prefix, args, err := easyfl.ParseBytecodeOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	addrBin := easyfl.StripDataPrefix(args[0])
 	common.Assert(sym == SenderAddressED25519Name && bytes.Equal(addrBin, addr), "inconsistency in 'senderAddressED25519'")
@@ -71,9 +71,9 @@ func initSenderConstraint() {
 const senderAddressED25519Source = `
 // $0 - address 
 func senderAddressED25519: or(
-	isPathToConsumedOutput(@),
+	selfIsConsumedOutput,
 	and(
-		isPathToProducedOutput(@),
+		selfIsProducedOutput,
 		equal(
        		$0, 
 			blake2b(publicKeyED25519(txSignature))

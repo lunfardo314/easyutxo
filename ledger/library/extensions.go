@@ -148,6 +148,9 @@ func init() {
 	// call prefix of the invoked constraints
 	easyfl.Extend("selfCallPrefix", "parseCallPrefix(self)")
 
+	easyfl.Extend("selfIsConsumedOutput", "isPathToConsumedOutput(@)")
+	easyfl.Extend("selfIsProducedOutput", "isPathToProducedOutput(@)")
+
 	// output index of the invocation
 	easyfl.Extend("selfOutputIndex", "byte(@, 2)")
 	// block index of the invocation

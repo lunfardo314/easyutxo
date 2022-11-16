@@ -282,7 +282,7 @@ func TestDeadlineLock(t *testing.T) {
 		library.AddressED25519FromPublicKey(pubKey0),
 	)
 	t.Logf("deadline lock: %d bytes", len(deadlineLock.Bytes()))
-	dis, err := easyfl.DecompileBinary(deadlineLock.Bytes())
+	dis, err := easyfl.DecompileBytecode(deadlineLock.Bytes())
 	require.NoError(t, err)
 	t.Logf("disassemble deadlock %s", dis)
 	_, err = u.DoTransferTx(par.

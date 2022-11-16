@@ -93,7 +93,7 @@ func (ch *ChainConstraint) ChainLock() ChainLock {
 }
 
 func ChainConstraintFromBytes(data []byte) (*ChainConstraint, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func initChainConstraint() {
 	easyfl.AssertNoError(err)
 	easyfl.Assert(bytes.Equal(back.Bytes(), example.Bytes()), "inconsistency in "+ChainConstraintName)
 
-	_, prefix, _, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
+	_, prefix, _, err := easyfl.ParseBytecodeOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 
 	registerConstraint(ChainConstraintName, prefix, func(data []byte) (Constraint, error) {
@@ -217,7 +217,7 @@ func chainSuccessorData :
 func chainTransition : or(
 	and(
 		// 'consumed' side case, checking if unlock params and successor is valid
-		isPathToConsumedOutput(@),
+		selfIsConsumedOutput,
 		or(
 			equal(selfUnlockParameters, destroyUnlockParams),  // consumed chain output is being destroyed
 			validSuccessorData($0, chainSuccessorData)     // or it must be unlocked by pointing to the successor
@@ -226,7 +226,7 @@ func chainTransition : or(
 	), 
 	and(
 		// 'produced' side case checking if predecessor is valid
-		isPathToProducedOutput(@),
+		selfIsProducedOutput,
 		validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) ))
 	)
 )
@@ -241,7 +241,7 @@ func chain: and(
 			// if it is produced output with zero-chainID, it must have all valid constraint data of the origin
 			and(
 				isZero(chainID($0)),
-				isPathToProducedOutput(@)
+				selfIsProducedOutput
 			),
 			equal($0, originChainData),  // enforcing reserved values at origin
 			nil	

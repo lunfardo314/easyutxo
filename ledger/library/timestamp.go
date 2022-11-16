@@ -13,8 +13,8 @@ const timestampSource = `
 func timestamp: and(
 	equal(selfBlockIndex,1),  // must be a block 1
 	or(
-		and( isPathToProducedOutput(@), equal($0, txTimestampBytes) ),
-		and( isPathToConsumedOutput(@), lessThan($0, txTimestampBytes) )	
+		and( selfIsProducedOutput, equal($0, txTimestampBytes) ),
+		and( selfIsConsumedOutput, lessThan($0, txTimestampBytes) )	
 	)
 )
 `
@@ -47,7 +47,7 @@ func NewTimestamp(unixSec uint32) Timestamp {
 }
 
 func TimestampFromBytes(data []byte) (Timestamp, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 1)
 	if err != nil {
 		return 0, err
 	}
@@ -62,7 +62,7 @@ func initTimestampConstraint() {
 	easyfl.MustExtendMany(timestampSource)
 
 	example := NewTimestamp(1337)
-	sym, prefix, args, err := easyfl.ParseBinaryOneLevel(example.Bytes(), 1)
+	sym, prefix, args, err := easyfl.ParseBytecodeOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	tsBin := easyfl.StripDataPrefix(args[0])
 	common.Assert(sym == timestampName && len(tsBin) == 4 && binary.BigEndian.Uint32(tsBin) == 1337, "'timestamp' consistency check failed")

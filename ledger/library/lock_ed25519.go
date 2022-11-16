@@ -18,7 +18,7 @@ const (
 )
 
 func AddressED25519FromBytes(data []byte) (AddressED25519, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func initAddressED25519Constraint() {
 	easyfl.AssertNoError(err)
 	easyfl.Assert(Equal(addrBack, AddressED25519Null()), "inconsistency "+addressED25519Name)
 
-	prefix, err := easyfl.ParseCallPrefixFromBinary(example.Bytes())
+	prefix, err := easyfl.ParseCallPrefixFromBytecode(example.Bytes())
 	easyfl.AssertNoError(err)
 
 	registerConstraint(addressED25519Name, prefix, func(data []byte) (Constraint, error) {
@@ -92,12 +92,14 @@ func initAddressED25519Constraint() {
 const AddressED25519ConstraintSource = `
 
 // ED25519 address constraint wraps 32 bytes address, the blake2b hash of the public key
+// For example expression 'addressED25519(0x010203040506..)' used as constraint in the output makes 
+// the output unlockable only with the presence of signature correspomding 
+// to the address '0x010203040506..'
 
 // $0 = address data 32 bytes
 // $1 = signature
 // $2 = public key
-// return true if transaction essence signature is valid for the address 
-
+// return true if transaction essence signature is valid for the address
 func unlockedWithSigED25519: and(
 	equal($0, blake2b($2)), 		       // address in the address data must be equal to the hash of the public key
 	validSignatureED25519(txEssenceBytes, $1, $2)
@@ -106,7 +108,6 @@ func unlockedWithSigED25519: and(
 // 'unlockedByReference'' specifies validation of the input unlock with the reference.
 // The referenced constraint must be exactly the same  but with strictly lesser index.
 // This prevents from cycles and forces some other unlock mechanism up in the list of outputs
-
 func unlockedByReference: and(
 	lessThan(selfUnlockParameters, selfOutputIndex),              // unlock parameter must point to another input with 
 							                                      // strictly smaller index. This prevents reference cycles	
@@ -115,18 +116,17 @@ func unlockedByReference: and(
 
 // if it is 'produced' invocation context (constraint invoked in the input), only size of the address is checked
 // Otherwise the first will check first condition if it is unlocked by reference, otherwise checks unlocking signature
-// Second condition not evaluated if the first is true 
-
+// Second condition not evaluated if the first is true
 // $0 - ED25519 address, 32 byte blake2b hash of the public key
 func addressED25519: and(
 	equal(selfBlockIndex,2), // locks must be at block 2
 	or(
 		and(
-			isPathToProducedOutput(@), 
+			selfIsProducedOutput, 
 			equal(len8($0), 32) 
 		),
 		and(
-			isPathToConsumedOutput(@), 
+			selfIsConsumedOutput, 
 			or(
 					// if it is unlocked with reference, the signature is not checked
 				unlockedByReference,
@@ -137,5 +137,4 @@ func addressED25519: and(
 		!!!addressED25519_unlock_failed
 	)
 )
-
 `

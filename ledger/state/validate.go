@@ -239,7 +239,7 @@ func (v *ValidationContext) runOutput(consumedBranch bool, outputArray *lazyslic
 		}
 		if len(res) == 0 {
 			var decomp string
-			decomp, err = easyfl.DecompileBinary(data)
+			decomp, err = easyfl.DecompileBytecode(data)
 			if err != nil {
 				decomp = fmt.Sprintf("(error while decompiling constraint 'name': '%v')", err)
 			}
@@ -334,7 +334,7 @@ func constraintName(binCode []byte) string {
 	if binCode[0] == 0 {
 		return "array_constraint"
 	}
-	prefix, err := easyfl.ParseCallPrefixFromBinary(binCode)
+	prefix, err := easyfl.ParseCallPrefixFromBytecode(binCode)
 	if err != nil {
 		return fmt.Sprintf("unknown_constraint(%s)", easyfl.Fmt(binCode))
 	}

@@ -21,7 +21,7 @@ func (u GeneralScript) Bytes() []byte {
 }
 
 func (u GeneralScript) String() string {
-	src, err := easyfl.DecompileBinary(u)
+	src, err := easyfl.DecompileBytecode(u)
 	if err != nil {
 		src = fmt.Sprintf("failed decompile")
 	}

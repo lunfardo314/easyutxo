@@ -27,7 +27,7 @@ func ChainLockNull() ChainLock {
 }
 
 func ChainLockFromBytes(data []byte) (ChainLock, error) {
-	sym, _, args, err := easyfl.ParseBinaryOneLevel(data, 1)
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func initChainLockConstraint() {
 	easyfl.AssertNoError(err)
 	easyfl.Assert(Equal(chainLockBack, ChainLockNull()), "inconsistency "+ChainLockName)
 
-	prefix, err := easyfl.ParseCallPrefixFromBinary(example.Bytes())
+	prefix, err := easyfl.ParseCallPrefixFromBytecode(example.Bytes())
 	easyfl.AssertNoError(err)
 
 	registerConstraint(ChainLockName, prefix, func(data []byte) (Constraint, error) {
@@ -127,11 +127,11 @@ func chainLock : and(
 	equal(selfBlockIndex,2), // locks must be at block 2
 	or(
 		and(
-			isPathToProducedOutput(@), 
+			selfIsProducedOutput, 
 			equal(len8($0),32)
 		),
 		and(
-			isPathToConsumedOutput(@),
+			selfIsConsumedOutput,
 			not(equal(selfOutputIndex, byte(selfUnlockParameters,0))), // prevent self referencing 
 			validChainUnlock($0)
 		)
