@@ -1,9 +1,10 @@
 # EasyUTXO
 A simple yet extendable, programmable and powerful UTXO ledger model with advanced concepts
 
-EasyUTXO is a work in progress. This _readme_ is preliminary
+_EasyUTXO_ at this stage is PoC, however it has intention to become a fully-functional UTXO ledger used in DLT projects.
 
-Here is a [preliminary presentation](https://hackmd.io/@Evaldas/S14WHOKMi) of the **EasyFL** functional constraint language 
+_EasyUTXO_ uses [EasyFL](https://github.com/lunfardo314/easyfl) as the language for its functional constraints. Here is 
+a [dexription of EasyFL](https://hackmd.io/@Evaldas/S14WHOKMi). 
 
 ## Introduction
 
