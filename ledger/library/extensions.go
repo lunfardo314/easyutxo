@@ -108,6 +108,12 @@ func init() {
 	easyfl.Extend("timestampBlockIndex", fmt.Sprintf("%d", ConstraintIndexTimestamp))
 	easyfl.Extend("lockBlockIndex", fmt.Sprintf("%d", ConstraintIndexLock))
 
+	// mandatory constraints and values
+	easyfl.Extend("amountConstraint", "@Array8($0, amountBlockIndex)")
+
+	easyfl.Extend("timestampConstraint", "@Array8($0, timestampBlockIndex)")
+	easyfl.Extend("lockConstraint", "@Array8($0, lockBlockIndex)")
+
 	// recognize what kind of path
 	easyfl.Extend("isPathToConsumedOutput", "hasPrefix($0, pathToConsumedOutputs)")
 	easyfl.Extend("isPathToProducedOutput", "hasPrefix($0, pathToProducedOutputs)")
@@ -188,6 +194,8 @@ func init() {
 	initSenderConstraint()
 	initChainConstraint()
 	initChainLockConstraint()
+	initChainRoyaltiesConstraint()
+	initImmutableDataConstraint()
 
 	easyfl.PrintLibraryStats()
 }

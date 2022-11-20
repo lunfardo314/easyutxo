@@ -951,3 +951,7 @@ func TestHashUnlock(t *testing.T) {
 	err = u.DoTransfer(par)
 	require.NoError(t, err)
 }
+
+func TestBBB(t *testing.T) {
+	t.Logf("ts = %d", uint32(time.Now().Unix()))
+}
