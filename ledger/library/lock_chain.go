@@ -89,7 +89,7 @@ func initChainLockConstraint() {
 	easyfl.AssertNoError(err)
 	easyfl.Assert(Equal(chainLockBack, ChainLockNull()), "inconsistency "+ChainLockName)
 
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(example.Bytes())
+	prefix, err := easyfl.ParseBytecodePrefix(example.Bytes())
 	easyfl.AssertNoError(err)
 
 	registerConstraint(ChainLockName, prefix, func(data []byte) (Constraint, error) {
@@ -100,7 +100,7 @@ func initChainLockConstraint() {
 const ChainLockConstraintSource = `
 
 func selfReferencedChainData :
-	parseCallArg(
+	parseBytecodeArg(
 		consumedConstraintByIndex(selfUnlockParameters),
 		#chain,
 		0

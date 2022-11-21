@@ -81,7 +81,7 @@ func initAddressED25519Constraint() {
 	easyfl.AssertNoError(err)
 	easyfl.Assert(Equal(addrBack, AddressED25519Null()), "inconsistency "+addressED25519Name)
 
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(example.Bytes())
+	prefix, err := easyfl.ParseBytecodePrefix(example.Bytes())
 	easyfl.AssertNoError(err)
 
 	registerConstraint(addressED25519Name, prefix, func(data []byte) (Constraint, error) {

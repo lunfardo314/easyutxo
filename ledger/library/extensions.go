@@ -145,14 +145,14 @@ func init() {
 	easyfl.Extend("txEssenceBytes", "concat(@Path(pathToInputIDs), @Path(pathToProducedOutputs), @Path(pathToInputCommitment))") // timestamp is not a part of the essence
 
 	easyfl.Extend("selfOutputPath", "slice(@,0,2)")
-	easyfl.Extend("selfSiblingBlock", "@Array8(@Path(selfOutputPath), $0)")
+	easyfl.Extend("selfSiblingConstraint", "@Array8(@Path(selfOutputPath), $0)")
 	easyfl.Extend("selfOutputBytes", "@Path(selfOutputPath)")
 
 	// unlock param branch (0 - transaction, 0 unlock params)
 	// invoked output block
 	easyfl.Extend("self", "@Path(@)")
 	// call prefix of the invoked constraints
-	easyfl.Extend("selfCallPrefix", "parseCallPrefix(self)")
+	easyfl.Extend("selfCallPrefix", "parseBytecodePrefix(self)")
 
 	easyfl.Extend("selfIsConsumedOutput", "isPathToConsumedOutput(@)")
 	easyfl.Extend("selfIsProducedOutput", "isPathToProducedOutput(@)")
@@ -173,6 +173,8 @@ func init() {
 	easyfl.Extend("selfUnlockParameters", "@Path(concat(pathToUnlockParams, selfConstraintIndex))")
 	// path referenced by the reference unlock params
 	easyfl.Extend("selfReferencedPath", "concat(selfBranch, selfUnlockParameters, selfBlockIndex)")
+	// returns unlock block of the sibling
+	easyfl.Extend("selfSiblingUnlockBlock", "@Array8(@Path(concat(pathToUnlockParams, selfOutputIndex)), $0)")
 
 	// returns selfUnlockParameters if blake2b hash of it is equal to the given hash, otherwise nil
 	easyfl.Extend("selfHashUnlock", "if(equal($0, blake2b(selfUnlockParameters)),selfUnlockParameters,nil)")
@@ -185,9 +187,6 @@ func init() {
 	// init constraints
 	initAmountConstraint()
 	initTimestampConstraint()
-	// returns timestamp of the current output
-	easyfl.Extend("selfTimestamp", "parseCallArg(selfSiblingBlock(timestampBlockIndex),#timestamp,0)")
-
 	initAddressED25519Constraint()
 	initDeadlineLockConstraint()
 	initTimelockConstraint()
@@ -195,7 +194,7 @@ func init() {
 	initChainConstraint()
 	initChainLockConstraint()
 	initChainRoyaltiesConstraint()
-	initImmutableDataConstraint()
+	initImmutableConstraint()
 
 	easyfl.PrintLibraryStats()
 }

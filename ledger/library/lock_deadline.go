@@ -69,7 +69,7 @@ func initDeadlineLockConstraint() {
 	easyfl.Assert(Equal(lockBack.ConstraintMain, AddressED25519Null()), "inconsistency "+deadlineLockName)
 	easyfl.Assert(Equal(lockBack.ConstraintExpiry, AddressED25519Null()), "inconsistency "+deadlineLockName)
 
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(example.Bytes())
+	prefix, err := easyfl.ParseBytecodePrefix(example.Bytes())
 	easyfl.AssertNoError(err)
 
 	registerConstraint(deadlineLockName, prefix, func(data []byte) (Constraint, error) {

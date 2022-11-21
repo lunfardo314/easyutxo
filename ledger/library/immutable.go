@@ -1,101 +1,132 @@
 package library
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
 )
 
-// the ImmutableData constraint forces teh same data to be repeated on the successor of the chain
-
-type ImmutableData struct {
-	Data            []byte
+// Immutable constraint forces the specified DataBlock to be repeated on the successor of the specified chain
+type Immutable struct {
 	ChainBlockIndex byte
+	DataBlockIndex  byte
 }
 
 const (
-	ImmutableDataName     = "immutableData"
-	immutableDataTemplate = ImmutableDataName + "(0x%s, %d)"
+	ImmutableName     = "immutable"
+	immutableTemplate = ImmutableName + "(0x%s)"
 )
 
-func NewImmutableData(data []byte, chainBlockIndex byte) *ImmutableData {
-	return &ImmutableData{
-		Data:            data,
+func NewImmutable(chainBlockIndex, dataBlockIndex byte) *Immutable {
+	return &Immutable{
 		ChainBlockIndex: chainBlockIndex,
+		DataBlockIndex:  dataBlockIndex,
 	}
 }
 
-func ImmutableDataFromBytes(data []byte) (*ImmutableData, error) {
-	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 2)
+func ImmutableFromBytes(data []byte) (*Immutable, error) {
+	sym, _, args, err := easyfl.ParseBytecodeOneLevel(data, 1)
 	if err != nil {
 		return nil, err
 	}
-	if sym != ImmutableDataName {
-		return nil, fmt.Errorf("not a ImmutableData")
+	if sym != ImmutableName {
+		return nil, fmt.Errorf("not a Immutable")
 	}
 	d := easyfl.StripDataPrefix(args[0])
-	if err != nil {
-		return nil, err
+	if len(d) != 2 {
+		return nil, fmt.Errorf("can't parse Immutable")
 	}
-	idxBin := easyfl.StripDataPrefix(args[1])
-	if len(idxBin) != 1 {
-		return nil, fmt.Errorf("wrong chain block index")
-	}
-	return NewImmutableData(d, idxBin[0]), nil
+	return NewImmutable(d[0], d[1]), nil
 }
 
-func (d *ImmutableData) source() string {
-	return fmt.Sprintf(immutableDataTemplate, hex.EncodeToString(d.Data), d.ChainBlockIndex)
+func (d *Immutable) source() string {
+	return fmt.Sprintf(immutableTemplate, hex.EncodeToString([]byte{d.ChainBlockIndex, d.DataBlockIndex}))
 }
 
-func (d *ImmutableData) Bytes() []byte {
+func (d *Immutable) Bytes() []byte {
 	return mustBinFromSource(d.source())
 }
 
-func (d *ImmutableData) Name() string {
-	return ImmutableDataName
+func (d *Immutable) Name() string {
+	return ImmutableName
 }
 
-func (d *ImmutableData) String() string {
+func (d *Immutable) String() string {
 	return d.source()
 }
 
-func initImmutableDataConstraint() {
+func initImmutableConstraint() {
 	easyfl.MustExtendMany(ImmutableDataSource)
 
-	data := []byte("some data")
-	example := NewImmutableData(data, 5)
-	immutableDataBack, err := ImmutableDataFromBytes(example.Bytes())
+	example := NewImmutable(1, 5)
+	immutableDataBack, err := ImmutableFromBytes(example.Bytes())
 	easyfl.AssertNoError(err)
-	easyfl.Assert(bytes.Equal(data, immutableDataBack.Data), "inconsistency "+ImmutableDataName)
-	easyfl.Assert(immutableDataBack.ChainBlockIndex == 5, "inconsistency "+ImmutableDataName)
+	easyfl.Assert(immutableDataBack.DataBlockIndex == 5, "inconsistency "+ImmutableName)
+	easyfl.Assert(immutableDataBack.ChainBlockIndex == 1, "inconsistency "+ImmutableName)
 
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(example.Bytes())
+	prefix, err := easyfl.ParseBytecodePrefix(example.Bytes())
 	easyfl.AssertNoError(err)
 
-	registerConstraint(ImmutableDataName, prefix, func(data []byte) (Constraint, error) {
-		return ImmutableDataFromBytes(data)
+	registerConstraint(ImmutableName, prefix, func(data []byte) (Constraint, error) {
+		return ImmutableFromBytes(data)
 	})
 }
 
-// Unlock params must point to the output which sends at least specified amount of tokens to the same address
-// where the sender is locked
-
 const ImmutableDataSource = `
 
-// $0 - the data
-// $1 - index of the chain block
-func immutableData : or(
+// constraint 'immutable(c,d)'' (c and d are 1-byte arrays) makes the sibling constraint referenced by index d immutable in the chain
+// which the sibling 'chain(..) constraint referenced by c.
+// It requires unlock parameters 2-byte long:
+// byte 0 points to the sibling block of the chain successor in 'produced' side
+// byte 1 point to the successor of the 'immutable' constraint itself
+// The block must be exactly equal to the data block in the predecessor
+
+// $0 - 2-byte array. [0] is chain block index, [1] - data block index
+func immutable : or(
 	and(
-		selfIsProducedOutput,
-		equal(parseCallPrefix(selfSiblingBlock($1)), #chain), // $1 must point to the sibling-chain constraint
+		selfIsProducedOutput,  // produced side
+
+		equal(
+			// 1st byte must point to the sibling-chain constraint
+			parseBytecodePrefix(selfSiblingConstraint(byte($0,0))), 
+			#chain
+		), 
+		selfSiblingConstraint(byte($0,1))                                  // 2nd byte must point to existing non-empty block
 	),
 	and(
-		selfIsConsumedOutput,
-		$0 // the successor must have the same data TODO
+		selfIsConsumedOutput,  // consumed side
+		// we do not need to check correctness of the referenced chain constraint because it was 
+		// already checked on the 'produced side
+		equal(
+			// referenced sibling constraint must repeat the data-constraint referenced in the unlock parameters
+			// on the successor side. This is exact definition of immutability
+			selfSiblingConstraint(byte($0,1)),  
+			producedConstraintByIndex(
+				concat(
+					selfSiblingUnlockBlock(byte($0,0)), // successor output index
+					byte(selfUnlockParameters, 0)       // successor immutable data index
+				)
+			)
+		),
+		equal(
+			// the 'immutable' constraint must repeat itself on the successor side too
+			parseBytecodeArg(
+				producedConstraintByIndex(
+					concat(
+						selfSiblingUnlockBlock(byte($0,1)), // successor output index
+						byte(selfUnlockParameters, 1)       // successor 'immutable' constraint index
+					)
+				),
+				selfCallPrefix,
+				0
+			),
+			concat(
+				selfSiblingUnlockBlock(byte($0,1)),  // chain successor block index
+				byte(selfUnlockParameters, 0)        // reference to the immutable data block
+			)
+		)
 	),
-	!!!immutableData_constraint_failed
+	!!!immutable_constraint_failed
 )
 `

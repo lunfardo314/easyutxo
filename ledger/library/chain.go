@@ -183,7 +183,7 @@ func validPredecessorData : and(
 
 // $0 - predecessor constraint index
 func chainPredecessorData: 
-	parseCallArg(
+	parseBytecodeArg(
 		consumedConstraintByIndex($0),
 		selfCallPrefix,
 		0
@@ -206,7 +206,7 @@ func validSuccessorData : and(
 // chain successor data is computed form in the context of the consumed output
 // from the selfUnlock data
 func chainSuccessorData : 
-	parseCallArg(
+	parseBytecodeArg(
 		producedConstraintByIndex(slice(selfUnlockParameters,0,1)),
 		selfCallPrefix,
 		0

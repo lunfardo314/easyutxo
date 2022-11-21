@@ -88,7 +88,7 @@ func Equal(l1, l2 Constraint) bool {
 }
 
 func FromBytes(data []byte) (Constraint, error) {
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(data)
+	prefix, err := easyfl.ParseBytecodePrefix(data)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (acc AccountID) Bytes() []byte {
 }
 
 func LockFromBytes(data []byte) (Lock, error) {
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(data)
+	prefix, err := easyfl.ParseBytecodePrefix(data)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func LockFromBytes(data []byte) (Lock, error) {
 }
 
 func AccountableFromBytes(data []byte) (Accountable, error) {
-	prefix, err := easyfl.ParseCallPrefixFromBytecode(data)
+	prefix, err := easyfl.ParseBytecodePrefix(data)
 	if err != nil {
 		return nil, err
 	}

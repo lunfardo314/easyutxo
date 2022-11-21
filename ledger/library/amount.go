@@ -33,7 +33,7 @@ func amount: and(
 
 // utility function which extracts amount value from the output
 // $0 - output bytes
-func amountValue : parseCallArg(@Array8($0, amountBlockIndex), #amount,0)
+func amountValue : parseBytecodeArg(@Array8($0, amountBlockIndex), #amount,0)
 `
 
 const (
