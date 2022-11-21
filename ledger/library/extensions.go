@@ -195,6 +195,7 @@ func init() {
 	initChainLockConstraint()
 	initChainRoyaltiesConstraint()
 	initImmutableConstraint()
+	initCommitToSiblingConstraint()
 
 	easyfl.PrintLibraryStats()
 }

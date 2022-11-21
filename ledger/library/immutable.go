@@ -8,6 +8,7 @@ import (
 )
 
 // Immutable constraint forces the specified DataBlock to be repeated on the successor of the specified chain
+
 type Immutable struct {
 	ChainBlockIndex byte
 	DataBlockIndex  byte

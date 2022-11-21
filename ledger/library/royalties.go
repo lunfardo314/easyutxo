@@ -8,7 +8,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 )
 
-// the Immutable constraint forces sending specified amount of tokens to specified address
+// the RoyaltiesED25519 constraint forces sending specified amount of tokens to specified address
 
 type RoyaltiesED25519 struct {
 	Address AddressED25519
@@ -33,7 +33,7 @@ func RoyaltiesED25519FromBytes(data []byte) (*RoyaltiesED25519, error) {
 		return nil, err
 	}
 	if sym != RoyaltiesED25519Name {
-		return nil, fmt.Errorf("not a Immutable")
+		return nil, fmt.Errorf("not a royaltiesED25519")
 	}
 	addrBin := easyfl.StripDataPrefix(args[0])
 	addr, err := AddressED25519FromBytes(addrBin)
