@@ -86,7 +86,6 @@ const ImmutableDataSource = `
 func immutable : or(
 	and(
 		selfIsProducedOutput,  // produced side
-
 		equal(
 			// 1st byte must point to the sibling-chain constraint
 			parseBytecodePrefix(selfSiblingConstraint(byte($0,0))), 
@@ -104,7 +103,7 @@ func immutable : or(
 			selfSiblingConstraint(byte($0,1)),  
 			producedConstraintByIndex(
 				concat(
-					selfSiblingUnlockBlock(byte($0,0)), // successor output index
+					byte(selfSiblingUnlockBlock(byte($0,0)),0), // successor output index
 					byte(selfUnlockParameters, 0)       // successor immutable data index
 				)
 			)
@@ -114,16 +113,16 @@ func immutable : or(
 			parseBytecodeArg(
 				producedConstraintByIndex(
 					concat(
-						selfSiblingUnlockBlock(byte($0,1)), // successor output index
-						byte(selfUnlockParameters, 1)       // successor 'immutable' constraint index
+						byte(selfSiblingUnlockBlock(byte($0,0)),0), // successor output index
+						byte(selfUnlockParameters, 1)               // successor 'immutable' constraint index
 					)
 				),
 				selfCallPrefix,
 				0
 			),
 			concat(
-				selfSiblingUnlockBlock(byte($0,1)),  // chain successor block index
-				byte(selfUnlockParameters, 0)        // reference to the immutable data block
+				byte(selfSiblingUnlockBlock(byte($0,0)),1),  // chain successor block index
+				byte(selfUnlockParameters, 0)                // reference to the immutable data block
 			)
 		)
 	),

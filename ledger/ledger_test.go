@@ -1118,17 +1118,12 @@ func TestImmutable(t *testing.T) {
 	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 
 	chainOut = chainIN.Clone().WithTimestamp(ts)
-	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
-
-	immutableData, err = library.NewGeneralScriptFomSource("concat(0x01020304030201)")
-	require.NoError(t, err)
 
 	succIdx, err = txb.ProduceOutput(chainOut)
 	require.NoError(t, err)
 
 	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
-	txb.PutUnlockParams(predIdx, 5, []byte{4, 5})
-
+	// skip immutable unlock
 	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
 
 	txb.Transaction.Timestamp = ts
@@ -1139,6 +1134,97 @@ func TestImmutable(t *testing.T) {
 	txbytes = txb.Transaction.Bytes()
 	t.Logf("tx3 = %s", u.TxToString(txbytes))
 	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+
+	// fails because wrong unlock parameters
+	easyfl.RequireErrorWith(t, err, "'immutable' failed with error")
+
+	// --------------------------------- transit with wrong immutable data
+	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
 	require.NoError(t, err)
 
+	chainIN, err = txbuilder.OutputFromBytes(chs.OutputData)
+	require.NoError(t, err)
+
+	_, constraintIdx = chainIN.ChainConstraint()
+	require.True(t, constraintIdx != 0xff)
+
+	ts = chainIN.Timestamp() + 1
+	txb = txbuilder.NewTransactionBuilder()
+	predIdx, err = txb.ConsumeOutput(chainIN, chs.ID)
+	require.NoError(t, err)
+
+	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+
+	chainOut = chainIN.Clone().WithTimestamp(ts)
+
+	// put wrong data
+	wrongImmutableData, err := library.NewGeneralScriptFomSource("concat(0x010203040302010000)")
+	require.NoError(t, err)
+	chainOut.PutConstraint(wrongImmutableData.Bytes(), 4)
+
+	succIdx, err = txb.ProduceOutput(chainOut)
+	require.NoError(t, err)
+
+	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
+	// put correct unlock params
+	txb.PutUnlockParams(predIdx, 5, []byte{4, 5})
+
+	// skip immutable unlock
+	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+
+	txb.Transaction.Timestamp = ts
+	txb.Transaction.InputCommitment = txb.InputCommitment()
+
+	txb.SignED25519(privKey)
+
+	txbytes = txb.Transaction.Bytes()
+	t.Logf("tx4 = %s", u.TxToString(txbytes))
+	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+
+	// fails because wrong unlock parameters
+	easyfl.RequireErrorWith(t, err, "'immutable' failed with error")
+
+	// put it all correct
+	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	require.NoError(t, err)
+
+	chainIN, err = txbuilder.OutputFromBytes(chs.OutputData)
+	require.NoError(t, err)
+
+	_, constraintIdx = chainIN.ChainConstraint()
+	require.True(t, constraintIdx != 0xff)
+
+	ts = chainIN.Timestamp() + 1
+	txb = txbuilder.NewTransactionBuilder()
+	predIdx, err = txb.ConsumeOutput(chainIN, chs.ID)
+	require.NoError(t, err)
+
+	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+
+	chainOut = chainIN.Clone().WithTimestamp(ts)
+
+	// put wrong data
+	sameImmutableData, err := library.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	require.NoError(t, err)
+	chainOut.PutConstraint(sameImmutableData.Bytes(), 4)
+
+	succIdx, err = txb.ProduceOutput(chainOut)
+	require.NoError(t, err)
+
+	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
+	// put correct unlock params
+	txb.PutUnlockParams(predIdx, 5, []byte{4, 5})
+
+	// skip immutable unlock
+	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+
+	txb.Transaction.Timestamp = ts
+	txb.Transaction.InputCommitment = txb.InputCommitment()
+
+	txb.SignED25519(privKey)
+
+	txbytes = txb.Transaction.Bytes()
+	t.Logf("tx5 = %s", u.TxToString(txbytes))
+	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+	require.NoError(t, err)
 }
