@@ -81,12 +81,13 @@ func initChainRoyaltiesConstraint() {
 	})
 }
 
-// Unlock params must point to the output which sends at least specified amount of tokens to the same address
-// where the sender is locked
-
 const RoyaltiesED25519Source = `
+// constraint royaltiesED25519($0, $1) enforces sending at least amount $1 to the address $0 
+// The 1-byte long unlock parameters of the constraint must point to the output which sends at least specified amount of 
+// tokens to the lock constraint specified by $0
+
 func royaltiesED25519 : or(
-	selfIsProducedOutput,  // always satisfied if produced
+	selfIsProducedOutput,  // the constrain is always satisfied on 'produced' side'
 	and(
 		selfIsConsumedOutput,
 		equal(

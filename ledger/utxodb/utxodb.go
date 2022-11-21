@@ -277,3 +277,11 @@ func (u *UTXODB) DoTransfer(par *txbuilder.TransferData) error {
 func (u *UTXODB) ValidationContextFromTransaction(txBytes []byte) (*state.ValidationContext, error) {
 	return state.ValidationContextFromTransaction(txBytes, u.state)
 }
+
+func (u *UTXODB) TxToString(txbytes []byte) string {
+	ctx, err := u.ValidationContextFromTransaction(txbytes)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return txbuilder.ValidationContextToString(ctx)
+}

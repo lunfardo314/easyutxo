@@ -952,6 +952,72 @@ func TestHashUnlock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBBB(t *testing.T) {
-	t.Logf("ts = %d", uint32(time.Now().Unix()))
+func TestRoyalties(t *testing.T) {
+	u := utxodb.NewUTXODB(true)
+	privKey0, _, addr0 := u.GenerateAddress(0)
+	err := u.TokensFromFaucet(addr0, 10000)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+	privKey1, _, addr1 := u.GenerateAddress(1)
+	in, err := u.MakeTransferData(privKey0, nil, 0)
+	require.NoError(t, err)
+	royaltiesConstraint := library.NewRoyalties(addr0, 500)
+	royaltiesBytecode := library.NewGeneralScript(royaltiesConstraint.Bytes())
+	in.WithTargetLock(addr1).
+		WithAmount(1000).
+		WithConstraint(royaltiesBytecode)
+
+	txBytes, err := txbuilder.MakeTransferTransaction(in)
+	require.NoError(t, err)
+
+	//t.Logf("tx1 = %s", u.TxToString(txBytes))
+
+	err = u.AddTransaction(txBytes, state.TraceOptionFailedConstraints)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000-1000, int(u.Balance(addr0)))
+	require.EqualValues(t, 1000, int(u.Balance(addr1)))
+	require.EqualValues(t, 1, u.NumUTXOs(addr1))
+	require.EqualValues(t, 1000, u.Balance(addr1))
+	require.EqualValues(t, 1, u.NumUTXOs(addr1))
+
+	// fail because not sending royalties
+	in, err = u.MakeTransferData(privKey1, nil, 0)
+	require.NoError(t, err)
+	in.WithTargetLock(addr1).
+		WithAmount(1000)
+	txBytes, err = txbuilder.MakeTransferTransaction(in)
+	require.NoError(t, err)
+	//t.Logf("tx2 = %s", u.TxToString(txBytes))
+	err = u.AddTransaction(txBytes, state.TraceOptionFailedConstraints)
+	easyfl.RequireErrorWith(t, err, "constraint 'royaltiesED25519' failed")
+
+	// fail because unlock parameters not set properly
+	in, err = u.MakeTransferData(privKey1, nil, 0)
+	require.NoError(t, err)
+	in.WithTargetLock(addr0).
+		WithAmount(1000)
+	txBytes, err = txbuilder.MakeTransferTransaction(in)
+	require.NoError(t, err)
+	//t.Logf("tx3 = %s", u.TxToString(txBytes))
+	err = u.AddTransaction(txBytes, state.TraceOptionFailedConstraints)
+	easyfl.RequireErrorWith(t, err, "constraint 'royaltiesED25519' failed")
+
+	// success
+	in, err = u.MakeTransferData(privKey1, nil, 0)
+	require.NoError(t, err)
+	in.WithTargetLock(addr0).
+		WithAmount(1000).WithUnlockData(0, 3, []byte{0})
+	txBytes, err = txbuilder.MakeTransferTransaction(in)
+	require.NoError(t, err)
+	t.Logf("tx4 = %s", u.TxToString(txBytes))
+	err = u.AddTransaction(txBytes, state.TraceOptionFailedConstraints)
+	require.NoError(t, err)
 }
