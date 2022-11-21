@@ -118,7 +118,7 @@ func immutable : or(
 						byte(selfUnlockParameters, 1)               // successor 'immutable' constraint index
 					)
 				),
-				selfCallPrefix,
+				selfBytecodePrefix,
 				0
 			),
 			concat(

@@ -109,20 +109,21 @@ func init() {
 	easyfl.Extend("lockBlockIndex", fmt.Sprintf("%d", ConstraintIndexLock))
 
 	// mandatory constraints and values
+	// $0 is output binary as lazy array
 	easyfl.Extend("amountConstraint", "@Array8($0, amountBlockIndex)")
-
 	easyfl.Extend("timestampConstraint", "@Array8($0, timestampBlockIndex)")
 	easyfl.Extend("lockConstraint", "@Array8($0, lockBlockIndex)")
 
-	// recognize what kind of path
+	// recognize what kind of path is at $0
 	easyfl.Extend("isPathToConsumedOutput", "hasPrefix($0, pathToConsumedOutputs)")
 	easyfl.Extend("isPathToProducedOutput", "hasPrefix($0, pathToProducedOutputs)")
 
+	// make branch path by index $0
 	easyfl.Extend("consumedOutputPathByIndex", "concat(pathToConsumedOutputs,$0)")
 	easyfl.Extend("unlockParamsPathByIndex", "concat(pathToUnlockParams,$0)")
 	easyfl.Extend("producedOutputPathByIndex", "concat(pathToProducedOutputs,$0)")
 
-	// takes 1-byte as output index
+	// takes 1-byte $0 as output index
 	easyfl.Extend("consumedOutputByIndex", "@Path(consumedOutputPathByIndex($0))")
 	easyfl.Extend("unlockParamsByIndex", "@Path(unlockParamsPathByIndex($0))")
 	easyfl.Extend("producedOutputByIndex", "@Path(producedOutputPathByIndex($0))")
@@ -144,6 +145,9 @@ func init() {
 	easyfl.Extend("txTimestampBytes", "@Path(pathToTimestamp)")
 	easyfl.Extend("txEssenceBytes", "concat(@Path(pathToInputIDs), @Path(pathToProducedOutputs), @Path(pathToInputCommitment))") // timestamp is not a part of the essence
 
+	// functions with prefix 'self' are invocation context specific, i.e. they use function '@' to calculate
+	// local values which depend on the invoked constraint
+
 	easyfl.Extend("selfOutputPath", "slice(@,0,2)")
 	easyfl.Extend("selfSiblingConstraint", "@Array8(@Path(selfOutputPath), $0)")
 	easyfl.Extend("selfOutputBytes", "@Path(selfOutputPath)")
@@ -151,8 +155,8 @@ func init() {
 	// unlock param branch (0 - transaction, 0 unlock params)
 	// invoked output block
 	easyfl.Extend("self", "@Path(@)")
-	// call prefix of the invoked constraints
-	easyfl.Extend("selfCallPrefix", "parseBytecodePrefix(self)")
+	// bytecode prefix of the invoked constraint
+	easyfl.Extend("selfBytecodePrefix", "parseBytecodePrefix(self)")
 
 	easyfl.Extend("selfIsConsumedOutput", "isPathToConsumedOutput(@)")
 	easyfl.Extend("selfIsProducedOutput", "isPathToProducedOutput(@)")

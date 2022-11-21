@@ -185,7 +185,7 @@ func validPredecessorData : and(
 func chainPredecessorData: 
 	parseBytecodeArg(
 		consumedConstraintByIndex($0),
-		selfCallPrefix,
+		selfBytecodePrefix,
 		0
 	)
 
@@ -208,7 +208,7 @@ func validSuccessorData : and(
 func chainSuccessorData : 
 	parseBytecodeArg(
 		producedConstraintByIndex(slice(selfUnlockParameters,0,1)),
-		selfCallPrefix,
+		selfBytecodePrefix,
 		0
 	)
 
