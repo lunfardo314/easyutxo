@@ -63,7 +63,7 @@ func (cl RoyaltiesED25519) String() string {
 	return cl.source()
 }
 
-func initChainRoyaltiesConstraint() {
+func initRoyaltiesED25519Constraint() {
 	easyfl.MustExtendMany(RoyaltiesED25519Source)
 
 	addr0 := AddressED25519Null()

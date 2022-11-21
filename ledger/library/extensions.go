@@ -197,7 +197,7 @@ func init() {
 	initSenderConstraint()
 	initChainConstraint()
 	initChainLockConstraint()
-	initChainRoyaltiesConstraint()
+	initRoyaltiesED25519Constraint()
 	initImmutableConstraint()
 	initCommitToSiblingConstraint()
 
