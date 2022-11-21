@@ -12,6 +12,14 @@ func NewGeneralScript(data []byte) GeneralScript {
 	return data
 }
 
+func NewGeneralScriptFomSource(src string) (GeneralScript, error) {
+	_, _, bytecode, err := easyfl.CompileExpression(src)
+	if err != nil {
+		return nil, err
+	}
+	return bytecode, nil
+}
+
 func (u GeneralScript) Name() string {
 	return "GeneralScript"
 }

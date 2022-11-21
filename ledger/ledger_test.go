@@ -1021,3 +1021,124 @@ func TestRoyalties(t *testing.T) {
 	err = u.AddTransaction(txBytes, state.TraceOptionFailedConstraints)
 	require.NoError(t, err)
 }
+
+func TestImmutable(t *testing.T) {
+	u := utxodb.NewUTXODB(true)
+	privKey, _, addr0 := u.GenerateAddress(0)
+	err := u.TokensFromFaucet(addr0, 10000)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 1, u.NumUTXOs(addr0))
+
+	// create origin chain
+	par, err := u.MakeTransferData(privKey, nil, uint32(time.Now().Unix()))
+	par.WithAmount(2000).
+		WithTargetLock(addr0).
+		WithConstraint(library.NewChainOrigin())
+	txbytes, err := txbuilder.MakeTransferTransaction(par)
+	require.NoError(t, err)
+	t.Logf("tx1 = %s", u.TxToString(txbytes))
+
+	outs, err := u.DoTransferOutputs(par)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
+	require.EqualValues(t, u.Supply()-10000, u.Balance(u.GenesisAddress()))
+	require.EqualValues(t, 10000, u.Balance(addr0))
+	require.EqualValues(t, 2, u.NumUTXOs(addr0))
+	require.EqualValues(t, 2, len(outs))
+	chains, err := txbuilder.ParseChainConstraints(outs)
+	require.NoError(t, err)
+
+	theChainData := chains[0]
+	chainID := theChainData.ChainID
+
+	// -------------------------- make transition
+	chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	require.NoError(t, err)
+
+	chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
+	require.NoError(t, err)
+
+	_, constraintIdx := chainIN.ChainConstraint()
+	require.True(t, constraintIdx != 0xff)
+
+	ts := chainIN.Timestamp() + 1
+	txb := txbuilder.NewTransactionBuilder()
+	predIdx, err := txb.ConsumeOutput(chainIN, chains[0].ID)
+	require.NoError(t, err)
+
+	var nextChainConstraint *library.ChainConstraint
+	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+
+	chainOut := chainIN.Clone().WithTimestamp(ts)
+	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
+
+	immutableData, err := library.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	require.NoError(t, err)
+	// push data constraint
+	_, err = chainOut.PushConstraint(immutableData)
+	require.NoError(t, err)
+	// push immutable constraint
+	_, err = chainOut.PushConstraint(library.NewImmutable(3, 4).Bytes())
+	require.NoError(t, err)
+
+	succIdx, err := txb.ProduceOutput(chainOut)
+	require.NoError(t, err)
+
+	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
+	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+
+	txb.Transaction.Timestamp = ts
+	txb.Transaction.InputCommitment = txb.InputCommitment()
+
+	txb.SignED25519(privKey)
+
+	txbytes = txb.Transaction.Bytes()
+	t.Logf("tx2 = %s", u.TxToString(txbytes))
+	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+	require.NoError(t, err)
+
+	// -------------------------------- make transition #2
+	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	require.NoError(t, err)
+
+	chainIN, err = txbuilder.OutputFromBytes(chs.OutputData)
+	require.NoError(t, err)
+
+	_, constraintIdx = chainIN.ChainConstraint()
+	require.True(t, constraintIdx != 0xff)
+
+	ts = chainIN.Timestamp() + 1
+	txb = txbuilder.NewTransactionBuilder()
+	predIdx, err = txb.ConsumeOutput(chainIN, chs.ID)
+	require.NoError(t, err)
+
+	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+
+	chainOut = chainIN.Clone().WithTimestamp(ts)
+	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
+
+	immutableData, err = library.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	require.NoError(t, err)
+
+	succIdx, err = txb.ProduceOutput(chainOut)
+	require.NoError(t, err)
+
+	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
+	txb.PutUnlockParams(predIdx, 5, []byte{4, 5})
+
+	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+
+	txb.Transaction.Timestamp = ts
+	txb.Transaction.InputCommitment = txb.InputCommitment()
+
+	txb.SignED25519(privKey)
+
+	txbytes = txb.Transaction.Bytes()
+	t.Logf("tx3 = %s", u.TxToString(txbytes))
+	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
+	require.NoError(t, err)
+
+}

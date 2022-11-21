@@ -78,7 +78,7 @@ const ImmutableDataSource = `
 // constraint 'immutable(c,d)'' (c and d are 1-byte arrays) makes the sibling constraint referenced by index d immutable in the chain
 // which the sibling 'chain(..) constraint referenced by c.
 // It requires unlock parameters 2-byte long:
-// byte 0 points to the sibling block of the chain successor in 'produced' side
+// byte 0 points to the sibling data block of the chain successor in 'produced' side
 // byte 1 point to the successor of the 'immutable' constraint itself
 // The block must be exactly equal to the data block in the predecessor
 
