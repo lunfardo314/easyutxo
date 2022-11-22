@@ -1228,3 +1228,16 @@ func TestImmutable(t *testing.T) {
 	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
 	require.NoError(t, err)
 }
+func TestGGG(t *testing.T) {
+	t.Logf("now = %d", uint32(time.Now().Unix()))
+	loc, err := time.LoadLocation("UTC")
+	require.NoError(t, err)
+	jan1 := time.Date(2023, 1, 1, 0, 0, 0, 0, loc)
+	t.Logf("Jan 1, 2023 UTC = %d", uint32(jan1.Unix()))
+
+	_, _, bin, err := easyfl.CompileExpression("timestamp(u32/1669108220)")
+	require.NoError(t, err)
+	prefix, err := easyfl.ParseBytecodePrefix(bin)
+	require.NoError(t, err)
+	t.Logf("bin = %s, prefix = %s", hex.EncodeToString(bin), hex.EncodeToString(prefix))
+}

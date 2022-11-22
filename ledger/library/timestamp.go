@@ -11,9 +11,11 @@ import (
 const timestampSource = `
 // $0 - 4 bytes Unix seconds big-endian 
 func timestamp: and(
-	equal(selfBlockIndex,1),  // must be a block 1
+	equal(selfBlockIndex,1),  // must be at block 1
 	or(
+		// for 'produced' output $0 must be equal to the transaction timestamp 
 		and( selfIsProducedOutput, equal($0, txTimestampBytes) ),
+		// for 'consumed' output $0 must be strictly before the transaction timestamp 
 		and( selfIsConsumedOutput, lessThan($0, txTimestampBytes) )	
 	)
 )
