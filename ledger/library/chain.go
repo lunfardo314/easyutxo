@@ -233,27 +233,25 @@ func chain: and(
 		),
 		// check validity of chain transition. Unlock data of the constraint must point to the valid successor 
 		// (in case of consumed output) or predecessor (in case of produced output) 
-		or(
-			and(
-				// 'consumed' side case, checking if unlock params and successor is valid
-				selfIsConsumedOutput,
-				or(
-					equal(selfUnlockParameters, destroyUnlockParams),  // consumed chain output is being destroyed (no successor)
-					validSuccessorData($0, chainSuccessorData),     // or it must be unlocked by pointing to the successor
-					!!!chain_wrong_successor
-				)	
-			), 
-			and(
-				// 'produced' side case, checking if predecessor is valid
-				selfIsProducedOutput,
-				or(
-					// 'produced' side case checking if predecessor is valid
-					validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) )),
-					!!!chain_wrong_predecessor
-				)
-			),
-			!!!chain_constraint_failed
-		)
+		and(
+			// 'consumed' side case, checking if unlock params and successor is valid
+			selfIsConsumedOutput,
+			or(
+				equal(selfUnlockParameters, destroyUnlockParams),  // consumed chain output is being destroyed (no successor)
+				validSuccessorData($0, chainSuccessorData),     // or it must be unlocked by pointing to the successor
+				!!!chain_wrong_successor
+			)	
+		), 
+		and(
+			// 'produced' side case, checking if predecessor is valid
+			selfIsProducedOutput,
+			or(
+				// 'produced' side case checking if predecessor is valid
+				validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) )),
+				!!!chain_wrong_predecessor
+			)
+		),
+		!!!chain_constraint_failed
 	)
 )
 `
