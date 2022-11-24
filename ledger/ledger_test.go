@@ -1235,7 +1235,7 @@ func TestGGG(t *testing.T) {
 	jan1 := time.Date(2023, 1, 1, 0, 0, 0, 0, loc)
 	t.Logf("Jan 1, 2023 UTC = %d", uint32(jan1.Unix()))
 
-	_, _, bin, err := easyfl.CompileExpression("timestamp(u32/1669108220)")
+	_, _, bin, err := easyfl.CompileExpression("amount(u64/1337)")
 	require.NoError(t, err)
 	prefix, err := easyfl.ParseBytecodePrefix(bin)
 	require.NoError(t, err)

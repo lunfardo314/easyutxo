@@ -10,7 +10,7 @@ import (
 
 const timelockSource = `
 // enforces output can be unlocked only after specified time
-// $0 is Unix seconds of the time lock
+// $0 is Unix seconds  of the time lock (uint32 big-endian)
 func timelock: or(
 	and( 
 		selfIsProducedOutput, 

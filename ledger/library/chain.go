@@ -212,46 +212,58 @@ func chainSuccessorData :
 	)
 
 // Constraint source: chain($0)
-// $0 - 35-bytes data: 32 bytes chain id || 1 byte predecessor output index || 1 byte predecessor block index || 1 byte transition mode
-// Transition mode: 0x00 - state transition, 0xff - origin state, can be any other values. It is enforced by the chain constraint 
-// but it is interpreted by other constraints, bound to chain constraint, such as controller locks
+// $0 - 35-bytes data: 
+//     32 bytes chain id
+//     1 byte predecessor output index 
+//     1 byte predecessor block index
+//     1 byte transition mode
+// Transition mode: 
+//     0x00 - state transition
+//     0xff - origin state, can be any other values. 
+// It is enforced by the chain constraint 
+// but it is interpreted by other constraints, bound to chain 
+// constraint, such as controller locks
 func chain: and(
-	not(equal(selfOutputIndex, 0xff)),  // chain constraint cannot be on output with index 0xff = 255
-	or(
-		if(
-			// if it is produced output with zero-chainID, it is chain origin. 
-			and(
-				isZero(chainID($0)),
-				selfIsProducedOutput
-			),
-			or(
-				// enforcing valid constraint data of the origin: concat(repeat(0,32), 0xffffff)
-				equal($0, originChainData), 
-				!!!chain_wrong_origin
-			),
-			nil
-		),
-		// check validity of chain transition. Unlock data of the constraint must point to the valid successor 
-		// (in case of consumed output) or predecessor (in case of produced output) 
-		and(
-			// 'consumed' side case, checking if unlock params and successor is valid
-			selfIsConsumedOutput,
-			or(
-				equal(selfUnlockParameters, destroyUnlockParams),  // consumed chain output is being destroyed (no successor)
-				validSuccessorData($0, chainSuccessorData),     // or it must be unlocked by pointing to the successor
-				!!!chain_wrong_successor
-			)	
-		), 
-		and(
-			// 'produced' side case, checking if predecessor is valid
-			selfIsProducedOutput,
-			or(
-				// 'produced' side case checking if predecessor is valid
-				validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) )),
-				!!!chain_wrong_predecessor
-			)
-		),
-		!!!chain_constraint_failed
-	)
+      // chain constraint cannot be on output with index 0xff = 255
+   not(equal(selfOutputIndex, 0xff)),  
+   or(
+      if(
+        // if it is produced output with zero-chainID, it is chain origin.
+         and(
+            isZero(chainID($0)),
+            selfIsProducedOutput
+         ),
+         or(
+            // enforcing valid constraint data of the origin: concat(repeat(0,32), 0xffffff)
+            equal($0, originChainData), 
+            !!!chain_wrong_origin
+         ),
+         nil
+       ),
+        // check validity of chain transition. Unlock data of the constraint 
+        // must point to the valid successor (in case of consumed output) 
+        // or predecessor (in case of produced output) 
+       and(
+           // 'consumed' side case, checking if unlock params and successor is valid
+          selfIsConsumedOutput,
+          or(
+               // consumed chain output is being destroyed (no successor)
+            equal(selfUnlockParameters, destroyUnlockParams),
+               // or it must be unlocked by pointing to the successor
+            validSuccessorData($0, chainSuccessorData),     
+            !!!chain_wrong_successor
+          )	
+       ), 
+       and(
+          // 'produced' side case, checking if predecessor is valid
+           selfIsProducedOutput,
+           or(
+              // 'produced' side case checking if predecessor is valid
+              validPredecessorData($0, chainPredecessorData( predecessorConstraintIndex($0) )),
+              !!!chain_wrong_predecessor
+           )
+       ),
+       !!!chain_constraint_failed
+   )
 )
 `
