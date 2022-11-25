@@ -22,9 +22,9 @@ func storageDepositEnough: if(
 func amount: and(
     equal(selfBlockIndex,0), // amount must be at block 0
     or(
-        selfIsConsumedOutput,               // not checked in consumed branch
+        selfIsConsumedOutput,              // not checked in consumed branch
         and(
-            selfIsProducedOutput,           // checked in produced branch
+            selfIsProducedOutput,          // checked in produced branch
             equal(len8($0),8),             // length must be 8
             storageDepositEnough($0)       // must satisfy minimum storage deposit requirements
         )
