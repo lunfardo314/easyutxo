@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 // Array can be interpreted two ways:
@@ -364,7 +365,7 @@ func TreeEmpty() *Tree {
 }
 
 func Path(p ...interface{}) TreePath {
-	return easyfl.Concat(p...)
+	return common.Concat(p...)
 }
 
 func (p TreePath) Bytes() []byte {

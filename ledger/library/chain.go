@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 /*
@@ -83,7 +84,7 @@ func (ch *ChainConstraint) String() string {
 
 func (ch *ChainConstraint) source() string {
 	return fmt.Sprintf(chainConstraintTemplate,
-		hex.EncodeToString(easyfl.Concat(ch.ID[:], ch.PreviousOutput, ch.PreviousBlock, ch.TransitionMode)))
+		hex.EncodeToString(common.Concat(ch.ID[:], ch.PreviousOutput, ch.PreviousBlock, ch.TransitionMode)))
 }
 
 func (ch *ChainConstraint) ChainLock() ChainLock {

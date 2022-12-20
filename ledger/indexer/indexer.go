@@ -54,7 +54,7 @@ func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *I
 	var nullOutputID ledger.OutputID
 	addrBytes := originAddr.Bytes()
 	// account ID prefixed with length
-	w.Set(easyfl.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, nullOutputID[:]), []byte{0xff})
+	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, nullOutputID[:]), []byte{0xff})
 	if err := w.Commit(); err != nil {
 		panic(err)
 	}
@@ -69,7 +69,7 @@ func (inr *Indexer) GetUTXOsLockedInAccount(addr library.Accountable, state ledg
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
 	}
-	accountPrefix := easyfl.Concat(PartitionAccount, byte(len(acc)), acc)
+	accountPrefix := common.Concat(PartitionAccount, byte(len(acc)), acc)
 
 	inr.mutex.RLock()
 	defer inr.mutex.RUnlock()
@@ -101,7 +101,7 @@ func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateAccess) (*led
 	if len(id) != 32 {
 		return nil, fmt.Errorf("GetUTXOForChainID: chainID length must be 32-byte long")
 	}
-	key := easyfl.Concat(PartitionChainID, id)
+	key := common.Concat(PartitionChainID, id)
 
 	inr.mutex.RLock()
 	defer inr.mutex.RUnlock()
@@ -145,7 +145,7 @@ func (cmd *Command) run(w common.KVWriter) error {
 	switch cmd.Partition {
 	case PartitionAccount:
 		// ID is prefixed with length
-		key = easyfl.Concat(PartitionAccount, byte(len(cmd.ID)), cmd.ID, cmd.OutputID[:])
+		key = common.Concat(PartitionAccount, byte(len(cmd.ID)), cmd.ID, cmd.OutputID[:])
 		if !cmd.Delete {
 			value = []byte{0xff}
 		}
@@ -154,7 +154,7 @@ func (cmd *Command) run(w common.KVWriter) error {
 		if len(cmd.ID) != 32 {
 			return fmt.Errorf("indexer: chainID should be 32 bytes")
 		}
-		key = easyfl.Concat(PartitionChainID, cmd.ID)
+		key = common.Concat(PartitionChainID, cmd.ID)
 		if !cmd.Delete {
 			value = cmd.OutputID[:]
 		}

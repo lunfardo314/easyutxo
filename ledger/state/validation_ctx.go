@@ -8,6 +8,7 @@ import (
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -78,7 +79,7 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 
 // unlockScriptBinary finds script from unlock block
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
-	unlockBlockPath := easyfl.Concat(invocationFullPath)
+	unlockBlockPath := common.Concat(invocationFullPath)
 	unlockBlockPath[1] = library.TxUnlockParams
 	return v.tree.BytesAtPath(unlockBlockPath)
 }

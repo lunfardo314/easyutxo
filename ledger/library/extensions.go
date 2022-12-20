@@ -5,6 +5,7 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 /*
@@ -225,7 +226,7 @@ func (c *DataContext) Path() lazyslice.TreePath {
 }
 
 func (c *DataContext) SetPath(path lazyslice.TreePath) {
-	c.path = easyfl.Concat(path.Bytes())
+	c.path = common.Concat(path.Bytes())
 }
 
 func evalPath(ctx *easyfl.CallParams) []byte {

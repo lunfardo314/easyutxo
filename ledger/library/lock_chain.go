@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 type ChainLock []byte
@@ -74,7 +75,7 @@ func (cl ChainLock) AsLock() Lock {
 }
 
 func (cl ChainLock) ChainID() []byte {
-	return easyfl.Concat([]byte(cl))
+	return common.Concat([]byte(cl))
 }
 
 func NewChainLockUnlockParams(chainOutputIndex, chainConstraintIndex byte) []byte {

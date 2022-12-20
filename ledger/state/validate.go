@@ -96,7 +96,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 	var err error
 	var sum uint64
 	var extraDepositWeight uint32
-	path := easyfl.Concat(branch, 0)
+	path := common.Concat(branch, 0)
 
 	v.tree.ForEach(func(i byte, data []byte) bool {
 		path[len(path)-1] = i
@@ -150,7 +150,7 @@ func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, co
 	}
 	for _, addr := range lock.IndexableTags() {
 		indexEntry := &indexer.Command{
-			ID:        easyfl.Concat(addr.AccountID()),
+			ID:        common.Concat(addr.AccountID()),
 			Delete:    consumedBranch,
 			Partition: indexer.PartitionAccount,
 		}
@@ -212,7 +212,7 @@ func (v *ValidationContext) UnlockParams(consumedOutputIdx, constraintIdx byte) 
 
 // runOutput checks constraints of the output one-by-one
 func (v *ValidationContext) runOutput(consumedBranch bool, outputArray *lazyslice.Array, path lazyslice.TreePath) (uint32, error) {
-	blockPath := easyfl.Concat(path, byte(0))
+	blockPath := common.Concat(path, byte(0))
 	var err error
 	extraStorageDepositWeight := uint32(0)
 	checkDuplicates := make(map[string]struct{})

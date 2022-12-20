@@ -142,7 +142,7 @@ func (tx *transaction) Bytes() []byte {
 
 func (tx *transaction) EssenceBytes() []byte {
 	arr := tx.ToArray()
-	return easyfl.Concat(
+	return common.Concat(
 		arr.At(int(library.TxInputIDs)),
 		arr.At(int(library.TxOutputs)),
 		arr.At(int(library.TxInputCommitment)),
@@ -155,7 +155,7 @@ func (txb *TransactionBuilder) SignED25519(privKey ed25519.PrivateKey) {
 	sig, err := privKey.Sign(rnd, txb.Transaction.EssenceBytes(), crypto.Hash(0))
 	easyfl.AssertNoError(err)
 	pubKey := privKey.Public().(ed25519.PublicKey)
-	txb.Transaction.Signature = easyfl.Concat(sig, []byte(pubKey))
+	txb.Transaction.Signature = common.Concat(sig, []byte(pubKey))
 }
 
 type TransferData struct {

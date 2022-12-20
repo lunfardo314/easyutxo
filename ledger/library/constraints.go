@@ -51,7 +51,7 @@ func registerConstraint(name string, prefix []byte, parser Parser) {
 	easyfl.Assert(0 < len(prefix) && len(prefix) <= 2, "wrong constraint prefix %s, name: %s", easyfl.Fmt(prefix), name)
 	constraintByPrefix[string(prefix)] = &constraintRecord{
 		name:   name,
-		prefix: easyfl.Concat(prefix),
+		prefix: common.Concat(prefix),
 		parser: parser,
 	}
 	constraintNames[name] = struct{}{}
