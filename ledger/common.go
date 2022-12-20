@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 const (

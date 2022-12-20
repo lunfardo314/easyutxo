@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 const timestampSource = `

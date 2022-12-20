@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 type SenderAddressED25519 struct {

@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
 	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
+	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 )
 

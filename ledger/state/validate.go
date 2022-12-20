@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/iotaledger/trie.go/common"
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
 	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 )
 
