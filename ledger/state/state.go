@@ -1,7 +1,6 @@
 package state
 
 import (
-	"sync"
 	"time"
 
 	"github.com/lunfardo314/easyfl"
@@ -10,30 +9,55 @@ import (
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
 	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/unitrie/common"
+	"github.com/lunfardo314/unitrie/immutable"
+	"github.com/lunfardo314/unitrie/models/trie_blake2b"
 )
 
-// FinalState is a ledger state
-type FinalState struct {
-	mutex *sync.RWMutex
+// Updatable is a ledger state, with the particular root
+type Updatable struct {
 	store ledger.StateStore
+	trie  *immutable.TrieUpdatable
 }
 
-func NewLedgerState(store ledger.StateStore, genesisAddr library.AddressED25519, initialSupply uint64) *FinalState {
+type Readable struct {
+	trie *immutable.TrieReader
+}
+
+// commitment model singleton
+
+var commitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize256)
+
+// MustInitLedgerState initializes origin ledger state in the empty store
+func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr library.AddressED25519, initialSupply uint64) common.VCommitment {
+	storeTmp := common.NewInMemoryKVStore()
+	emptyRoot := immutable.MustInitRoot(storeTmp, commitmentModel, identity)
+	trie, err := immutable.NewTrieUpdatable(commitmentModel, storeTmp, emptyRoot)
+	easyfl.AssertNoError(err)
+
 	outBytes, oid := genesisOutput(genesisAddr, initialSupply, uint32(time.Now().Unix()))
-	batch := store.BatchedWriter()
-	batch.Set(oid[:], outBytes)
-	if err := batch.Commit(); err != nil {
-		panic(err)
-	}
-	return &FinalState{
-		mutex: &sync.RWMutex{},
-		store: store,
-	}
+	trie.Update(oid[:], outBytes)
+	ret := trie.Commit(storeTmp)
+	common.CopyAll(store, storeTmp)
+	return ret
 }
 
-// NewInMemory mostly for testing
-func NewInMemory(genesisAddr library.AddressED25519, initialSupply uint64) *FinalState {
-	return NewLedgerState(common.NewInMemoryKVStore(), genesisAddr, initialSupply)
+func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, error) {
+	trie, err := immutable.NewTrieReader(commitmentModel, store, root)
+	if err != nil {
+		return nil, err
+	}
+	return &Readable{trie}, nil
+}
+
+func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable, error) {
+	trie, err := immutable.NewTrieUpdatable(commitmentModel, store, root)
+	if err != nil {
+		return nil, err
+	}
+	return &Updatable{
+		store: store,
+		trie:  trie,
+	}, nil
 }
 
 func genesisOutput(genesisAddr library.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
@@ -47,46 +71,46 @@ func genesisOutput(genesisAddr library.AddressED25519, initialSupply uint64, ts 
 	return ret.Bytes(), ledger.OutputID{}
 }
 
-func (u *FinalState) AddTransaction(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
-	u.mutex.Lock()
-	defer u.mutex.Unlock()
+func (u *Updatable) Readable() *Readable {
+	return &Readable{
+		trie: u.trie.TrieReader,
+	}
+}
 
-	ctx, err := ValidationContextFromTransaction(txBytes, u, traceOption...)
+func (u *Updatable) AddTransaction(txBytes []byte, traceOption ...int) (common.VCommitment, []*indexer.Command, error) {
+	ctx, err := ValidationContextFromTransaction(txBytes, u.Readable(), traceOption...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	indexerUpdate, err := ctx.Validate()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return indexerUpdate, u.updateLedger(ctx)
+	root, err := u.updateLedger(ctx)
+	return root, indexerUpdate, err
 }
 
-func (u *FinalState) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
-	ret := u.store.Get(oid.Bytes())
+func (r *Readable) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
+	ret := r.trie.Get(oid.Bytes())
 	if len(ret) == 0 {
 		return nil, false
 	}
 	return ret, true
 }
 
-func (u *FinalState) updateLedger(ctx *ValidationContext) error {
-	batch := u.store.BatchedWriter()
-	var err error
+func (u *Updatable) updateLedger(ctx *ValidationContext) (common.VCommitment, error) {
 	// delete consumed outputs from the ledger and from accounts
 	ctx.ForEachInputID(func(idx byte, oid *ledger.OutputID) bool {
-		batch.Set(oid[:], nil)
+		u.trie.Update(oid[:], nil)
 		return true
 	})
-	if err != nil {
-		return err
-	}
 	// add new outputs to the ledger and to accounts
 	txID := ctx.TransactionID()
 	ctx.tree.ForEach(func(idx byte, outputData []byte) bool {
 		oid := ledger.NewOutputID(txID, idx)
-		batch.Set(oid[:], outputData)
+		u.trie.Update(oid[:], outputData)
 		return true
 	}, Path(library.TransactionBranch, library.TxOutputs))
-	return batch.Commit()
+
+	return u.trie.Persist(u.store.BatchedWriter())
 }

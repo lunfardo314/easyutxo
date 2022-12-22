@@ -1,14 +1,10 @@
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/lunfardo314/easyfl v0.0.0-20221121193748-9d2815f51513 h1:HZ2PWbSlvfhVPnHkobiHJfGHWorv4DTijgBK1w/OewA=
-github.com/lunfardo314/easyfl v0.0.0-20221121193748-9d2815f51513/go.mod h1:YOA4zSU5F3rICkLqF0RKYBoN90Mcm9+hd/UYF9NEaow=
 github.com/lunfardo314/easyfl v0.0.0-20221220181045-08b1069a2dae h1:kfLYkSI75+414IrWAsRs4hYoOT+NaZSXVmapqRz8/LI=
 github.com/lunfardo314/easyfl v0.0.0-20221220181045-08b1069a2dae/go.mod h1:YOA4zSU5F3rICkLqF0RKYBoN90Mcm9+hd/UYF9NEaow=
-github.com/lunfardo314/unitrie v0.0.0-20221208185529-73b0c95fe58c h1:zAKdayDDo4/Cq4lLA/AVPnLudBqXRyT4WB53k6AAwJ8=
-github.com/lunfardo314/unitrie v0.0.0-20221208185529-73b0c95fe58c/go.mod h1:V9M8DWYF5wxMHJYYtgjYwQquMulQLpjQC/dEJ3mIA7k=
-github.com/lunfardo314/unitrie v0.0.0-20221220182300-94ed71677c49 h1:8/LPIMXJnDj4fFBKVs1UoyL7u1kZQDGzirRyZuHVcak=
-github.com/lunfardo314/unitrie v0.0.0-20221220182300-94ed71677c49/go.mod h1:V9M8DWYF5wxMHJYYtgjYwQquMulQLpjQC/dEJ3mIA7k=
+github.com/lunfardo314/unitrie v0.0.0-20221222163907-dd41fe23f9c7 h1:W4DwFwjxJv1wKqDz2VlkeOFHodqhgAfQgG+eZhfp2cI=
+github.com/lunfardo314/unitrie v0.0.0-20221222163907-dd41fe23f9c7/go.mod h1:V9M8DWYF5wxMHJYYtgjYwQquMulQLpjQC/dEJ3mIA7k=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
@@ -18,8 +14,6 @@ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
-golang.org/x/crypto v0.3.0 h1:a06MkbcxBrEFc0w0QIZWXrH/9cCX6KJyWbBOIwAn+7A=
-golang.org/x/crypto v0.3.0/go.mod h1:hebNnKkNXi2UzZN1eVRvBB7co0a+JxK6XbPiWVs/3J4=
 golang.org/x/crypto v0.4.0 h1:UVQgzMY87xqpKNgb+kDsll2Igd33HszWHFLmpaRMq/8=
 golang.org/x/crypto v0.4.0/go.mod h1:3quD/ATkf6oY+rnes5c3ExXTbLc8mueNue5/DoinL80=
 golang.org/x/sys v0.3.0 h1:w8ZOecv6NaNa/zC8944JTU3vz4u6Lagfk4RPQxv92NQ=

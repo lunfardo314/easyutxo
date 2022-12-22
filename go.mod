@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/lunfardo314/easyfl v0.0.0-20221220181045-08b1069a2dae
-	github.com/lunfardo314/unitrie v0.0.0-20221220182300-94ed71677c49
+	github.com/lunfardo314/unitrie v0.0.0-20221222163907-dd41fe23f9c7
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/crypto v0.4.0
 )
