@@ -16,8 +16,8 @@ import (
 // Updatable is a ledger state, with the particular root
 type (
 	Updatable struct {
-		trie  *immutable.TrieUpdatable
 		store ledger.StateStore
+		root  common.VCommitment
 	}
 
 	Readable struct {
@@ -52,12 +52,12 @@ func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, err
 }
 
 func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable, error) {
-	trie, err := immutable.NewTrieUpdatable(commitmentModel, store, root)
+	_, err := immutable.NewTrieReader(commitmentModel, store, root)
 	if err != nil {
 		return nil, err
 	}
 	return &Updatable{
-		trie:  trie,
+		root:  root.Clone(),
 		store: store,
 	}, nil
 }
@@ -74,8 +74,10 @@ func genesisOutput(genesisAddr library.AddressED25519, initialSupply uint64, ts 
 }
 
 func (u *Updatable) Readable() *Readable {
+	trie, err := immutable.NewTrieReader(commitmentModel, u.store, u.root)
+	common.AssertNoError(err)
 	return &Readable{
-		trie: u.trie.TrieReader,
+		trie: trie,
 	}
 }
 
@@ -87,12 +89,14 @@ func (r *Readable) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-func (u *Updatable) Root() common.VCommitment {
-	return u.trie.Root()
-}
+const clearCacheSizeAfter = 1000
 
 func (u *Updatable) AddTransaction(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
-	ctx, err := ValidationContextFromTransaction(txBytes, u.Readable(), traceOption...)
+	stateReader, err := NewReadable(u.store, u.root)
+	if err != nil {
+		return nil, err
+	}
+	ctx, err := ValidationContextFromTransaction(txBytes, stateReader, traceOption...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,28 +108,26 @@ func (u *Updatable) AddTransaction(txBytes []byte, traceOption ...int) ([]*index
 }
 
 func (u *Updatable) updateLedger(ctx *ValidationContext) error {
+	trie, err := immutable.NewTrieUpdatable(commitmentModel, u.store, u.root)
+	if err != nil {
+		return err
+	}
+
 	// delete consumed outputs from the ledger and from accounts
 	ctx.ForEachInputID(func(idx byte, oid *ledger.OutputID) bool {
-		u.trie.Update(oid[:], nil)
+		trie.Update(oid[:], nil)
 		return true
 	})
+
 	// add new outputs to the ledger and to accounts
 	txID := ctx.TransactionID()
 	ctx.tree.ForEach(func(idx byte, outputData []byte) bool {
 		oid := ledger.NewOutputID(txID, idx)
-		u.trie.Update(oid[:], outputData)
+		trie.Update(oid[:], outputData)
 		return true
 	}, Path(library.TransactionBranch, library.TxOutputs))
 
 	batch := u.store.BatchedWriter()
-	root := u.trie.Commit(batch)
-	if err := batch.Commit(); err != nil {
-		return err
-	}
-
-	var err error
-	if u.trie, err = immutable.NewTrieUpdatable(commitmentModel, u.store, root); err != nil {
-		return err
-	}
-	return nil
+	u.root = trie.Commit(batch)
+	return batch.Commit()
 }

@@ -87,10 +87,6 @@ func (u *UTXODB) GenesisAddress() library.AddressED25519 {
 	return u.genesisAddress
 }
 
-func (u *UTXODB) Root() common.VCommitment {
-	return u.state.Root()
-}
-
 // AddTransaction validates transaction and updates ledger state and indexer
 // Ledger state and indexer are on different DB transactions, so ledger state can
 // succeed while indexer fails. In that case indexer can be updated from ledger state
