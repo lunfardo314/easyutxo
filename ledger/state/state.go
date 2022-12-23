@@ -14,14 +14,16 @@ import (
 )
 
 // Updatable is a ledger state, with the particular root
-type Updatable struct {
-	store ledger.StateStore
-	trie  *immutable.TrieUpdatable
-}
+type (
+	Updatable struct {
+		trie  *immutable.TrieUpdatable
+		store ledger.StateStore
+	}
 
-type Readable struct {
-	trie *immutable.TrieReader
-}
+	Readable struct {
+		trie *immutable.TrieReader
+	}
+)
 
 // commitment model singleton
 
@@ -31,14 +33,14 @@ var commitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize
 func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr library.AddressED25519, initialSupply uint64) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
 	emptyRoot := immutable.MustInitRoot(storeTmp, commitmentModel, identity)
-	trie, err := immutable.NewTrieUpdatable(commitmentModel, storeTmp, emptyRoot)
+	trie, err := immutable.NewTrieChained(commitmentModel, storeTmp, emptyRoot)
 	easyfl.AssertNoError(err)
 
 	outBytes, oid := genesisOutput(genesisAddr, initialSupply, uint32(time.Now().Unix()))
 	trie.Update(oid[:], outBytes)
-	ret := trie.Commit(storeTmp)
+	trie = trie.CommitChained()
 	common.CopyAll(store, storeTmp)
-	return ret
+	return trie.Root()
 }
 
 func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, error) {
@@ -55,8 +57,8 @@ func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable,
 		return nil, err
 	}
 	return &Updatable{
-		store: store,
 		trie:  trie,
+		store: store,
 	}, nil
 }
 
@@ -77,19 +79,6 @@ func (u *Updatable) Readable() *Readable {
 	}
 }
 
-func (u *Updatable) AddTransaction(txBytes []byte, traceOption ...int) (common.VCommitment, []*indexer.Command, error) {
-	ctx, err := ValidationContextFromTransaction(txBytes, u.Readable(), traceOption...)
-	if err != nil {
-		return nil, nil, err
-	}
-	indexerUpdate, err := ctx.Validate()
-	if err != nil {
-		return nil, nil, err
-	}
-	root, err := u.updateLedger(ctx)
-	return root, indexerUpdate, err
-}
-
 func (r *Readable) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
 	ret := r.trie.Get(oid.Bytes())
 	if len(ret) == 0 {
@@ -98,7 +87,23 @@ func (r *Readable) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-func (u *Updatable) updateLedger(ctx *ValidationContext) (common.VCommitment, error) {
+func (u *Updatable) Root() common.VCommitment {
+	return u.trie.Root()
+}
+
+func (u *Updatable) AddTransaction(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
+	ctx, err := ValidationContextFromTransaction(txBytes, u.Readable(), traceOption...)
+	if err != nil {
+		return nil, err
+	}
+	indexerUpdate, err := ctx.Validate()
+	if err != nil {
+		return nil, err
+	}
+	return indexerUpdate, u.updateLedger(ctx)
+}
+
+func (u *Updatable) updateLedger(ctx *ValidationContext) error {
 	// delete consumed outputs from the ledger and from accounts
 	ctx.ForEachInputID(func(idx byte, oid *ledger.OutputID) bool {
 		u.trie.Update(oid[:], nil)
@@ -112,5 +117,15 @@ func (u *Updatable) updateLedger(ctx *ValidationContext) (common.VCommitment, er
 		return true
 	}, Path(library.TransactionBranch, library.TxOutputs))
 
-	return u.trie.Persist(u.store.BatchedWriter())
+	batch := u.store.BatchedWriter()
+	root := u.trie.Commit(batch)
+	if err := batch.Commit(); err != nil {
+		return err
+	}
+
+	var err error
+	if u.trie, err = immutable.NewTrieUpdatable(commitmentModel, u.store, root); err != nil {
+		return err
+	}
+	return nil
 }
