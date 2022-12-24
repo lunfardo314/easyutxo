@@ -29,13 +29,13 @@ type (
 		PredecessorConstraintIndex byte
 	}
 
-	StateAccess interface {
+	StateReadAccess interface {
 		GetUTXO(id *OutputID) ([]byte, bool)
 	}
 
 	IndexerAccess interface {
-		GetUTXOsLockedInAccount(accountID constraints.Accountable, state StateAccess) ([]*OutputDataWithID, error)
-		GetUTXOForChainID(id []byte, state StateAccess) (*OutputDataWithID, error)
+		GetUTXOsLockedInAccount(accountID constraints.Accountable, state StateReadAccess) ([]*OutputDataWithID, error)
+		GetUTXOForChainID(id []byte, state StateReadAccess) (*OutputDataWithID, error)
 	}
 
 	StateStore interface {

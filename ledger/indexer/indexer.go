@@ -64,7 +64,7 @@ func NewIndexer(store ledger.IndexerStore, originAddr constraints.AddressED25519
 	}
 }
 
-func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state ledger.StateReadAccess) ([]*ledger.OutputDataWithID, error) {
 	acc := addr.AccountID()
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
@@ -97,7 +97,7 @@ func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state 
 	return ret, err
 }
 
-func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateAccess) (*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateReadAccess) (*ledger.OutputDataWithID, error) {
 	if len(id) != 32 {
 		return nil, fmt.Errorf("GetUTXOForChainID: chainID length must be 32-byte long")
 	}

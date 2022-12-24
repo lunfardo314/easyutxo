@@ -70,7 +70,7 @@ func (u *UTXODB) Supply() uint64 {
 	return u.supply
 }
 
-func (u *UTXODB) StateAccess() ledger.StateAccess {
+func (u *UTXODB) StateAccess() ledger.StateReadAccess {
 	return u.state.Readable()
 }
 

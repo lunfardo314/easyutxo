@@ -30,7 +30,7 @@ const (
 )
 
 // TransactionContextFromTransferableBytes constructs lazytree from transaction bytes and consumed outputs
-func TransactionContextFromTransferableBytes(txBytes []byte, ledgerState ledger.StateAccess, traceOption ...int) (*TransactionContext, error) {
+func TransactionContextFromTransferableBytes(txBytes []byte, ledgerState ledger.StateReadAccess, traceOption ...int) (*TransactionContext, error) {
 	txBranch := lazyslice.ArrayFromBytes(txBytes, int(constraints.TxTreeIndexMax))
 	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(constraints.TxInputIDs)), 256)
 
