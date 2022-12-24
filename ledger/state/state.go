@@ -106,17 +106,37 @@ func (u *Updatable) Update(txBytes []byte, traceOption ...int) ([]*indexer.Comma
 	if err != nil {
 		return nil, err
 	}
-	indexerUpdate, err := ctx.Validate()
+	trie, err := immutable.NewTrieUpdatable(commitmentModel, u.store, u.root)
 	if err != nil {
 		return nil, err
 	}
-	return indexerUpdate, u.updateLedger(ctx)
+	indexerUpdate, err := updateTrieMulti(trie, []*TransactionContext{ctx})
+	if err != nil {
+		return nil, err
+	}
+	batch := u.store.BatchedWriter()
+	u.root = trie.Commit(batch)
+	return indexerUpdate, batch.Commit()
 }
 
-func (u *Updatable) updateLedger(ctx *TransactionContext) error {
-	trie, err := immutable.NewTrieUpdatable(commitmentModel, u.store, u.root)
+// UpdateMulti updates/mutates the ledger state by transaction
+func updateTrieMulti(trie *immutable.TrieUpdatable, txCtx []*TransactionContext) ([]*indexer.Command, error) {
+	indexerUpdate := make([]*indexer.Command, 0)
+	for _, ctx := range txCtx {
+		iu, err := updateTrie(trie, ctx)
+		if err != nil {
+			return nil, err
+		}
+		indexerUpdate = append(indexerUpdate, iu...)
+	}
+	return indexerUpdate, nil
+}
+
+// updateTrie updates trie from transaction without committing
+func updateTrie(trie *immutable.TrieUpdatable, ctx *TransactionContext) ([]*indexer.Command, error) {
+	indexerUpdate, err := ctx.Validate()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// delete consumed outputs from the ledger and from accounts
@@ -133,7 +153,5 @@ func (u *Updatable) updateLedger(ctx *TransactionContext) error {
 		return true
 	}, Path(constraints.TransactionBranch, constraints.TxOutputs))
 
-	batch := u.store.BatchedWriter()
-	u.root = trie.Commit(batch)
-	return batch.Commit()
+	return indexerUpdate, nil
 }

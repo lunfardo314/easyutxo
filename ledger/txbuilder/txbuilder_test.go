@@ -98,7 +98,7 @@ func TestBasics(t *testing.T) {
 		t.Logf("origin address: %s", easyfl.Fmt(u.GenesisAddress()))
 
 		privKey, _, addr := u.GenerateAddress(0)
-		const howMany = 500
+		const howMany = 400
 
 		total := uint64(0)
 		numOuts := 0
