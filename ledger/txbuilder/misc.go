@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func ValidationContextToString(v *state.ValidationContext) string {
+func ValidationContextToString(v *state.TransactionContext) string {
 	txid := v.TransactionID()
 	ret := fmt.Sprintf("\nTransaction. ID: %s, size: %d\n", txid.String(), len(v.TransactionBytes()))
 	tsBin, ts := v.TimestampData()

@@ -17,8 +17,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-// UTXODB is a ledger.Updatable with faucet
-
+// UTXODB is a centralized ledger.Updatable with indexer and genesis faucet
 type UTXODB struct {
 	state             *state.Updatable
 	indexer           *indexer.Indexer
@@ -96,7 +95,7 @@ func (u *UTXODB) AddTransaction(txBytes []byte, traceOption ...int) error {
 		return err
 	}
 	if err = u.indexer.Update(indexerUpdate); err != nil {
-		return fmt.Errorf("ledger state was updated but indexer update failed with '%v'", err)
+		return fmt.Errorf("ledger state has been updated but indexer update failed with '%v'", err)
 	}
 	return nil
 }
@@ -282,8 +281,8 @@ func (u *UTXODB) DoTransfer(par *txbuilder.TransferData) error {
 	return err
 }
 
-func (u *UTXODB) ValidationContextFromTransaction(txBytes []byte) (*state.ValidationContext, error) {
-	return state.ValidationContextFromTransaction(txBytes, u.state.Readable())
+func (u *UTXODB) ValidationContextFromTransaction(txBytes []byte) (*state.TransactionContext, error) {
+	return state.TransactionContextFromTransferableBytes(txBytes, u.state.Readable())
 }
 
 func (u *UTXODB) TxToString(txbytes []byte) string {

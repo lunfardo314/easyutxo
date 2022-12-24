@@ -12,12 +12,13 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-// ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
-type ValidationContext struct {
+// TransactionContext is a data structure, which contains transferable transaction, consumed outputs and constraint library
+type TransactionContext struct {
 	tree        *lazyslice.Tree
+	traceOption int
+	// cached values
 	dataContext *constraints.DataContext
 	txid        ledger.TransactionID
-	traceOption int
 }
 
 var Path = lazyslice.Path
@@ -28,8 +29,8 @@ const (
 	TraceOptionFailedConstraints
 )
 
-// ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
-func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAccess, traceOption ...int) (*ValidationContext, error) {
+// TransactionContextFromTransferableBytes constructs lazytree from transaction bytes and consumed outputs
+func TransactionContextFromTransferableBytes(txBytes []byte, ledgerState ledger.StateAccess, traceOption ...int) (*TransactionContext, error) {
 	txBranch := lazyslice.ArrayFromBytes(txBytes, int(constraints.TxTreeIndexMax))
 	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(constraints.TxInputIDs)), 256)
 
@@ -65,7 +66,7 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 		lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
 	)
 	tree := ctx.AsTree()
-	ret := &ValidationContext{
+	ret := &TransactionContext{
 		tree:        tree,
 		dataContext: constraints.NewDataContext(tree),
 		traceOption: TraceOptionNone,
@@ -78,17 +79,17 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 }
 
 // unlockScriptBinary finds script from unlock block
-func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
+func (v *TransactionContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
 	unlockBlockPath := common.Concat(invocationFullPath)
 	unlockBlockPath[1] = constraints.TxUnlockParams
 	return v.tree.BytesAtPath(unlockBlockPath)
 }
 
-func (v *ValidationContext) rootContext() easyfl.GlobalData {
+func (v *TransactionContext) rootContext() easyfl.GlobalData {
 	return v.evalContext(nil)
 }
 
-func (v *ValidationContext) TransactionBytes() []byte {
+func (v *TransactionContext) TransactionBytes() []byte {
 	ret, err := easyfl.EvalFromSource(v.rootContext(), "txBytes")
 	if err != nil {
 		panic(err)
@@ -96,19 +97,19 @@ func (v *ValidationContext) TransactionBytes() []byte {
 	return ret
 }
 
-func (v *ValidationContext) TransactionID() ledger.TransactionID {
+func (v *TransactionContext) TransactionID() ledger.TransactionID {
 	return v.txid
 }
 
-func (v *ValidationContext) InputCommitment() []byte {
+func (v *TransactionContext) InputCommitment() []byte {
 	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxInputCommitment))
 }
 
-func (v *ValidationContext) Signature() []byte {
+func (v *TransactionContext) Signature() []byte {
 	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxSignature))
 }
 
-func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.OutputID) bool) {
+func (v *TransactionContext) ForEachInputID(fun func(idx byte, oid *ledger.OutputID) bool) {
 	v.tree.ForEach(func(i byte, data []byte) bool {
 		oid, err := ledger.OutputIDFromBytes(data)
 		easyfl.AssertNoError(err)
@@ -119,34 +120,34 @@ func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.Output
 	}, Path(constraints.TransactionBranch, constraints.TxInputIDs))
 }
 
-func (v *ValidationContext) ConsumedOutputData(idx byte) []byte {
+func (v *TransactionContext) ConsumedOutputData(idx byte) []byte {
 	return v.tree.BytesAtPath(Path(constraints.ConsumedBranch, constraints.ConsumedOutputsBranch, idx))
 }
 
-func (v *ValidationContext) UnlockData(idx byte) []byte {
+func (v *TransactionContext) UnlockData(idx byte) []byte {
 	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxUnlockParams, idx))
 }
 
-func (v *ValidationContext) ProducedOutputData(idx byte) []byte {
+func (v *TransactionContext) ProducedOutputData(idx byte) []byte {
 	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxOutputs, idx))
 }
 
-func (v *ValidationContext) NumProducedOutputs() int {
+func (v *TransactionContext) NumProducedOutputs() int {
 	return v.tree.NumElements([]byte{constraints.TransactionBranch, constraints.TxOutputs})
 }
 
-func (v *ValidationContext) NumInputs() int {
+func (v *TransactionContext) NumInputs() int {
 	return v.tree.NumElements([]byte{constraints.TransactionBranch, constraints.TxInputIDs})
 }
 
-func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
+func (v *TransactionContext) InputID(idx byte) ledger.OutputID {
 	data := v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxInputIDs, idx))
 	ret, err := ledger.OutputIDFromBytes(data)
 	easyfl.AssertNoError(err)
 	return ret
 }
 
-func (v *ValidationContext) TimestampData() ([]byte, uint32) {
+func (v *TransactionContext) TimestampData() ([]byte, uint32) {
 	ret := v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxTimestamp))
 	retTs := uint32(0)
 	if len(ret) == 4 {

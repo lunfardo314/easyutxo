@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func (v *ValidationContext) evalContext(path []byte) easyfl.GlobalData {
+func (v *TransactionContext) evalContext(path []byte) easyfl.GlobalData {
 	v.dataContext.SetPath(path)
 	switch v.traceOption {
 	case TraceOptionNone:
@@ -31,7 +31,7 @@ func (v *ValidationContext) evalContext(path []byte) easyfl.GlobalData {
 
 // checkConstraint checks the constraint at path. In-line and unlock scripts are ignored
 // for 'produces output' context
-func (v *ValidationContext) checkConstraint(constraintData []byte, constraintPath lazyslice.TreePath) ([]byte, string, error) {
+func (v *TransactionContext) checkConstraint(constraintData []byte, constraintPath lazyslice.TreePath) ([]byte, string, error) {
 	var ret []byte
 	var name string
 	err := common.CatchPanicOrError(func() error {
@@ -45,7 +45,7 @@ func (v *ValidationContext) checkConstraint(constraintData []byte, constraintPat
 	return ret, name, nil
 }
 
-func (v *ValidationContext) Validate() ([]*indexer.Command, error) {
+func (v *TransactionContext) Validate() ([]*indexer.Command, error) {
 	var inSum, outSum uint64
 	var err error
 	ret := make([]*indexer.Command, 0)
@@ -78,15 +78,15 @@ func (v *ValidationContext) Validate() ([]*indexer.Command, error) {
 	return ret, nil
 }
 
-func (v *ValidationContext) validateProducedOutputs(indexRecords *[]*indexer.Command) (uint64, error) {
+func (v *TransactionContext) validateProducedOutputs(indexRecords *[]*indexer.Command) (uint64, error) {
 	return v.validateOutputs(false, indexRecords)
 }
 
-func (v *ValidationContext) validateConsumedOutputs(indexRecords *[]*indexer.Command) (uint64, error) {
+func (v *TransactionContext) validateConsumedOutputs(indexRecords *[]*indexer.Command) (uint64, error) {
 	return v.validateOutputs(true, indexRecords)
 }
 
-func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.Command) (uint64, error) {
+func (v *TransactionContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.Command) (uint64, error) {
 	var branch lazyslice.TreePath
 	if consumedBranch {
 		branch = Path(constraints.ConsumedBranch, constraints.ConsumedOutputsBranch)
@@ -134,7 +134,7 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 	return sum, nil
 }
 
-func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
+func (v *TransactionContext) createIndexEntries(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
 	if err := v.indexLock(idx, outputArray, consumedBranch, indexRecords); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.
 	return nil
 }
 
-func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
+func (v *TransactionContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
 	var lock constraints.Lock
 	lock, err := constraints.LockFromBytes(outputArray.At(int(constraints.ConstraintIndexLock)))
 	if err != nil {
@@ -164,7 +164,7 @@ func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, co
 	return nil
 }
 
-func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) {
+func (v *TransactionContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) {
 	outputArray.ForEach(func(i int, data []byte) bool {
 		if i == int(constraints.ConstraintIndexAmount) || i == int(constraints.ConstraintIndexTimestamp) || i == int(constraints.ConstraintIndexLock) {
 			return true
@@ -206,12 +206,12 @@ func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array,
 	})
 }
 
-func (v *ValidationContext) UnlockParams(consumedOutputIdx, constraintIdx byte) []byte {
+func (v *TransactionContext) UnlockParams(consumedOutputIdx, constraintIdx byte) []byte {
 	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxUnlockParams, consumedOutputIdx, constraintIdx))
 }
 
 // runOutput checks constraints of the output one-by-one
-func (v *ValidationContext) runOutput(consumedBranch bool, outputArray *lazyslice.Array, path lazyslice.TreePath) (uint32, error) {
+func (v *TransactionContext) runOutput(consumedBranch bool, outputArray *lazyslice.Array, path lazyslice.TreePath) (uint32, error) {
 	blockPath := common.Concat(path, byte(0))
 	var err error
 	extraStorageDepositWeight := uint32(0)
@@ -258,7 +258,7 @@ func (v *ValidationContext) runOutput(consumedBranch bool, outputArray *lazyslic
 	return extraStorageDepositWeight, nil
 }
 
-func (v *ValidationContext) validateInputCommitment() error {
+func (v *TransactionContext) validateInputCommitment() error {
 	consumedOutputBytes := v.tree.BytesAtPath(Path(constraints.ConsumedBranch, constraints.ConsumedOutputsBranch))
 	h := blake2b.Sum256(consumedOutputBytes)
 	inputCommitment := v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxInputCommitment))
@@ -345,7 +345,7 @@ func constraintName(binCode []byte) string {
 	return fmt.Sprintf("constraint_call_prefix(%s)", easyfl.Fmt(prefix))
 }
 
-func (v *ValidationContext) evalConstraint(constr []byte, path lazyslice.TreePath) ([]byte, string, error) {
+func (v *TransactionContext) evalConstraint(constr []byte, path lazyslice.TreePath) ([]byte, string, error) {
 	if len(constr) == 0 {
 		return nil, "", fmt.Errorf("constraint can't be empty")
 	}

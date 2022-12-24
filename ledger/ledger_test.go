@@ -909,7 +909,7 @@ func TestHashUnlock(t *testing.T) {
 	txbytes, err := txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 
-	ctx, err := state.ValidationContextFromTransaction(txbytes, u.StateAccess())
+	ctx, err := state.TransactionContextFromTransferableBytes(txbytes, u.StateAccess())
 	require.NoError(t, err)
 
 	t.Logf("%s", txbuilder.ValidationContextToString(ctx))
@@ -930,7 +930,7 @@ func TestHashUnlock(t *testing.T) {
 	txbytes, err = txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 
-	ctx, err = state.ValidationContextFromTransaction(txbytes, u.StateAccess())
+	ctx, err = state.TransactionContextFromTransferableBytes(txbytes, u.StateAccess())
 	require.NoError(t, err)
 
 	t.Logf("---- transaction without hash unlock: FAILING\n %s", txbuilder.ValidationContextToString(ctx))
@@ -943,7 +943,7 @@ func TestHashUnlock(t *testing.T) {
 	txbytes, err = txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 
-	ctx, err = state.ValidationContextFromTransaction(txbytes, u.StateAccess())
+	ctx, err = state.TransactionContextFromTransferableBytes(txbytes, u.StateAccess())
 	require.NoError(t, err)
 
 	t.Logf("---- transaction with hash unlock, the library/script: SUCCESS\n %s", txbuilder.ValidationContextToString(ctx))

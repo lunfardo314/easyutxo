@@ -102,7 +102,7 @@ func (u *Updatable) Root() common.VCommitment {
 
 // Update updates/mutates the ledger state by transaction
 func (u *Updatable) Update(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
-	ctx, err := ValidationContextFromTransaction(txBytes, u.Readable(), traceOption...)
+	ctx, err := TransactionContextFromTransferableBytes(txBytes, u.Readable(), traceOption...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (u *Updatable) Update(txBytes []byte, traceOption ...int) ([]*indexer.Comma
 	return indexerUpdate, u.updateLedger(ctx)
 }
 
-func (u *Updatable) updateLedger(ctx *ValidationContext) error {
+func (u *Updatable) updateLedger(ctx *TransactionContext) error {
 	trie, err := immutable.NewTrieUpdatable(commitmentModel, u.store, u.root)
 	if err != nil {
 		return err
