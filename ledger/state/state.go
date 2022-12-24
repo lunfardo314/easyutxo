@@ -45,6 +45,7 @@ func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr con
 	return trie.Root()
 }
 
+// NewReadable creates read-only ledger state with the given root
 func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, error) {
 	trie, err := immutable.NewTrieReader(commitmentModel, store, root)
 	if err != nil {
@@ -53,6 +54,8 @@ func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, err
 	return &Readable{trie}, nil
 }
 
+// NewUpdatable creates updatable state with the given root. After updated, the root changes.
+// Suitable for chained updates of the ledger state
 func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable, error) {
 	_, err := immutable.NewTrieReader(commitmentModel, store, root)
 	if err != nil {
@@ -92,14 +95,14 @@ func (r *Readable) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
 	return ret, true
 }
 
-const clearCacheSizeAfter = 1000
+// Root return the current root
+func (u *Updatable) Root() common.VCommitment {
+	return u.root
+}
 
-func (u *Updatable) AddTransaction(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
-	stateReader, err := NewReadable(u.store, u.root)
-	if err != nil {
-		return nil, err
-	}
-	ctx, err := ValidationContextFromTransaction(txBytes, stateReader, traceOption...)
+// Update updates/mutates the ledger state by transaction
+func (u *Updatable) Update(txBytes []byte, traceOption ...int) ([]*indexer.Command, error) {
+	ctx, err := ValidationContextFromTransaction(txBytes, u.Readable(), traceOption...)
 	if err != nil {
 		return nil, err
 	}

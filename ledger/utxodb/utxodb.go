@@ -91,7 +91,7 @@ func (u *UTXODB) GenesisAddress() constraints.AddressED25519 {
 // Ledger state and indexer are on different DB transactions, so ledger state can
 // succeed while indexer fails. In that case indexer can be updated from ledger state
 func (u *UTXODB) AddTransaction(txBytes []byte, traceOption ...int) error {
-	indexerUpdate, err := u.state.AddTransaction(txBytes, traceOption...)
+	indexerUpdate, err := u.state.Update(txBytes, traceOption...)
 	if err != nil {
 		return err
 	}
