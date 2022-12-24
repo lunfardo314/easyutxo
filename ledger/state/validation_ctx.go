@@ -7,7 +7,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 )
@@ -15,7 +15,7 @@ import (
 // ValidationContext is a data structure, which contains transaction, consumed outputs and constraint library
 type ValidationContext struct {
 	tree        *lazyslice.Tree
-	dataContext *library.DataContext
+	dataContext *constraints.DataContext
 	txid        ledger.TransactionID
 	traceOption int
 }
@@ -30,8 +30,8 @@ const (
 
 // ValidationContextFromTransaction constructs lazytree from transaction bytes and consumed outputs
 func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAccess, traceOption ...int) (*ValidationContext, error) {
-	txBranch := lazyslice.ArrayFromBytes(txBytes, int(library.TxTreeIndexMax))
-	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(library.TxInputIDs)), 256)
+	txBranch := lazyslice.ArrayFromBytes(txBytes, int(constraints.TxTreeIndexMax))
+	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(constraints.TxInputIDs)), 256)
 
 	var err error
 	var oid ledger.OutputID
@@ -67,7 +67,7 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 	tree := ctx.AsTree()
 	ret := &ValidationContext{
 		tree:        tree,
-		dataContext: library.NewDataContext(tree),
+		dataContext: constraints.NewDataContext(tree),
 		traceOption: TraceOptionNone,
 		txid:        blake2b.Sum256(txBytes),
 	}
@@ -80,7 +80,7 @@ func ValidationContextFromTransaction(txBytes []byte, ledgerState ledger.StateAc
 // unlockScriptBinary finds script from unlock block
 func (v *ValidationContext) unlockScriptBinary(invocationFullPath lazyslice.TreePath) []byte {
 	unlockBlockPath := common.Concat(invocationFullPath)
-	unlockBlockPath[1] = library.TxUnlockParams
+	unlockBlockPath[1] = constraints.TxUnlockParams
 	return v.tree.BytesAtPath(unlockBlockPath)
 }
 
@@ -101,11 +101,11 @@ func (v *ValidationContext) TransactionID() ledger.TransactionID {
 }
 
 func (v *ValidationContext) InputCommitment() []byte {
-	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputCommitment))
+	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxInputCommitment))
 }
 
 func (v *ValidationContext) Signature() []byte {
-	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxSignature))
+	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxSignature))
 }
 
 func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.OutputID) bool) {
@@ -116,38 +116,38 @@ func (v *ValidationContext) ForEachInputID(fun func(idx byte, oid *ledger.Output
 			return false
 		}
 		return true
-	}, Path(library.TransactionBranch, library.TxInputIDs))
+	}, Path(constraints.TransactionBranch, constraints.TxInputIDs))
 }
 
 func (v *ValidationContext) ConsumedOutputData(idx byte) []byte {
-	return v.tree.BytesAtPath(Path(library.ConsumedBranch, library.ConsumedOutputsBranch, idx))
+	return v.tree.BytesAtPath(Path(constraints.ConsumedBranch, constraints.ConsumedOutputsBranch, idx))
 }
 
 func (v *ValidationContext) UnlockData(idx byte) []byte {
-	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxUnlockParams, idx))
+	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxUnlockParams, idx))
 }
 
 func (v *ValidationContext) ProducedOutputData(idx byte) []byte {
-	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxOutputs, idx))
+	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxOutputs, idx))
 }
 
 func (v *ValidationContext) NumProducedOutputs() int {
-	return v.tree.NumElements([]byte{library.TransactionBranch, library.TxOutputs})
+	return v.tree.NumElements([]byte{constraints.TransactionBranch, constraints.TxOutputs})
 }
 
 func (v *ValidationContext) NumInputs() int {
-	return v.tree.NumElements([]byte{library.TransactionBranch, library.TxInputIDs})
+	return v.tree.NumElements([]byte{constraints.TransactionBranch, constraints.TxInputIDs})
 }
 
 func (v *ValidationContext) InputID(idx byte) ledger.OutputID {
-	data := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputIDs, idx))
+	data := v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxInputIDs, idx))
 	ret, err := ledger.OutputIDFromBytes(data)
 	easyfl.AssertNoError(err)
 	return ret
 }
 
 func (v *ValidationContext) TimestampData() ([]byte, uint32) {
-	ret := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxTimestamp))
+	ret := v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxTimestamp))
 	retTs := uint32(0)
 	if len(ret) == 4 {
 		retTs = binary.BigEndian.Uint32(ret)

@@ -9,8 +9,8 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
-	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 )
@@ -89,9 +89,9 @@ func (v *ValidationContext) validateConsumedOutputs(indexRecords *[]*indexer.Com
 func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[]*indexer.Command) (uint64, error) {
 	var branch lazyslice.TreePath
 	if consumedBranch {
-		branch = Path(library.ConsumedBranch, library.ConsumedOutputsBranch)
+		branch = Path(constraints.ConsumedBranch, constraints.ConsumedOutputsBranch)
 	} else {
-		branch = Path(library.TransactionBranch, library.TxOutputs)
+		branch = Path(constraints.TransactionBranch, constraints.TxOutputs)
 	}
 	var err error
 	var sum uint64
@@ -104,9 +104,9 @@ func (v *ValidationContext) validateOutputs(consumedBranch bool, indexRecords *[
 		if extraDepositWeight, err = v.runOutput(consumedBranch, arr, path); err != nil {
 			return false
 		}
-		minDeposit := library.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
-		var am library.Amount
-		am, err = library.AmountFromBytes(arr.At(int(library.ConstraintIndexAmount)))
+		minDeposit := constraints.MinimumStorageDeposit(uint32(len(data)), extraDepositWeight)
+		var am constraints.Amount
+		am, err = constraints.AmountFromBytes(arr.At(int(constraints.ConstraintIndexAmount)))
 		if err != nil {
 			return false
 		}
@@ -143,8 +143,8 @@ func (v *ValidationContext) createIndexEntries(idx byte, outputArray *lazyslice.
 }
 
 func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) error {
-	var lock library.Lock
-	lock, err := library.LockFromBytes(outputArray.At(int(library.ConstraintIndexLock)))
+	var lock constraints.Lock
+	lock, err := constraints.LockFromBytes(outputArray.At(int(constraints.ConstraintIndexLock)))
 	if err != nil {
 		return err
 	}
@@ -166,10 +166,10 @@ func (v *ValidationContext) indexLock(idx byte, outputArray *lazyslice.Array, co
 
 func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array, consumedBranch bool, indexRecords *[]*indexer.Command) {
 	outputArray.ForEach(func(i int, data []byte) bool {
-		if i == int(library.ConstraintIndexAmount) || i == int(library.ConstraintIndexTimestamp) || i == int(library.ConstraintIndexLock) {
+		if i == int(constraints.ConstraintIndexAmount) || i == int(constraints.ConstraintIndexTimestamp) || i == int(constraints.ConstraintIndexLock) {
 			return true
 		}
-		chainConstraint, err := library.ChainConstraintFromBytes(data)
+		chainConstraint, err := constraints.ChainConstraintFromBytes(data)
 		if err != nil {
 			return true
 		}
@@ -207,7 +207,7 @@ func (v *ValidationContext) indexChainID(idx byte, outputArray *lazyslice.Array,
 }
 
 func (v *ValidationContext) UnlockParams(consumedOutputIdx, constraintIdx byte) []byte {
-	return v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxUnlockParams, consumedOutputIdx, constraintIdx))
+	return v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxUnlockParams, consumedOutputIdx, constraintIdx))
 }
 
 // runOutput checks constraints of the output one-by-one
@@ -259,9 +259,9 @@ func (v *ValidationContext) runOutput(consumedBranch bool, outputArray *lazyslic
 }
 
 func (v *ValidationContext) validateInputCommitment() error {
-	consumedOutputBytes := v.tree.BytesAtPath(Path(library.ConsumedBranch, library.ConsumedOutputsBranch))
+	consumedOutputBytes := v.tree.BytesAtPath(Path(constraints.ConsumedBranch, constraints.ConsumedOutputsBranch))
 	h := blake2b.Sum256(consumedOutputBytes)
-	inputCommitment := v.tree.BytesAtPath(Path(library.TransactionBranch, library.TxInputCommitment))
+	inputCommitment := v.tree.BytesAtPath(Path(constraints.TransactionBranch, constraints.TxInputCommitment))
 	if !bytes.Equal(h[:], inputCommitment) {
 		return fmt.Errorf("consumed input hash %v not equal to input commitment %v",
 			easyfl.Fmt(h[:]), easyfl.Fmt(inputCommitment))
@@ -276,21 +276,21 @@ func PathToString(path []byte) string {
 	}
 	if len(path) >= 1 {
 		switch path[0] {
-		case library.TransactionBranch:
+		case constraints.TransactionBranch:
 			ret += ".tx"
 			if len(path) >= 2 {
 				switch path[1] {
-				case library.TxUnlockParams:
+				case constraints.TxUnlockParams:
 					ret += ".unlock"
-				case library.TxInputIDs:
+				case constraints.TxInputIDs:
 					ret += ".inID"
-				case library.TxOutputs:
+				case constraints.TxOutputs:
 					ret += ".out"
-				case library.TxSignature:
+				case constraints.TxSignature:
 					ret += ".sig"
-				case library.TxTimestamp:
+				case constraints.TxTimestamp:
 					ret += ".ts"
-				case library.TxInputCommitment:
+				case constraints.TxInputCommitment:
 					ret += ".inhash"
 				default:
 					ret += "WRONG[1]"
@@ -305,7 +305,7 @@ func PathToString(path []byte) string {
 			if len(path) >= 5 {
 				ret += fmt.Sprintf("..%v", path[4:])
 			}
-		case library.ConsumedBranch:
+		case constraints.ConsumedBranch:
 			ret += ".consumed"
 			if len(path) >= 2 {
 				if path[1] != 0 {
@@ -338,7 +338,7 @@ func constraintName(binCode []byte) string {
 	if err != nil {
 		return fmt.Sprintf("unknown_constraint(%s)", easyfl.Fmt(binCode))
 	}
-	name, found := library.NameByPrefix(prefix)
+	name, found := constraints.NameByPrefix(prefix)
 	if found {
 		return name
 	}

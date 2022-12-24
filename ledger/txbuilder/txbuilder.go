@@ -11,7 +11,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 )
@@ -123,16 +123,16 @@ func (tx *transaction) ToArray() *lazyslice.Array {
 		outputs.Push(o.Bytes())
 	}
 
-	elems := make([]interface{}, library.TxTreeIndexMax)
-	elems[library.TxUnlockParams] = unlockParams
-	elems[library.TxInputIDs] = inputIDs
-	elems[library.TxOutputs] = outputs
-	elems[library.TxSignature] = tx.Signature
+	elems := make([]interface{}, constraints.TxTreeIndexMax)
+	elems[constraints.TxUnlockParams] = unlockParams
+	elems[constraints.TxInputIDs] = inputIDs
+	elems[constraints.TxOutputs] = outputs
+	elems[constraints.TxSignature] = tx.Signature
 	var ts [4]byte
 	binary.BigEndian.PutUint32(ts[:], tx.Timestamp)
-	elems[library.TxTimestamp] = ts[:]
-	elems[library.TxInputCommitment] = tx.InputCommitment[:]
-	elems[library.TxLocalLibraries] = lazyslice.MakeArrayFromData(tx.LocalLibraries...)
+	elems[constraints.TxTimestamp] = ts[:]
+	elems[constraints.TxInputCommitment] = tx.InputCommitment[:]
+	elems[constraints.TxLocalLibraries] = lazyslice.MakeArrayFromData(tx.LocalLibraries...)
 	return lazyslice.MakeArray(elems...)
 }
 
@@ -143,9 +143,9 @@ func (tx *transaction) Bytes() []byte {
 func (tx *transaction) EssenceBytes() []byte {
 	arr := tx.ToArray()
 	return common.Concat(
-		arr.At(int(library.TxInputIDs)),
-		arr.At(int(library.TxOutputs)),
-		arr.At(int(library.TxInputCommitment)),
+		arr.At(int(constraints.TxInputIDs)),
+		arr.At(int(constraints.TxOutputs)),
+		arr.At(int(constraints.TxInputCommitment)),
 	)
 }
 
@@ -161,11 +161,11 @@ func (txb *TransactionBuilder) SignED25519(privKey ed25519.PrivateKey) {
 type TransferData struct {
 	SenderPrivateKey ed25519.PrivateKey
 	SenderPublicKey  ed25519.PublicKey
-	SourceAccount    library.Accountable
+	SourceAccount    constraints.Accountable
 	Outputs          []*OutputWithID
 	ChainOutput      *OutputWithChainID
 	Timestamp        uint32 // takes time.Now() if 0
-	Lock             library.Lock
+	Lock             constraints.Lock
 	Amount           uint64
 	AdjustToMinimum  bool
 	AddSender        bool
@@ -179,10 +179,10 @@ type UnlockData struct {
 	Data            []byte
 }
 
-func NewTransferData(senderKey ed25519.PrivateKey, sourceAccount library.Accountable, ts uint32) *TransferData {
+func NewTransferData(senderKey ed25519.PrivateKey, sourceAccount constraints.Accountable, ts uint32) *TransferData {
 	sourcePubKey := senderKey.Public().(ed25519.PublicKey)
 	if common.IsNil(sourceAccount) {
-		sourceAccount = library.AddressED25519FromPublicKey(sourcePubKey)
+		sourceAccount = constraints.AddressED25519FromPublicKey(sourcePubKey)
 	}
 	return &TransferData{
 		SenderPrivateKey: senderKey,
@@ -194,7 +194,7 @@ func NewTransferData(senderKey ed25519.PrivateKey, sourceAccount library.Account
 	}
 }
 
-func (t *TransferData) WithTargetLock(lock library.Lock) *TransferData {
+func (t *TransferData) WithTargetLock(lock constraints.Lock) *TransferData {
 	t.Lock = lock
 	return t
 }
@@ -215,11 +215,11 @@ func (t *TransferData) WithConstraintBinary(constr []byte, idx ...byte) *Transfe
 	return t
 }
 
-func (t *TransferData) WithConstraint(constr library.Constraint, idx ...byte) *TransferData {
+func (t *TransferData) WithConstraint(constr constraints.Constraint, idx ...byte) *TransferData {
 	return t.WithConstraintBinary(constr.Bytes(), idx...)
 }
 
-func (t *TransferData) WithConstraintAtIndex(constr library.Constraint) *TransferData {
+func (t *TransferData) WithConstraintAtIndex(constr constraints.Constraint) *TransferData {
 	return t.WithConstraintBinary(constr.Bytes())
 }
 
@@ -263,7 +263,7 @@ func (t *TransferData) AdjustedAmount() uint64 {
 		_, err := outTentative.PushConstraint(c)
 		easyfl.AssertNoError(err)
 	}
-	minimumDeposit := library.MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
+	minimumDeposit := constraints.MinimumStorageDeposit(uint32(len(outTentative.Bytes())), 0)
 	if t.Amount < minimumDeposit {
 		return minimumDeposit
 	}
@@ -335,8 +335,8 @@ func MakeSimpleTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.
 		WithLock(par.Lock)
 
 	if par.AddSender {
-		senderAddr := library.AddressED25519FromPublicKey(par.SenderPublicKey)
-		if _, err = mainOutput.PushConstraint(library.NewSenderAddressED25519(senderAddr).Bytes()); err != nil {
+		senderAddr := constraints.AddressED25519FromPublicKey(par.SenderPublicKey)
+		if _, err = mainOutput.PushConstraint(constraints.NewSenderAddressED25519(senderAddr).Bytes()); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -364,10 +364,10 @@ func MakeSimpleTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.
 
 	for i := range consumedOuts {
 		if i == 0 {
-			txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+			txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 		} else {
 			// always referencing the 0 output
-			err = txb.PutUnlockReference(byte(i), library.ConstraintIndexLock, 0)
+			err = txb.PutUnlockReference(byte(i), constraints.ConstraintIndexLock, 0)
 			easyfl.AssertNoError(err)
 		}
 	}
@@ -420,7 +420,7 @@ func MakeChainTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.O
 			return nil, nil, err
 		}
 	}
-	chainConstr := library.NewChainConstraint(par.ChainOutput.ChainID, 0, par.ChainOutput.PredecessorConstraintIndex, 0)
+	chainConstr := constraints.NewChainConstraint(par.ChainOutput.ChainID, 0, par.ChainOutput.PredecessorConstraintIndex, 0)
 	easyfl.Assert(availableTokens > amount, "availableTokens > amount")
 	chainSuccessorOutput := par.ChainOutput.Output.Clone().
 		WithAmount(availableTokens - amount).
@@ -436,8 +436,8 @@ func MakeChainTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.O
 		WithLock(par.Lock)
 
 	if par.AddSender {
-		senderAddr := library.AddressED25519FromPublicKey(par.SenderPublicKey)
-		if _, err = mainOutput.PushConstraint(library.NewSenderAddressED25519(senderAddr).Bytes()); err != nil {
+		senderAddr := constraints.AddressED25519FromPublicKey(par.SenderPublicKey)
+		if _, err = mainOutput.PushConstraint(constraints.NewSenderAddressED25519(senderAddr).Bytes()); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -450,13 +450,13 @@ func MakeChainTransferTransactionOutputs(par *TransferData) ([]byte, []*ledger.O
 		return nil, nil, err
 	}
 	// unlock chain input
-	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 	txb.PutUnlockParams(0, par.ChainOutput.PredecessorConstraintIndex, []byte{0, par.ChainOutput.PredecessorConstraintIndex, 0})
 
 	// always reference chain input
 	for i := range consumedOuts {
-		chainUnlockRef := library.NewChainLockUnlockParams(0, par.ChainOutput.PredecessorConstraintIndex)
-		txb.PutUnlockParams(byte(i+1), library.ConstraintIndexLock, chainUnlockRef)
+		chainUnlockRef := constraints.NewChainLockUnlockParams(0, par.ChainOutput.PredecessorConstraintIndex)
+		txb.PutUnlockParams(byte(i+1), constraints.ConstraintIndexLock, chainUnlockRef)
 		easyfl.AssertNoError(err)
 	}
 
@@ -532,7 +532,7 @@ func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*OutputWithChainI
 }
 
 func GetChainAccount(chainID []byte, ind ledger.IndexerAccess, state ledger.StateAccess, desc ...bool) (*OutputWithChainID, []*OutputWithID, error) {
-	chainLock, err := library.ChainLockFromChainID(chainID)
+	chainLock, err := constraints.ChainLockFromChainID(chainID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -574,14 +574,14 @@ func (txb *TransactionBuilder) InsertSimpleChainTransition(inChainData *ledger.O
 		return err
 	}
 	chainOut := chainIN.Clone().WithTimestamp(ts)
-	successor := library.NewChainConstraint(inChainData.ChainID, predecessorOutputIndex, predecessorConstraintIndex, 0)
+	successor := constraints.NewChainConstraint(inChainData.ChainID, predecessorOutputIndex, predecessorConstraintIndex, 0)
 	chainOut.PutConstraint(successor.Bytes(), predecessorConstraintIndex)
 	successorOutputIndex, err := txb.ProduceOutput(chainOut)
 	if err != nil {
 		return err
 	}
 	txb.PutUnlockParams(predecessorOutputIndex, predecessorConstraintIndex, []byte{successorOutputIndex, predecessorConstraintIndex, 0})
-	txb.PutSignatureUnlock(successorOutputIndex, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(successorOutputIndex, constraints.ConstraintIndexLock)
 
 	return nil
 }

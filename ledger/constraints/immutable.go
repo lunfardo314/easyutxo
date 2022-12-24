@@ -1,4 +1,4 @@
-package library
+package constraints
 
 import (
 	"encoding/hex"

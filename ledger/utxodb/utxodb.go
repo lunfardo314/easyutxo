@@ -9,8 +9,8 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
-	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"github.com/lunfardo314/unitrie/common"
@@ -25,7 +25,7 @@ type UTXODB struct {
 	supply            uint64
 	genesisPrivateKey ed25519.PrivateKey
 	genesisPublicKey  ed25519.PublicKey
-	genesisAddress    library.AddressED25519
+	genesisAddress    constraints.AddressED25519
 	trace             bool
 }
 
@@ -47,7 +47,7 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	if err != nil {
 		panic(err)
 	}
-	originAddr := library.AddressED25519FromPublicKey(originPubKey)
+	originAddr := constraints.AddressED25519FromPublicKey(originPubKey)
 
 	store := common.NewInMemoryKVStore()
 	initRoot := state.MustInitLedgerState(store, []byte(utxodbIdentity), originAddr, supplyForTesting)
@@ -83,7 +83,7 @@ func (u *UTXODB) GenesisKeys() (ed25519.PrivateKey, ed25519.PublicKey) {
 	return u.genesisPrivateKey, u.genesisPublicKey
 }
 
-func (u *UTXODB) GenesisAddress() library.AddressED25519 {
+func (u *UTXODB) GenesisAddress() constraints.AddressED25519 {
 	return u.genesisAddress
 }
 
@@ -101,7 +101,7 @@ func (u *UTXODB) AddTransaction(txBytes []byte, traceOption ...int) error {
 	return nil
 }
 
-func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64) error {
+func (u *UTXODB) TokensFromFaucet(addr constraints.AddressED25519, howMany ...uint64) error {
 	amount := TokensFromFaucetDefault
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
@@ -130,29 +130,29 @@ func (u *UTXODB) TokensFromFaucet(addr library.AddressED25519, howMany ...uint64
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, library.AddressED25519) {
+func (u *UTXODB) GenerateAddress(n uint16) (ed25519.PrivateKey, ed25519.PublicKey, constraints.AddressED25519) {
 	var u16 [2]byte
 	binary.BigEndian.PutUint16(u16[:], n)
 	seed := blake2b.Sum256(common.Concat([]byte(deterministicSeed), u16[:]))
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
-	addr := library.AddressED25519FromPublicKey(pub)
+	addr := constraints.AddressED25519FromPublicKey(pub)
 	return priv, pub, addr
 }
 
-func (u *UTXODB) MakeTransferData(privKey ed25519.PrivateKey, sourceAccount library.Accountable, ts uint32, desc ...bool) (*txbuilder.TransferData, error) {
+func (u *UTXODB) MakeTransferData(privKey ed25519.PrivateKey, sourceAccount constraints.Accountable, ts uint32, desc ...bool) (*txbuilder.TransferData, error) {
 	if ts == 0 {
 		ts = uint32(time.Now().Unix())
 	}
 	ret := txbuilder.NewTransferData(privKey, sourceAccount, ts)
 
 	switch addr := ret.SourceAccount.(type) {
-	case library.AddressED25519:
+	case constraints.AddressED25519:
 		if err := u.makeTransferInputsED25519(ret, desc...); err != nil {
 			return nil, err
 		}
 		return ret, nil
-	case library.ChainLock:
+	case constraints.ChainLock:
 		if err := u.makeTransferDataChainLock(ret, addr, desc...); err != nil {
 			return nil, err
 		}
@@ -177,7 +177,7 @@ func (u *UTXODB) makeTransferInputsED25519(par *txbuilder.TransferData, desc ...
 	return nil
 }
 
-func (u *UTXODB) makeTransferDataChainLock(par *txbuilder.TransferData, chainLock library.ChainLock, desc ...bool) error {
+func (u *UTXODB) makeTransferDataChainLock(par *txbuilder.TransferData, chainLock constraints.ChainLock, desc ...bool) error {
 	outChain, outs, err := txbuilder.GetChainAccount(chainLock.ChainID(), u.IndexerAccess(), u.StateAccess(), desc...)
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func (u *UTXODB) makeTransferDataChainLock(par *txbuilder.TransferData, chainLoc
 	return nil
 }
 
-func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.Lock, amount uint64) error {
+func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constraints.Lock, amount uint64) error {
 	par, err := u.MakeTransferData(privKey, nil, 0)
 	if err != nil {
 		return err
@@ -205,7 +205,7 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock library.L
 	return u.AddTransaction(txBytes, trace)
 }
 
-func (u *UTXODB) account(addr library.Accountable, ts ...uint32) (uint64, int) {
+func (u *UTXODB) account(addr constraints.Accountable, ts ...uint32) (uint64, int) {
 	outs, err := u.indexer.GetUTXOsLockedInAccount(addr, u.state.Readable())
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
@@ -226,7 +226,7 @@ func (u *UTXODB) account(addr library.Accountable, ts ...uint32) (uint64, int) {
 
 // Balance returns balance of address unlockable at timestamp ts, if provided. Otherwise, all outputs taken
 // For chains, this does not include te chain-output itself
-func (u *UTXODB) Balance(addr library.Accountable, ts ...uint32) uint64 {
+func (u *UTXODB) Balance(addr constraints.Accountable, ts ...uint32) uint64 {
 	ret, _ := u.account(addr, ts...)
 	return ret
 }
@@ -245,7 +245,7 @@ func (u *UTXODB) BalanceOnChain(chainID []byte) (uint64, uint64, error) {
 }
 
 // NumUTXOs returns number of outputs of address unlockable at timestamp ts, if provided. Otherwise, all outputs taken
-func (u *UTXODB) NumUTXOs(addr library.Accountable, ts ...uint32) int {
+func (u *UTXODB) NumUTXOs(addr constraints.Accountable, ts ...uint32) int {
 	_, ret := u.account(addr, ts...)
 	return ret
 }

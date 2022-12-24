@@ -11,7 +11,7 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/easyutxo/ledger/txbuilder"
 	"github.com/lunfardo314/easyutxo/ledger/utxodb"
@@ -28,25 +28,25 @@ func TestOutput(t *testing.T) {
 	const msg = "message to be signed"
 
 	t.Run("basic", func(t *testing.T) {
-		out := txbuilder.OutputBasic(0, 0, library.AddressED25519Null())
+		out := txbuilder.OutputBasic(0, 0, constraints.AddressED25519Null())
 		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("empty output: %d bytes", len(out.Bytes()))
 	})
 	t.Run("address", func(t *testing.T) {
-		out := txbuilder.OutputBasic(0, 0, library.AddressED25519FromPublicKey(pubKey))
+		out := txbuilder.OutputBasic(0, 0, constraints.AddressED25519FromPublicKey(pubKey))
 		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
 		t.Logf("output: %d bytes", len(out.Bytes()))
 
-		_, err = library.AddressED25519FromBytes(outBack.Lock().Bytes())
+		_, err = constraints.AddressED25519FromBytes(outBack.Lock().Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, out.Lock(), outBack.Lock())
 	})
 	t.Run("tokens", func(t *testing.T) {
-		out := txbuilder.OutputBasic(1337, uint32(time.Now().Unix()), library.AddressED25519Null())
+		out := txbuilder.OutputBasic(1337, uint32(time.Now().Unix()), constraints.AddressED25519Null())
 		outBack, err := txbuilder.OutputFromBytes(out.Bytes())
 		require.NoError(t, err)
 		require.EqualValues(t, outBack.Bytes(), out.Bytes())
@@ -65,7 +65,7 @@ func TestMainConstraints(t *testing.T) {
 		out, err := txbuilder.OutputFromBytes(genesisBytes)
 		require.NoError(t, err)
 		require.EqualValues(t, u.Supply(), out.Amount())
-		require.True(t, library.Equal(u.GenesisAddress(), out.Lock()))
+		require.True(t, constraints.Equal(u.GenesisAddress(), out.Lock()))
 		outsData, err := u.IndexerAccess().GetUTXOsLockedInAccount(u.GenesisAddress(), u.StateAccess())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outsData))
@@ -159,7 +159,7 @@ func TestTimelock(t *testing.T) {
 		require.NoError(t, err)
 		par.WithAmount(200).
 			WithTargetLock(addr1).
-			WithConstraint(library.NewTimelock(ts + 1))
+			WithConstraint(constraints.NewTimelock(ts + 1))
 		txBytes, err := txbuilder.MakeTransferTransaction(par)
 
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestTimelock(t *testing.T) {
 		require.NoError(t, err)
 		par.WithAmount(2000).
 			WithTargetLock(addr1).
-			WithConstraint(library.NewTimelock(ts + 1 + 10))
+			WithConstraint(constraints.NewTimelock(ts + 1 + 10))
 		err = u.DoTransfer(par)
 		require.NoError(t, err)
 
@@ -218,7 +218,7 @@ func TestTimelock(t *testing.T) {
 		txBytes, err := txbuilder.MakeTransferTransaction(par.
 			WithAmount(200).
 			WithTargetLock(addr1).
-			WithConstraint(library.NewTimelock(ts + 1)),
+			WithConstraint(constraints.NewTimelock(ts + 1)),
 		)
 		require.NoError(t, err)
 		t.Logf("tx with timelock len: %d", len(txBytes))
@@ -232,7 +232,7 @@ func TestTimelock(t *testing.T) {
 		err = u.DoTransfer(par.
 			WithAmount(2000).
 			WithTargetLock(addr1).
-			WithConstraint(library.NewTimelock(ts + 1 + 10)),
+			WithConstraint(constraints.NewTimelock(ts + 1 + 10)),
 		)
 		require.NoError(t, err)
 
@@ -276,10 +276,10 @@ func TestDeadlineLock(t *testing.T) {
 
 	par, err := u.MakeTransferData(privKey0, nil, ts)
 	require.NoError(t, err)
-	deadlineLock := library.NewDeadlineLock(
+	deadlineLock := constraints.NewDeadlineLock(
 		ts+10,
-		library.AddressED25519FromPublicKey(pubKey1),
-		library.AddressED25519FromPublicKey(pubKey0),
+		constraints.AddressED25519FromPublicKey(pubKey1),
+		constraints.AddressED25519FromPublicKey(pubKey0),
 	)
 	t.Logf("deadline lock: %d bytes", len(deadlineLock.Bytes()))
 	dis, err := easyfl.DecompileBytecode(deadlineLock.Bytes())
@@ -339,13 +339,13 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.EqualValues(t, 1, len(outs))
 	saddr, ok := outs[0].Output.SenderAddressED25519()
 	require.True(t, ok)
-	require.True(t, library.Equal(addr0, saddr))
+	require.True(t, constraints.Equal(addr0, saddr))
 }
 
 func TestChain1(t *testing.T) {
 	var privKey0 ed25519.PrivateKey
 	var u *utxodb.UTXODB
-	var addr0 library.AddressED25519
+	var addr0 constraints.AddressED25519
 	initTest := func() {
 		u = utxodb.NewUTXODB(true)
 		privKey0, _, addr0 = u.GenerateAddress(0)
@@ -362,7 +362,7 @@ func TestChain1(t *testing.T) {
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
-			WithConstraint(library.NewChainOrigin()),
+			WithConstraint(constraints.NewChainOrigin()),
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -482,7 +482,7 @@ func TestChain1(t *testing.T) {
 		txb.Transaction.InputCommitment = txb.InputCommitment()
 
 		txb.PutUnlockParams(consumedIndex, predecessorConstraintIndex, []byte{0xff, 0xff, 0xff})
-		txb.PutSignatureUnlock(consumedIndex, library.ConstraintIndexLock)
+		txb.PutSignatureUnlock(consumedIndex, constraints.ConstraintIndexLock)
 		txb.SignED25519(privKey0)
 
 		txbytes := txb.Transaction.Bytes()
@@ -502,7 +502,7 @@ func TestChain1(t *testing.T) {
 func TestChain2(t *testing.T) {
 	var privKey0 ed25519.PrivateKey
 	var u *utxodb.UTXODB
-	var addr0 library.AddressED25519
+	var addr0 constraints.AddressED25519
 	initTest := func() {
 		u = utxodb.NewUTXODB(true)
 		privKey0, _, addr0 = u.GenerateAddress(0)
@@ -519,7 +519,7 @@ func TestChain2(t *testing.T) {
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
-			WithConstraint(library.NewChainOrigin()),
+			WithConstraint(constraints.NewChainOrigin()),
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -550,22 +550,22 @@ func TestChain2(t *testing.T) {
 		predIdx, err := txb.ConsumeOutput(chainIN, chains[0].ID)
 		require.NoError(t, err)
 
-		var nextChainConstraint *library.ChainConstraint
+		var nextChainConstraint *constraints.ChainConstraint
 		// options of making it wrong
 		switch option1 {
 		case 0:
 			// good
-			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+			nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 		case 1:
-			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, 0xff, constraintIdx, 0)
+			nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, 0xff, constraintIdx, 0)
 		case 2:
-			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, 0xff, 0)
+			nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, 0xff, 0)
 		case 3:
-			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, 0xff, 0xff, 0)
+			nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, 0xff, 0xff, 0)
 		case 4:
-			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 1)
+			nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 1)
 		case 5:
-			nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, 0xff, 0xff, 0xff)
+			nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, 0xff, 0xff, 0xff)
 		default:
 			panic("wrong test option 1")
 		}
@@ -591,7 +591,7 @@ func TestChain2(t *testing.T) {
 		default:
 			panic("wrong test option 2")
 		}
-		txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+		txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 
 		txb.Transaction.Timestamp = ts
 		txb.Transaction.InputCommitment = txb.InputCommitment()
@@ -662,7 +662,7 @@ func TestChain2(t *testing.T) {
 func TestChain3(t *testing.T) {
 	var privKey0 ed25519.PrivateKey
 	var u *utxodb.UTXODB
-	var addr0 library.AddressED25519
+	var addr0 constraints.AddressED25519
 	initTest := func() {
 		u = utxodb.NewUTXODB(true)
 		privKey0, _, addr0 = u.GenerateAddress(0)
@@ -679,7 +679,7 @@ func TestChain3(t *testing.T) {
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
-			WithConstraint(library.NewChainOrigin()),
+			WithConstraint(constraints.NewChainOrigin()),
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -709,8 +709,8 @@ func TestChain3(t *testing.T) {
 	predIdx, err := txb.ConsumeOutput(chainIN, chains[0].ID)
 	require.NoError(t, err)
 
-	var nextChainConstraint *library.ChainConstraint
-	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+	var nextChainConstraint *constraints.ChainConstraint
+	nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 
 	chainOut := chainIN.Clone().WithTimestamp(ts)
 	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
@@ -718,7 +718,7 @@ func TestChain3(t *testing.T) {
 	require.NoError(t, err)
 
 	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
-	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 
 	txb.Transaction.Timestamp = ts
 	txb.Transaction.InputCommitment = txb.InputCommitment()
@@ -740,10 +740,10 @@ func TestChain3(t *testing.T) {
 
 func TestChainLock(t *testing.T) {
 	var privKey0, privKey1 ed25519.PrivateKey
-	var addr0, addr1 library.AddressED25519
+	var addr0, addr1 constraints.AddressED25519
 	var u *utxodb.UTXODB
 	var chainID [32]byte
-	var chainAddr library.ChainLock
+	var chainAddr constraints.ChainLock
 
 	initTest := func() {
 		u = utxodb.NewUTXODB(true)
@@ -761,7 +761,7 @@ func TestChainLock(t *testing.T) {
 		outs, err := u.DoTransferOutputs(par.
 			WithAmount(2000).
 			WithTargetLock(addr0).
-			WithConstraint(library.NewChainOrigin()),
+			WithConstraint(constraints.NewChainOrigin()),
 		)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -774,7 +774,7 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 1, len(chains))
 
 		chainID = chains[0].ChainID
-		chainAddr, err = library.ChainLockFromChainID(chainID[:])
+		chainAddr, err = constraints.ChainLockFromChainID(chainID[:])
 		require.NoError(t, err)
 		require.EqualValues(t, chainID[:], chainAddr.ChainID())
 
@@ -852,7 +852,7 @@ func TestLocalLibrary(t *testing.T) {
  func fun2 : fun1(fun1($0,$1), fun1($0,$1))
  func fun3 : fun2($0, $0)
 `
-	libBin, err := library.CompileLocalLibrary(source)
+	libBin, err := constraints.CompileLocalLibrary(source)
 	require.NoError(t, err)
 	t.Run("1", func(t *testing.T) {
 		src := fmt.Sprintf("callLocalLibrary(0x%s, 2, 5)", hex.EncodeToString(libBin))
@@ -878,7 +878,7 @@ func TestLocalLibrary(t *testing.T) {
 
 func TestHashUnlock(t *testing.T) {
 	const secretUnlockScript = "func fun1: and" // always returns true
-	libBin, err := library.CompileLocalLibrary(secretUnlockScript)
+	libBin, err := constraints.CompileLocalLibrary(secretUnlockScript)
 	require.NoError(t, err)
 	t.Logf("library size: %d", len(libBin))
 	libHash := blake2b.Sum256(libBin)
@@ -901,7 +901,7 @@ func TestHashUnlock(t *testing.T) {
 
 	par, err := u.MakeTransferData(privKey0, nil, 0)
 	require.NoError(t, err)
-	constr := library.NewGeneralScript(constraintBin)
+	constr := constraints.NewGeneralScript(constraintBin)
 	t.Logf("constraint: %s", constr)
 	par.WithAmount(1000).
 		WithTargetLock(addr0).
@@ -965,8 +965,8 @@ func TestRoyalties(t *testing.T) {
 	privKey1, _, addr1 := u.GenerateAddress(1)
 	in, err := u.MakeTransferData(privKey0, nil, 0)
 	require.NoError(t, err)
-	royaltiesConstraint := library.NewRoyalties(addr0, 500)
-	royaltiesBytecode := library.NewGeneralScript(royaltiesConstraint.Bytes())
+	royaltiesConstraint := constraints.NewRoyalties(addr0, 500)
+	royaltiesBytecode := constraints.NewGeneralScript(royaltiesConstraint.Bytes())
 	in.WithTargetLock(addr1).
 		WithAmount(1000).
 		WithConstraint(royaltiesBytecode)
@@ -1036,7 +1036,7 @@ func TestImmutable(t *testing.T) {
 	par, err := u.MakeTransferData(privKey, nil, uint32(time.Now().Unix()))
 	par.WithAmount(2000).
 		WithTargetLock(addr0).
-		WithConstraint(library.NewChainOrigin())
+		WithConstraint(constraints.NewChainOrigin())
 	txbytes, err := txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 	t.Logf("tx1 = %s", u.TxToString(txbytes))
@@ -1069,26 +1069,26 @@ func TestImmutable(t *testing.T) {
 	predIdx, err := txb.ConsumeOutput(chainIN, chains[0].ID)
 	require.NoError(t, err)
 
-	var nextChainConstraint *library.ChainConstraint
-	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+	var nextChainConstraint *constraints.ChainConstraint
+	nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 
 	chainOut := chainIN.Clone().WithTimestamp(ts)
 	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
 
-	immutableData, err := library.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	immutableData, err := constraints.NewGeneralScriptFomSource("concat(0x01020304030201)")
 	require.NoError(t, err)
 	// push data constraint
 	_, err = chainOut.PushConstraint(immutableData)
 	require.NoError(t, err)
 	// push immutable constraint
-	_, err = chainOut.PushConstraint(library.NewImmutable(3, 4).Bytes())
+	_, err = chainOut.PushConstraint(constraints.NewImmutable(3, 4).Bytes())
 	require.NoError(t, err)
 
 	succIdx, err := txb.ProduceOutput(chainOut)
 	require.NoError(t, err)
 
 	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
-	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 
 	txb.Transaction.Timestamp = ts
 	txb.Transaction.InputCommitment = txb.InputCommitment()
@@ -1115,7 +1115,7 @@ func TestImmutable(t *testing.T) {
 	predIdx, err = txb.ConsumeOutput(chainIN, chs.ID)
 	require.NoError(t, err)
 
-	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+	nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 
 	chainOut = chainIN.Clone().WithTimestamp(ts)
 
@@ -1124,7 +1124,7 @@ func TestImmutable(t *testing.T) {
 
 	txb.PutUnlockParams(predIdx, constraintIdx, []byte{succIdx, constraintIdx, 0})
 	// skip immutable unlock
-	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 
 	txb.Transaction.Timestamp = ts
 	txb.Transaction.InputCommitment = txb.InputCommitment()
@@ -1153,12 +1153,12 @@ func TestImmutable(t *testing.T) {
 	predIdx, err = txb.ConsumeOutput(chainIN, chs.ID)
 	require.NoError(t, err)
 
-	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+	nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 
 	chainOut = chainIN.Clone().WithTimestamp(ts)
 
 	// put wrong data
-	wrongImmutableData, err := library.NewGeneralScriptFomSource("concat(0x010203040302010000)")
+	wrongImmutableData, err := constraints.NewGeneralScriptFomSource("concat(0x010203040302010000)")
 	require.NoError(t, err)
 	chainOut.PutConstraint(wrongImmutableData.Bytes(), 4)
 
@@ -1170,7 +1170,7 @@ func TestImmutable(t *testing.T) {
 	txb.PutUnlockParams(predIdx, 5, []byte{4, 5})
 
 	// skip immutable unlock
-	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 
 	txb.Transaction.Timestamp = ts
 	txb.Transaction.InputCommitment = txb.InputCommitment()
@@ -1199,12 +1199,12 @@ func TestImmutable(t *testing.T) {
 	predIdx, err = txb.ConsumeOutput(chainIN, chs.ID)
 	require.NoError(t, err)
 
-	nextChainConstraint = library.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
+	nextChainConstraint = constraints.NewChainConstraint(theChainData.ChainID, predIdx, constraintIdx, 0)
 
 	chainOut = chainIN.Clone().WithTimestamp(ts)
 
 	// put wrong data
-	sameImmutableData, err := library.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	sameImmutableData, err := constraints.NewGeneralScriptFomSource("concat(0x01020304030201)")
 	require.NoError(t, err)
 	chainOut.PutConstraint(sameImmutableData.Bytes(), 4)
 
@@ -1216,7 +1216,7 @@ func TestImmutable(t *testing.T) {
 	txb.PutUnlockParams(predIdx, 5, []byte{4, 5})
 
 	// skip immutable unlock
-	txb.PutSignatureUnlock(0, library.ConstraintIndexLock)
+	txb.PutSignatureUnlock(0, constraints.ConstraintIndexLock)
 
 	txb.Transaction.Timestamp = ts
 	txb.Transaction.InputCommitment = txb.InputCommitment()

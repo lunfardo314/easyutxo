@@ -6,7 +6,7 @@ import (
 
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
-	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/unitrie/common"
 )
 
@@ -49,7 +49,7 @@ func (cmd *Command) String() string {
 		cmd.Partition, easyfl.Fmt(cmd.ID[:]), cmd.OutputID.String(), cmd.Delete)
 }
 
-func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *Indexer {
+func NewIndexer(store ledger.IndexerStore, originAddr constraints.AddressED25519) *Indexer {
 	w := store.BatchedWriter()
 	var nullOutputID ledger.OutputID
 	addrBytes := originAddr.Bytes()
@@ -64,7 +64,7 @@ func NewIndexer(store ledger.IndexerStore, originAddr library.AddressED25519) *I
 	}
 }
 
-func (inr *Indexer) GetUTXOsLockedInAccount(addr library.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state ledger.StateAccess) ([]*ledger.OutputDataWithID, error) {
 	acc := addr.AccountID()
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
@@ -167,6 +167,6 @@ func (cmd *Command) run(w common.KVWriter) error {
 }
 
 // NewInMemory mostly for testing
-func NewInMemory(originAddr library.AddressED25519) *Indexer {
+func NewInMemory(originAddr constraints.AddressED25519) *Indexer {
 	return NewIndexer(common.NewInMemoryKVStore(), originAddr)
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/ledger/library"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/unitrie/common"
 )
 
@@ -34,7 +34,7 @@ type (
 	}
 
 	IndexerAccess interface {
-		GetUTXOsLockedInAccount(accountID library.Accountable, state StateAccess) ([]*OutputDataWithID, error)
+		GetUTXOsLockedInAccount(accountID constraints.Accountable, state StateAccess) ([]*OutputDataWithID, error)
 		GetUTXOForChainID(id []byte, state StateAccess) (*OutputDataWithID, error)
 	}
 

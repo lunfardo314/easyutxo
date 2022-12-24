@@ -6,20 +6,22 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
+	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
-	"github.com/lunfardo314/easyutxo/ledger/library"
 	"github.com/lunfardo314/unitrie/common"
 	"github.com/lunfardo314/unitrie/immutable"
 	"github.com/lunfardo314/unitrie/models/trie_blake2b"
 )
 
-// Updatable is a ledger state, with the particular root
 type (
+	// Updatable is an updatable ledger state, with the particular root
+	// Suitable for chained updates
 	Updatable struct {
 		store ledger.StateStore
 		root  common.VCommitment
 	}
 
+	// Readable is a read-only ledger state, with the particular root
 	Readable struct {
 		trie *immutable.TrieReader
 	}
@@ -30,7 +32,7 @@ type (
 var commitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize256)
 
 // MustInitLedgerState initializes origin ledger state in the empty store
-func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr library.AddressED25519, initialSupply uint64) common.VCommitment {
+func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr constraints.AddressED25519, initialSupply uint64) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
 	emptyRoot := immutable.MustInitRoot(storeTmp, commitmentModel, identity)
 	trie, err := immutable.NewTrieChained(commitmentModel, storeTmp, emptyRoot)
@@ -62,10 +64,11 @@ func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable,
 	}, nil
 }
 
-func genesisOutput(genesisAddr library.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
+// genesisOutput creates genesis output which contains initialSupply and timestamp. The genesis outputID is all-0
+func genesisOutput(genesisAddr constraints.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
 	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	amount := library.NewAmount(initialSupply)
-	timestamp := library.NewTimestamp(ts)
+	amount := constraints.NewAmount(initialSupply)
+	timestamp := constraints.NewTimestamp(ts)
 	ret := lazyslice.EmptyArray()
 	ret.Push(amount.Bytes())
 	ret.Push(timestamp.Bytes())
@@ -125,7 +128,7 @@ func (u *Updatable) updateLedger(ctx *ValidationContext) error {
 		oid := ledger.NewOutputID(txID, idx)
 		trie.Update(oid[:], outputData)
 		return true
-	}, Path(library.TransactionBranch, library.TxOutputs))
+	}, Path(constraints.TransactionBranch, constraints.TxOutputs))
 
 	batch := u.store.BatchedWriter()
 	u.root = trie.Commit(batch)
