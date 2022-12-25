@@ -26,6 +26,8 @@ Constants which define validation context data tree branches. Structure of the d
        -- TxSignature = 0x03          (path 0x0003)  -- contains the only signature of the essence. It is mandatory
        -- TxTimestamp = 0x04          (path 0x0004)  -- mandatory timestamp of the transaction, Unix seconds
        -- TxInputCommitment = 0x05    (path 0x0005)  -- blake2b hash of the all consumed outputs (which are under path 0x1000)
+       -- TxEndorsements = 0x06       (path 0x0006)  -- list of transaction IDs of endorsed transaction
+       -- TxLocalLibraries = 0x07     (path 0x0007)  -- list of local libraries in its binary form
   -- ConsumedBranch = 0x01
        -- ConsumedOutputsBranch = 0x00 (path 0x0100) -- all consumed outputs, up to 256
 
@@ -50,6 +52,7 @@ const (
 	TxSignature
 	TxTimestamp
 	TxInputCommitment
+	TxEndorsements
 	TxLocalLibraries
 	TxTreeIndexMax
 )
@@ -65,7 +68,8 @@ var (
 	PathToInputIDs        = lazyslice.Path(TransactionBranch, TxInputIDs)
 	PathToSignature       = lazyslice.Path(TransactionBranch, TxSignature)
 	PathToInputCommitment = lazyslice.Path(TransactionBranch, TxInputCommitment)
-	PathToLocalLibrary    = lazyslice.Path(TransactionBranch, TxLocalLibraries)
+	PathToEndorsements    = lazyslice.Path(TransactionBranch, TxEndorsements)
+	PathToLocalLibraries  = lazyslice.Path(TransactionBranch, TxLocalLibraries)
 	PathToTimestamp       = lazyslice.Path(TransactionBranch, TxTimestamp)
 )
 
@@ -75,6 +79,10 @@ const (
 	ConstraintIndexTimestamp
 	ConstraintIndexLock
 )
+
+// MaxNumberOfEndorsements is equivalent to 2 parents in the original Tangle.
+// Here it can be any number from 0 to MaxNumberOfEndorsements inclusive
+const MaxNumberOfEndorsements = 4
 
 func init() {
 	//-------------------------------- standard EasyFL library extensions ------------------------------
@@ -101,7 +109,8 @@ func init() {
 	easyfl.Extend("pathToInputIDs", fmt.Sprintf("0x%s", PathToInputIDs.Hex()))
 	easyfl.Extend("pathToSignature", fmt.Sprintf("0x%s", PathToSignature.Hex()))
 	easyfl.Extend("pathToInputCommitment", fmt.Sprintf("0x%s", PathToInputCommitment.Hex()))
-	easyfl.Extend("pathToLocalLibrary", fmt.Sprintf("0x%s", PathToLocalLibrary.Hex()))
+	easyfl.Extend("pathToEndorsements", fmt.Sprintf("0x%s", PathToEndorsements.Hex()))
+	easyfl.Extend("pathToLocalLibrary", fmt.Sprintf("0x%s", PathToLocalLibraries.Hex()))
 	easyfl.Extend("pathToTimestamp", fmt.Sprintf("0x%s", PathToTimestamp.Hex()))
 
 	// mandatory block indices in the output

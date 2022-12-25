@@ -29,6 +29,7 @@ type (
 		Signature       []byte
 		Timestamp       uint32
 		InputCommitment [32]byte
+		Endorsements    []*ledger.TransactionID
 		LocalLibraries  [][]byte
 	}
 
@@ -46,6 +47,7 @@ func NewTransactionBuilder() *TransactionBuilder {
 			UnlockBlocks:    make([]*UnlockParams, 0),
 			Timestamp:       0,
 			InputCommitment: [32]byte{},
+			Endorsements:    make([]*ledger.TransactionID, 0),
 			LocalLibraries:  make([][]byte, 0),
 		},
 	}
@@ -91,6 +93,10 @@ func (txb *TransactionBuilder) PutUnlockReference(outputIndex, constraintIndex, 
 	return nil
 }
 
+func (txb *TransactionBuilder) PushEndorsement(txid *ledger.TransactionID) {
+	txb.Transaction.Endorsements = append(txb.Transaction.Endorsements, txid)
+}
+
 func (txb *TransactionBuilder) ProduceOutput(out *Output) (byte, error) {
 	if txb.NumOutputs() >= 256 {
 		return 0, fmt.Errorf("too many produced outputs")
@@ -112,6 +118,7 @@ func (tx *transaction) ToArray() *lazyslice.Array {
 	unlockParams := lazyslice.EmptyArray(256)
 	inputIDs := lazyslice.EmptyArray(256)
 	outputs := lazyslice.EmptyArray(256)
+	endorsements := lazyslice.EmptyArray(256)
 
 	for _, b := range tx.UnlockBlocks {
 		unlockParams.Push(b.Bytes())
@@ -121,6 +128,9 @@ func (tx *transaction) ToArray() *lazyslice.Array {
 	}
 	for _, o := range tx.Outputs {
 		outputs.Push(o.Bytes())
+	}
+	for _, e := range tx.Endorsements {
+		endorsements.Push(e.Bytes())
 	}
 
 	elems := make([]interface{}, constraints.TxTreeIndexMax)
@@ -132,6 +142,7 @@ func (tx *transaction) ToArray() *lazyslice.Array {
 	binary.BigEndian.PutUint32(ts[:], tx.Timestamp)
 	elems[constraints.TxTimestamp] = ts[:]
 	elems[constraints.TxInputCommitment] = tx.InputCommitment[:]
+	elems[constraints.TxEndorsements] = endorsements
 	elems[constraints.TxLocalLibraries] = lazyslice.MakeArrayFromData(tx.LocalLibraries...)
 	return lazyslice.MakeArray(elems...)
 }

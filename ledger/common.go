@@ -31,6 +31,7 @@ type (
 
 	StateReadAccess interface {
 		GetUTXO(id *OutputID) ([]byte, bool)
+		HasTransaction(txid *TransactionID) bool
 	}
 
 	IndexerAccess interface {
@@ -49,6 +50,19 @@ type (
 		common.KVReader
 	}
 )
+
+func TransactionIDFromBytes(data []byte) (ret TransactionID, err error) {
+	if len(data) != TransactionIDLength {
+		err = errors.New("TransactionIDFromBytes: wrong data length")
+		return
+	}
+	copy(ret[:], data)
+	return
+}
+
+func (txid *TransactionID) Bytes() []byte {
+	return txid[:]
+}
 
 func (txid *TransactionID) String() string {
 	return easyfl.Fmt(txid[:])

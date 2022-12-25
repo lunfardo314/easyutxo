@@ -7,33 +7,33 @@ import (
 
 type (
 	Access interface {
-		GetConeTip(txid *ledger.TransactionID) (*ConeTip, bool)
-		HasConeTip(txid *ledger.TransactionID) bool
+		GetVertex(txid *ledger.TransactionID) (*Vertex, bool)
+		HasVertex(txid *ledger.TransactionID) bool
 	}
-	ConeTip struct {
+	Vertex struct {
 		txBytes   []byte
 		stateRoot common.VCommitment
 	}
 
 	InMemoryTangle struct {
-		vertices map[string]*ConeTip
+		vertices map[string]*Vertex
 		state    ledger.StateStore
 	}
 )
 
 func NewInMemoryTangle(state ledger.StateStore) *InMemoryTangle {
 	return &InMemoryTangle{
-		vertices: make(map[string]*ConeTip),
+		vertices: make(map[string]*Vertex),
 		state:    state,
 	}
 }
 
-func (t InMemoryTangle) GetConeTip(txid *ledger.TransactionID) (*ConeTip, bool) {
+func (t InMemoryTangle) GetVertex(txid *ledger.TransactionID) (*Vertex, bool) {
 	ret, ok := t.vertices[string((*txid)[:])]
 	return ret, ok
 }
 
-func (t InMemoryTangle) HasConeTip(txid *ledger.TransactionID) bool {
+func (t InMemoryTangle) HasVertex(txid *ledger.TransactionID) bool {
 	_, ok := t.vertices[string((*txid)[:])]
 	return ok
 }

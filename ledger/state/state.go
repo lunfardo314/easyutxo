@@ -95,6 +95,15 @@ func (r *Readable) GetUTXO(oid *ledger.OutputID) ([]byte, bool) {
 	return ret, true
 }
 
+func (r *Readable) HasTransaction(txid *ledger.TransactionID) bool {
+	ret := false
+	r.trie.Iterator(txid.Bytes()).IterateKeys(func(_ []byte) bool {
+		ret = true
+		return false
+	})
+	return ret
+}
+
 // Root return the current root
 func (u *Updatable) Root() common.VCommitment {
 	return u.root
