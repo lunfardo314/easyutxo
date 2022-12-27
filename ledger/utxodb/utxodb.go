@@ -19,9 +19,9 @@ import (
 
 // UTXODB is a centralized ledger.Updatable with indexer and genesis faucet
 type UTXODB struct {
-	genesisData       *state.GenesisDataStruct
-	state             *state.Updatable
-	indexer           *indexer.Indexer
+	genesisData       *ledger.GenesisDataStruct
+	stateStore        ledger.StateStore
+	indexerStore      ledger.IndexerStore
 	supply            uint64
 	genesisPrivateKey ed25519.PrivateKey
 	genesisPublicKey  ed25519.PublicKey
@@ -49,18 +49,18 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	}
 	originAddr := constraints.AddressED25519FromPublicKey(originPubKey)
 
-	genesisData := state.GetGenesisData(originAddr, originAddr, supplyForTesting, uint32(time.Now().Unix()))
+	genesisData := ledger.GenesisData([]byte(utxodbIdentity), originAddr, originAddr, supplyForTesting, uint32(time.Now().Unix()))
 
-	store := common.NewInMemoryKVStore()
-	initRoot := state.MustInitLedgerState(store, []byte(utxodbIdentity), originAddr, originAddr, supplyForTesting)
+	stateStore := common.NewInMemoryKVStore()
+	indexerStore := common.NewInMemoryKVStore()
 
-	ledgerState, err := state.NewUpdatable(store, initRoot)
-	easyfl.AssertNoError(err)
+	state.InitLedgerState(stateStore, genesisData)
+	indexer.InitIndexer(indexerStore, genesisData)
 
 	ret := &UTXODB{
 		genesisData:       genesisData,
-		state:             ledgerState,
-		indexer:           indexer.NewInMemory(genesisData.Address),
+		stateStore:        stateStore,
+		indexerStore:      indexerStore,
 		supply:            genesisData.InitialSupply,
 		genesisPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
 		genesisPublicKey:  originPubKey,
@@ -70,7 +70,7 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	return ret
 }
 
-func (u *UTXODB) GenesisData() *state.GenesisDataStruct {
+func (u *UTXODB) GenesisData() *ledger.GenesisDataStruct {
 	return u.genesisData
 }
 
@@ -78,12 +78,18 @@ func (u *UTXODB) Supply() uint64 {
 	return u.supply
 }
 
+func (u *UTXODB) FinalStateRoot() common.VCommitment {
+	indexer := indexer.New(u.indexerStore)
+	state := state.N
+	indexer.GetUTXOForChainID(u.genesisData.MilestoneChainID[:])
+}
+
 func (u *UTXODB) StateAccess() ledger.StateReadAccess {
-	return u.state.Readable()
+	return u.stateStore.Readable()
 }
 
 func (u *UTXODB) IndexerAccess() ledger.IndexerAccess {
-	return u.indexer
+	return u.indexerStore
 }
 
 func (u *UTXODB) GenesisKeys() (ed25519.PrivateKey, ed25519.PublicKey) {
@@ -98,11 +104,11 @@ func (u *UTXODB) GenesisAddress() constraints.AddressED25519 {
 // Ledger state and indexer are on different DB transactions, so ledger state can
 // succeed while indexer fails. In that case indexer can be updated from ledger state
 func (u *UTXODB) AddTransaction(txBytes []byte, traceOption ...int) error {
-	indexerUpdate, err := u.state.Update(txBytes, traceOption...)
+	indexerUpdate, err := u.stateStore.Update(txBytes, traceOption...)
 	if err != nil {
 		return err
 	}
-	if err = u.indexer.Update(indexerUpdate); err != nil {
+	if err = u.indexerStore.Update(indexerUpdate); err != nil {
 		return fmt.Errorf("ledger state has been updated but indexer update failed with '%v'", err)
 	}
 	return nil
@@ -113,7 +119,7 @@ func (u *UTXODB) TokensFromFaucet(addr constraints.AddressED25519, howMany ...ui
 	if len(howMany) > 0 && howMany[0] > 0 {
 		amount = howMany[0]
 	}
-	outsData, err := u.indexer.GetUTXOsLockedInAccount(u.genesisAddress, u.state.Readable())
+	outsData, err := u.indexerStore.GetUTXOsLockedInAccount(u.genesisAddress, u.stateStore.Readable())
 	if err != nil {
 		return err
 	}
@@ -170,7 +176,7 @@ func (u *UTXODB) MakeTransferData(privKey ed25519.PrivateKey, sourceAccount cons
 }
 
 func (u *UTXODB) makeTransferInputsED25519(par *txbuilder.TransferData, desc ...bool) error {
-	outsData, err := u.indexer.GetUTXOsLockedInAccount(par.SourceAccount, u.state.Readable())
+	outsData, err := u.indexerStore.GetUTXOsLockedInAccount(par.SourceAccount, u.stateStore.Readable())
 	if err != nil {
 		return err
 	}
@@ -213,7 +219,7 @@ func (u *UTXODB) TransferTokens(privKey ed25519.PrivateKey, targetLock constrain
 }
 
 func (u *UTXODB) account(addr constraints.Accountable, ts ...uint32) (uint64, int) {
-	outs, err := u.indexer.GetUTXOsLockedInAccount(addr, u.state.Readable())
+	outs, err := u.indexerStore.GetUTXOsLockedInAccount(addr, u.stateStore.Readable())
 	easyfl.AssertNoError(err)
 	balance := uint64(0)
 	var filter func(o *txbuilder.Output) bool
@@ -290,7 +296,7 @@ func (u *UTXODB) DoTransfer(par *txbuilder.TransferData) error {
 }
 
 func (u *UTXODB) ValidationContextFromTransaction(txBytes []byte) (*state.TransactionContext, error) {
-	return state.TransactionContextFromTransferableBytes(txBytes, u.state.Readable())
+	return state.TransactionContextFromTransferableBytes(txBytes, u.stateStore.Readable())
 }
 
 func (u *UTXODB) TxToString(txbytes []byte) string {

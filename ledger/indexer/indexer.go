@@ -49,19 +49,24 @@ func (cmd *Command) String() string {
 		cmd.Partition, easyfl.Fmt(cmd.ID[:]), cmd.OutputID.String(), cmd.Delete)
 }
 
-func NewIndexer(store ledger.IndexerStore, originAddr constraints.AddressED25519) *Indexer {
-	w := store.BatchedWriter()
-	var nullOutputID ledger.OutputID
-	addrBytes := originAddr.Bytes()
-	// account ID prefixed with length
-	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, nullOutputID[:]), []byte{0xff})
-	if err := w.Commit(); err != nil {
-		panic(err)
-	}
+func New(store ledger.IndexerStore) *Indexer {
 	return &Indexer{
 		mutex: &sync.RWMutex{},
 		store: store,
 	}
+}
+
+func InitIndexer(store ledger.IndexerStore, g *ledger.GenesisDataStruct) *Indexer {
+	w := store.BatchedWriter()
+	addrBytes := g.Address.Bytes()
+	// account ID prefixed with length
+	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, g.OutputID[:]), []byte{0xff})
+	// store global milestone chain output
+	w.Set(common.Concat(PartitionChainID, g.MilestoneChainID[:]), g.MilestoneOutputID[:])
+	if err := w.Commit(); err != nil {
+		panic(err)
+	}
+	return New(store)
 }
 
 func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state ledger.StateReadAccess) ([]*ledger.OutputDataWithID, error) {
@@ -167,6 +172,6 @@ func (cmd *Command) run(w common.KVWriter) error {
 }
 
 // NewInMemory mostly for testing
-func NewInMemory(originAddr constraints.AddressED25519) *Indexer {
-	return NewIndexer(common.NewInMemoryKVStore(), originAddr)
+func NewInMemory(g *ledger.GenesisDataStruct) *Indexer {
+	return InitIndexer(common.NewInMemoryKVStore(), g)
 }

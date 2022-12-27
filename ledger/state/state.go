@@ -1,15 +1,15 @@
 package state
 
 import (
-	"time"
+	"fmt"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
 	"github.com/lunfardo314/unitrie/common"
 	"github.com/lunfardo314/unitrie/immutable"
-	"github.com/lunfardo314/unitrie/models/trie_blake2b"
 )
 
 type (
@@ -26,27 +26,54 @@ type (
 	}
 )
 
-// commitment model singleton
-
-var commitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize256)
-
-// MustInitLedgerState initializes origin ledger state in the empty store
-func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr, milestoneController constraints.AddressED25519, initialSupply uint64) common.VCommitment {
+// InitLedgerState initializes origin ledger state in the empty store
+func InitLedgerState(store common.KVWriter, g *ledger.GenesisDataStruct) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
-	emptyRoot := immutable.MustInitRoot(storeTmp, commitmentModel, identity)
-	trie, err := immutable.NewTrieChained(commitmentModel, storeTmp, emptyRoot)
+	emptyRoot := immutable.MustInitRoot(storeTmp, ledger.CommitmentModel, g.StateIdentity)
+
+	trie, err := immutable.NewTrieChained(ledger.CommitmentModel, storeTmp, emptyRoot)
 	easyfl.AssertNoError(err)
 
-	g := GetGenesisData(genesisAddr, milestoneController, initialSupply, uint32(time.Now().Unix()))
-	trie.Update(g.OutputID[:], g.genesisOutput())
+	trie.Update(g.OutputID[:], genesisOutput(g))
 	trie = trie.CommitChained()
+
+	genesisRoot := trie.Root()
+	trie.Update(g.MilestoneOutputID[:], genesisMilestoneOutput(g, genesisRoot))
+	trie = trie.CommitChained()
+
 	common.CopyAll(store, storeTmp)
-	return trie.Root()
+	return genesisRoot
+}
+
+func genesisOutput(g *ledger.GenesisDataStruct) []byte {
+	amount := constraints.NewAmount(g.InitialSupply) //  - g.MilestoneDeposit)
+	timestamp := constraints.NewTimestamp(g.Timestamp)
+	ret := lazyslice.EmptyArray()
+	ret.Push(amount.Bytes())
+	ret.Push(timestamp.Bytes())
+	ret.Push(g.Address.Bytes())
+	return ret.Bytes()
+}
+
+func genesisMilestoneOutput(g *ledger.GenesisDataStruct, genesisStateCommitment common.VCommitment) []byte {
+	amount := constraints.NewAmount(g.MilestoneDeposit)
+	timestamp := constraints.NewTimestamp(g.TimestampMilestone)
+	chainConstraint := constraints.NewChainConstraint(g.MilestoneChainID, 0, 0, 0)
+	stateCommitmentConstraint, err := constraints.NewGeneralScriptFromSource(fmt.Sprintf("id(0x%s)", genesisStateCommitment.String()))
+	common.AssertNoError(err)
+
+	ret := lazyslice.EmptyArray()
+	ret.Push(amount.Bytes())
+	ret.Push(timestamp.Bytes())
+	ret.Push(g.MilestoneController.Bytes())
+	ret.Push(chainConstraint.Bytes())
+	ret.Push(stateCommitmentConstraint.Bytes())
+	return ret.Bytes()
 }
 
 // NewReadable creates read-only ledger state with the given root
 func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, error) {
-	trie, err := immutable.NewTrieReader(commitmentModel, store, root)
+	trie, err := immutable.NewTrieReader(ledger.CommitmentModel, store, root)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +83,7 @@ func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, err
 // NewUpdatable creates updatable state with the given root. After updated, the root changes.
 // Suitable for chained updates of the ledger state
 func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable, error) {
-	_, err := immutable.NewTrieReader(commitmentModel, store, root)
+	_, err := immutable.NewTrieReader(ledger.CommitmentModel, store, root)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +94,7 @@ func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable,
 }
 
 func (u *Updatable) Readable() *Readable {
-	trie, err := immutable.NewTrieReader(commitmentModel, u.store, u.root)
+	trie, err := immutable.NewTrieReader(ledger.CommitmentModel, u.store, u.root)
 	common.AssertNoError(err)
 	return &Readable{
 		trie: trie,
@@ -102,7 +129,7 @@ func (u *Updatable) Update(txBytes []byte, traceOption ...int) ([]*indexer.Comma
 	if err != nil {
 		return nil, err
 	}
-	trie, err := immutable.NewTrieUpdatable(commitmentModel, u.store, u.root)
+	trie, err := immutable.NewTrieUpdatable(ledger.CommitmentModel, u.store, u.root)
 	if err != nil {
 		return nil, err
 	}

@@ -131,6 +131,8 @@ func initChainConstraint() {
 	})
 }
 
+// TODO re-write chain constraint with two functions: 'chainInit' and 'chain'. To get rid of all0 init code
+
 const chainConstraintSource = `
 // chain(<chain constraint data>)
 // <chain constraint data: 35 bytes:
