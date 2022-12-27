@@ -3,6 +3,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/lunfardo314/easyfl v0.0.0-20221223072116-16a7ef3f7620 h1:TJ36V7qnO4oOJxleu7U8CQPvlq3OfqXXibUYlzDMkZA=
 github.com/lunfardo314/easyfl v0.0.0-20221223072116-16a7ef3f7620/go.mod h1:sbC4lEPEdSVEi0VyMUQa6jz987/MDB+2EM2co4MfMbk=
+github.com/lunfardo314/easyfl v0.0.0-20221227095124-ada92250239e h1:mBfkhg+Q17XrItN8OcncIkTVVZ87j/i3c9YmOejnuVQ=
+github.com/lunfardo314/easyfl v0.0.0-20221227095124-ada92250239e/go.mod h1:sbC4lEPEdSVEi0VyMUQa6jz987/MDB+2EM2co4MfMbk=
 github.com/lunfardo314/unitrie v0.0.0-20221223091957-52ed7a8b2334 h1:xQO5EZ7CTKJi/pUhW8dWEIo4EsX2VxwWhIFWt6EPeFI=
 github.com/lunfardo314/unitrie v0.0.0-20221223091957-52ed7a8b2334/go.mod h1:V9M8DWYF5wxMHJYYtgjYwQquMulQLpjQC/dEJ3mIA7k=
 github.com/lunfardo314/unitrie v0.0.0-20221223114420-2e7d4550d050 h1:0jA5d5M8SpOYmSCe4qag1PhQWRFHdEG4lo3P50XJpNs=

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
@@ -32,14 +31,14 @@ type (
 var commitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize256)
 
 // MustInitLedgerState initializes origin ledger state in the empty store
-func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr constraints.AddressED25519, initialSupply uint64) common.VCommitment {
+func MustInitLedgerState(store common.KVWriter, identity []byte, genesisAddr, milestoneController constraints.AddressED25519, initialSupply uint64) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
 	emptyRoot := immutable.MustInitRoot(storeTmp, commitmentModel, identity)
 	trie, err := immutable.NewTrieChained(commitmentModel, storeTmp, emptyRoot)
 	easyfl.AssertNoError(err)
 
-	outBytes, oid := genesisOutput(genesisAddr, initialSupply, uint32(time.Now().Unix()))
-	trie.Update(oid[:], outBytes)
+	g := GetGenesisData(genesisAddr, milestoneController, initialSupply, uint32(time.Now().Unix()))
+	trie.Update(g.OutputID[:], g.genesisOutput())
 	trie = trie.CommitChained()
 	common.CopyAll(store, storeTmp)
 	return trie.Root()
@@ -65,18 +64,6 @@ func NewUpdatable(store ledger.StateStore, root common.VCommitment) (*Updatable,
 		root:  root.Clone(),
 		store: store,
 	}, nil
-}
-
-// genesisOutput creates genesis output which contains initialSupply and timestamp. The genesis outputID is all-0
-func genesisOutput(genesisAddr constraints.AddressED25519, initialSupply uint64, ts uint32) ([]byte, ledger.OutputID) {
-	easyfl.Assert(initialSupply > 0, "initialSupply > 0")
-	amount := constraints.NewAmount(initialSupply)
-	timestamp := constraints.NewTimestamp(ts)
-	ret := lazyslice.EmptyArray()
-	ret.Push(amount.Bytes())
-	ret.Push(timestamp.Bytes())
-	ret.Push(genesisAddr.Bytes())
-	return ret.Bytes(), ledger.OutputID{}
 }
 
 func (u *Updatable) Readable() *Readable {

@@ -1075,7 +1075,7 @@ func TestImmutable(t *testing.T) {
 	chainOut := chainIN.Clone().WithTimestamp(ts)
 	chainOut.PutConstraint(nextChainConstraint.Bytes(), constraintIdx)
 
-	immutableData, err := constraints.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	immutableData, err := constraints.NewGeneralScriptFromSource("concat(0x01020304030201)")
 	require.NoError(t, err)
 	// push data constraint
 	_, err = chainOut.PushConstraint(immutableData)
@@ -1158,7 +1158,7 @@ func TestImmutable(t *testing.T) {
 	chainOut = chainIN.Clone().WithTimestamp(ts)
 
 	// put wrong data
-	wrongImmutableData, err := constraints.NewGeneralScriptFomSource("concat(0x010203040302010000)")
+	wrongImmutableData, err := constraints.NewGeneralScriptFromSource("concat(0x010203040302010000)")
 	require.NoError(t, err)
 	chainOut.PutConstraint(wrongImmutableData.Bytes(), 4)
 
@@ -1204,7 +1204,7 @@ func TestImmutable(t *testing.T) {
 	chainOut = chainIN.Clone().WithTimestamp(ts)
 
 	// put wrong data
-	sameImmutableData, err := constraints.NewGeneralScriptFomSource("concat(0x01020304030201)")
+	sameImmutableData, err := constraints.NewGeneralScriptFromSource("concat(0x01020304030201)")
 	require.NoError(t, err)
 	chainOut.PutConstraint(sameImmutableData.Bytes(), 4)
 

@@ -12,7 +12,7 @@ func NewGeneralScript(data []byte) GeneralScript {
 	return data
 }
 
-func NewGeneralScriptFomSource(src string) (GeneralScript, error) {
+func NewGeneralScriptFromSource(src string) (GeneralScript, error) {
 	_, _, bytecode, err := easyfl.CompileExpression(src)
 	if err != nil {
 		return nil, err

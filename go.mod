@@ -3,7 +3,7 @@ module github.com/lunfardo314/easyutxo
 go 1.18
 
 require (
-	github.com/lunfardo314/easyfl v0.0.0-20221223072116-16a7ef3f7620
+	github.com/lunfardo314/easyfl v0.0.0-20221227095124-ada92250239e
 	github.com/lunfardo314/unitrie v0.0.0-20221223114420-2e7d4550d050
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/crypto v0.4.0

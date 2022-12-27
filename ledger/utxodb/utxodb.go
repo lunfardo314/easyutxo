@@ -19,6 +19,7 @@ import (
 
 // UTXODB is a centralized ledger.Updatable with indexer and genesis faucet
 type UTXODB struct {
+	genesisData       *state.GenesisDataStruct
 	state             *state.Updatable
 	indexer           *indexer.Indexer
 	supply            uint64
@@ -48,22 +49,29 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	}
 	originAddr := constraints.AddressED25519FromPublicKey(originPubKey)
 
+	genesisData := state.GetGenesisData(originAddr, originAddr, supplyForTesting, uint32(time.Now().Unix()))
+
 	store := common.NewInMemoryKVStore()
-	initRoot := state.MustInitLedgerState(store, []byte(utxodbIdentity), originAddr, supplyForTesting)
+	initRoot := state.MustInitLedgerState(store, []byte(utxodbIdentity), originAddr, originAddr, supplyForTesting)
 
 	ledgerState, err := state.NewUpdatable(store, initRoot)
 	easyfl.AssertNoError(err)
 
 	ret := &UTXODB{
+		genesisData:       genesisData,
 		state:             ledgerState,
-		indexer:           indexer.NewInMemory(originAddr),
-		supply:            supplyForTesting,
+		indexer:           indexer.NewInMemory(genesisData.Address),
+		supply:            genesisData.InitialSupply,
 		genesisPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
 		genesisPublicKey:  originPubKey,
 		genesisAddress:    originAddr,
 		trace:             len(trace) > 0 && trace[0],
 	}
 	return ret
+}
+
+func (u *UTXODB) GenesisData() *state.GenesisDataStruct {
+	return u.genesisData
 }
 
 func (u *UTXODB) Supply() uint64 {
