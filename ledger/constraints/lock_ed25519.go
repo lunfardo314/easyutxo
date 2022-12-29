@@ -37,6 +37,10 @@ func AddressED25519FromPublicKey(pubKey ed25519.PublicKey) AddressED25519 {
 	return h[:]
 }
 
+func AddressED25519FromPrivateKey(privateKey ed25519.PrivateKey) AddressED25519 {
+	return AddressED25519FromPublicKey(privateKey.Public().(ed25519.PublicKey))
+}
+
 func AddressED25519Null() AddressED25519 {
 	return make([]byte, 32)
 }
