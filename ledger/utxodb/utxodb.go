@@ -18,10 +18,11 @@ import (
 )
 
 // UTXODB is a centralized ledger.Updatable with indexer and genesis faucet
+// It is always final, does not have finality gadget nor the milestone chain
+// It is mainly used for testing of constraints
 type UTXODB struct {
 	state             *state.Updatable
 	indexer           *indexer.Indexer
-	root              common.VCommitment
 	supply            uint64
 	genesisPrivateKey ed25519.PrivateKey
 	genesisPublicKey  ed25519.PublicKey
@@ -48,14 +49,19 @@ func NewUTXODB(trace ...bool) *UTXODB {
 	stateStore := common.NewInMemoryKVStore()
 	indexerStore := common.NewInMemoryKVStore()
 	ts := uint32(time.Now().Unix())
-	root := state.InitLedgerState(stateStore, []byte(utxodbIdentity), supplyForTesting, genesisAddr, ts)
+	root := state.InitLedgerState(state.InitLedgerStateParams{
+		Store:          stateStore,
+		Identity:       []byte(utxodbIdentity),
+		InitialSupply:  supplyForTesting,
+		GenesisAddress: genesisAddr,
+		Timestamp:      ts,
+	})
 	stateObj, err := state.NewUpdatable(stateStore, root)
 	common.AssertNoError(err)
 
 	ret := &UTXODB{
 		state:             stateObj,
 		indexer:           indexer.InitIndexer(indexerStore, genesisAddr),
-		root:              root,
 		supply:            supplyForTesting,
 		genesisPrivateKey: ed25519.PrivateKey(genesisPrivateKeyBin),
 		genesisPublicKey:  genesisPubKey,
@@ -70,7 +76,7 @@ func (u *UTXODB) Supply() uint64 {
 }
 
 func (u *UTXODB) Root() common.VCommitment {
-	return u.root
+	return u.state.Root()
 }
 
 func (u *UTXODB) StateReader() ledger.StateReadAccess {

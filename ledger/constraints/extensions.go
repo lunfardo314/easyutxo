@@ -210,6 +210,7 @@ func init() {
 	initRoyaltiesED25519Constraint()
 	initImmutableConstraint()
 	initCommitToSiblingConstraint()
+	initStateIndexConstraint()
 
 	easyfl.PrintLibraryStats()
 }

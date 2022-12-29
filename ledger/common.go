@@ -17,8 +17,22 @@ const (
 
 var CommitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize256)
 
-// GenesisOutputID is an all0 outputID
-var GenesisOutputID OutputID
+// GenesisOutputID, MilestoneChainID are all0 outputID
+// GenesisMilestoneOutputID are all1
+var (
+	GenesisOutputID          OutputID
+	GenesisMilestoneOutputID = all32onesOutput()
+	MilestoneChainID         [32]byte
+)
+
+func all32onesOutput() (ret OutputID) {
+	for i := range ret {
+		ret[i] = 0xff
+	}
+	return
+}
+
+const MilestoneDeposit = 1000
 
 type (
 	TransactionID [TransactionIDLength]byte

@@ -9,24 +9,7 @@ import (
 	"github.com/lunfardo314/unitrie/common"
 )
 
-/*
- ChainConstraint constraint imposes chain of consumed UTXOs with the same identity from the origin to the final state
- Each chain represents a sequence of state changes.
- Structure of the output:
- - identity (chainID)
- - amount
- - timestamp
- - chain lock: 2 locks: state lock and governance lock
- - state metadata
- - governance metadata
- - immutable metadata
-
-- ChainConstraint data constraint: array: chain config (back ref), chain identity, state metadata, governance metadata, immutable metadata (xN)
-- ChainConstraint lock constraint: state controller, governance controller
-- ChainConstraint data unlock params: forward ref
-*/
-
-// ChainConstraint is chain constraint
+// ChainConstraint is a chain constraint
 type ChainConstraint struct {
 	// ID all-0 for origin
 	ID             [32]byte

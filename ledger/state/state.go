@@ -22,30 +22,61 @@ type (
 	Readable struct {
 		trie *immutable.TrieReader
 	}
+
+	InitLedgerStateParams struct {
+		Store                 common.KVWriter
+		Identity              []byte
+		InitialSupply         uint64
+		GenesisAddress        constraints.AddressED25519
+		Timestamp             uint32
+		FinalityGadgetAddress constraints.AddressED25519 // FG output is created when not nil
+	}
 )
 
 // InitLedgerState initializes origin ledger state in the empty store
-func InitLedgerState(store common.KVWriter, identity []byte, initialSupply uint64, genesisAddress constraints.AddressED25519, ts uint32) common.VCommitment {
+// If FinalityGadgetAddress != nil, it also creates chain output for the finality gadget
+// Returns root commitment to the genesis ledger state
+func InitLedgerState(par InitLedgerStateParams) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
-	emptyRoot := immutable.MustInitRoot(storeTmp, ledger.CommitmentModel, identity)
+	emptyRoot := immutable.MustInitRoot(storeTmp, ledger.CommitmentModel, par.Identity)
 
 	trie, err := immutable.NewTrieChained(ledger.CommitmentModel, storeTmp, emptyRoot)
 	easyfl.AssertNoError(err)
 
-	trie.Update(ledger.GenesisOutputID[:], genesisOutput(initialSupply, genesisAddress, ts))
-	trie = trie.CommitChained()
+	genesisAmount := par.InitialSupply
+	if len(par.FinalityGadgetAddress) > 0 {
+		genesisAmount -= ledger.MilestoneDeposit
+	}
+	trie.Update(ledger.GenesisOutputID[:], genesisOutput(genesisAmount, par.GenesisAddress, par.Timestamp))
 
-	common.CopyAll(store, storeTmp)
+	if len(par.FinalityGadgetAddress) > 0 {
+		trie.Update(ledger.GenesisMilestoneOutputID[:], genesisMilestoneOutput(par.FinalityGadgetAddress, par.Timestamp))
+	}
+
+	trie = trie.CommitChained()
+	common.CopyAll(par.Store, storeTmp)
 	return trie.Root()
 }
 
 func genesisOutput(initialSupply uint64, address constraints.AddressED25519, ts uint32) []byte {
-	amount := constraints.NewAmount(initialSupply) //  - g.MilestoneDeposit)
+	amount := constraints.NewAmount(initialSupply)
 	timestamp := constraints.NewTimestamp(ts)
 	ret := lazyslice.EmptyArray()
 	ret.Push(amount.Bytes())
 	ret.Push(timestamp.Bytes())
 	ret.Push(address.Bytes())
+	return ret.Bytes()
+}
+
+func genesisMilestoneOutput(address constraints.AddressED25519, ts uint32) []byte {
+	amount := constraints.NewAmount(ledger.MilestoneDeposit) //  - g.MilestoneDeposit)
+	timestamp := constraints.NewTimestamp(ts)
+	ret := lazyslice.EmptyArray()
+	ret.Push(amount.Bytes())
+	ret.Push(timestamp.Bytes())
+	ret.Push(address.Bytes())
+	ret.Push(constraints.NewChainConstraint(ledger.MilestoneChainID, 0, 0, 0).Bytes())
+	ret.Push(constraints.NewStateIndex(4, 0).Bytes())
 	return ret.Bytes()
 }
 
