@@ -7,12 +7,15 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/unitrie/common"
+	"github.com/lunfardo314/unitrie/models/trie_blake2b"
 )
 
 const (
 	TransactionIDLength = 32
 	OutputIDLength      = TransactionIDLength + 1
 )
+
+var CommitmentModel = trie_blake2b.New(common.PathArity16, trie_blake2b.HashSize256)
 
 type (
 	TransactionID [TransactionIDLength]byte

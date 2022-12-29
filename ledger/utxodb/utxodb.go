@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
 	"github.com/lunfardo314/easyutxo/ledger/indexer"
@@ -19,9 +20,11 @@ import (
 
 // UTXODB is a centralized ledger.Updatable with indexer and genesis faucet
 type UTXODB struct {
-	genesisData       *ledger.GenesisDataStruct
+	state             *state.Updatable
+	indexer           *indexer.Indexer
 	stateStore        ledger.StateStore
 	indexerStore      ledger.IndexerStore
+	root              common.VCommitment
 	supply            uint64
 	genesisPrivateKey ed25519.PrivateKey
 	genesisPublicKey  ed25519.PublicKey
@@ -39,35 +42,50 @@ const (
 )
 
 func NewUTXODB(trace ...bool) *UTXODB {
-	originPrivateKeyBin, err := hex.DecodeString(originPrivateKey)
+	genesisPrivateKeyBin, err := hex.DecodeString(originPrivateKey)
 	if err != nil {
 		panic(err)
 	}
-	originPubKey := ed25519.PrivateKey(originPrivateKeyBin).Public().(ed25519.PublicKey)
+	genesisPubKey := ed25519.PrivateKey(genesisPrivateKeyBin).Public().(ed25519.PublicKey)
 	if err != nil {
 		panic(err)
 	}
-	originAddr := constraints.AddressED25519FromPublicKey(originPubKey)
-
-	genesisData := ledger.GenesisData([]byte(utxodbIdentity), originAddr, originAddr, supplyForTesting, uint32(time.Now().Unix()))
+	genesisAddr := constraints.AddressED25519FromPublicKey(genesisPubKey)
 
 	stateStore := common.NewInMemoryKVStore()
 	indexerStore := common.NewInMemoryKVStore()
+	ts := uint32(time.Now().Unix())
+	root := state.InitLedgerState(stateStore, []byte(utxodbIdentity), supplyForTesting, genesisAddr, ts)
 
-	state.InitLedgerState(stateStore, genesisData)
-	indexer.InitIndexer(indexerStore, genesisData)
+	indexer.InitIndexer(indexerStore, genesisAddr)
 
 	ret := &UTXODB{
-		genesisData:       genesisData,
 		stateStore:        stateStore,
 		indexerStore:      indexerStore,
-		supply:            genesisData.InitialSupply,
-		genesisPrivateKey: ed25519.PrivateKey(originPrivateKeyBin),
-		genesisPublicKey:  originPubKey,
-		genesisAddress:    originAddr,
+		root:              root,
+		supply:            supplyForTesting,
+		genesisPrivateKey: ed25519.PrivateKey(genesisPrivateKeyBin),
+		genesisPublicKey:  genesisPubKey,
+		genesisAddress:    genesisAddr,
 		trace:             len(trace) > 0 && trace[0],
 	}
 	return ret
+}
+
+func genesisMilestoneOutput(g *ledger.GenesisDataStruct, genesisStateCommitment common.VCommitment) []byte {
+	amount := constraints.NewAmount(g.MilestoneDeposit)
+	timestamp := constraints.NewTimestamp(g.TimestampMilestone)
+	chainConstraint := constraints.NewChainConstraint(g.MilestoneChainID, 0, 0, 0)
+	stateCommitmentConstraint, err := constraints.NewGeneralScriptFromSource(fmt.Sprintf("id(0x%s)", genesisStateCommitment.String()))
+	common.AssertNoError(err)
+
+	ret := lazyslice.EmptyArray()
+	ret.Push(amount.Bytes())
+	ret.Push(timestamp.Bytes())
+	ret.Push(g.MilestoneController.Bytes())
+	ret.Push(chainConstraint.Bytes())
+	ret.Push(stateCommitmentConstraint.Bytes())
+	return ret.Bytes()
 }
 
 func (u *UTXODB) GenesisData() *ledger.GenesisDataStruct {

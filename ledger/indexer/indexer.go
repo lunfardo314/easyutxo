@@ -7,6 +7,7 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
+	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/unitrie/common"
 )
 
@@ -56,13 +57,11 @@ func New(store ledger.IndexerStore) *Indexer {
 	}
 }
 
-func InitIndexer(store ledger.IndexerStore, g *ledger.GenesisDataStruct) *Indexer {
+func InitIndexer(store ledger.IndexerStore, genesisAddress constraints.AddressED25519) *Indexer {
 	w := store.BatchedWriter()
-	addrBytes := g.Address.Bytes()
+	addrBytes := genesisAddress.Bytes()
 	// account ID prefixed with length
-	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, g.OutputID[:]), []byte{0xff})
-	// store global milestone chain output
-	w.Set(common.Concat(PartitionChainID, g.MilestoneChainID[:]), g.MilestoneOutputID[:])
+	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, state.GenesisOutputID), []byte{0xff})
 	if err := w.Commit(); err != nil {
 		panic(err)
 	}
@@ -145,11 +144,12 @@ func (cmd *Command) run(w common.KVWriter) error {
 	if len(cmd.ID) > 255 {
 		return fmt.Errorf("indexer: ID length should be <= 255")
 	}
-	//fmt.Printf("+++++ %s\n", cmd.String())
 	var key, value []byte
 	switch cmd.Partition {
 	case PartitionAccount:
-		// ID is prefixed with length
+		// ID is address
+		// key = 0x00 || byte(len(ID)) || ID || outputID
+		// value = 0xff
 		key = common.Concat(PartitionAccount, byte(len(cmd.ID)), cmd.ID, cmd.OutputID[:])
 		if !cmd.Delete {
 			value = []byte{0xff}
@@ -159,6 +159,9 @@ func (cmd *Command) run(w common.KVWriter) error {
 		if len(cmd.ID) != 32 {
 			return fmt.Errorf("indexer: chainID should be 32 bytes")
 		}
+		// ID is chainID
+		// key = 0x01 || ID
+		// value = outputID
 		key = common.Concat(PartitionChainID, cmd.ID)
 		if !cmd.Delete {
 			value = cmd.OutputID[:]
@@ -169,9 +172,4 @@ func (cmd *Command) run(w common.KVWriter) error {
 	}
 	w.Set(key, value)
 	return nil
-}
-
-// NewInMemory mostly for testing
-func NewInMemory(g *ledger.GenesisDataStruct) *Indexer {
-	return InitIndexer(common.NewInMemoryKVStore(), g)
 }

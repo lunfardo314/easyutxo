@@ -1,8 +1,6 @@
 package state
 
 import (
-	"fmt"
-
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
@@ -26,48 +24,31 @@ type (
 	}
 )
 
+// GenesisOutputID is an all0 outputID
+var GenesisOutputID ledger.OutputID
+
 // InitLedgerState initializes origin ledger state in the empty store
-func InitLedgerState(store common.KVWriter, g *ledger.GenesisDataStruct) common.VCommitment {
+func InitLedgerState(store common.KVWriter, identity []byte, initialSupply uint64, genesisAddress constraints.AddressED25519, ts uint32) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
-	emptyRoot := immutable.MustInitRoot(storeTmp, ledger.CommitmentModel, g.StateIdentity)
+	emptyRoot := immutable.MustInitRoot(storeTmp, ledger.CommitmentModel, identity)
 
 	trie, err := immutable.NewTrieChained(ledger.CommitmentModel, storeTmp, emptyRoot)
 	easyfl.AssertNoError(err)
 
-	trie.Update(g.OutputID[:], genesisOutput(g))
-	trie = trie.CommitChained()
-
-	genesisRoot := trie.Root()
-	trie.Update(g.MilestoneOutputID[:], genesisMilestoneOutput(g, genesisRoot))
+	trie.Update(GenesisOutputID[:], genesisOutput(initialSupply, genesisAddress, ts))
 	trie = trie.CommitChained()
 
 	common.CopyAll(store, storeTmp)
-	return genesisRoot
+	return trie.Root()
 }
 
-func genesisOutput(g *ledger.GenesisDataStruct) []byte {
-	amount := constraints.NewAmount(g.InitialSupply) //  - g.MilestoneDeposit)
-	timestamp := constraints.NewTimestamp(g.Timestamp)
+func genesisOutput(initialSupply uint64, address constraints.AddressED25519, ts uint32) []byte {
+	amount := constraints.NewAmount(initialSupply) //  - g.MilestoneDeposit)
+	timestamp := constraints.NewTimestamp(ts)
 	ret := lazyslice.EmptyArray()
 	ret.Push(amount.Bytes())
 	ret.Push(timestamp.Bytes())
-	ret.Push(g.Address.Bytes())
-	return ret.Bytes()
-}
-
-func genesisMilestoneOutput(g *ledger.GenesisDataStruct, genesisStateCommitment common.VCommitment) []byte {
-	amount := constraints.NewAmount(g.MilestoneDeposit)
-	timestamp := constraints.NewTimestamp(g.TimestampMilestone)
-	chainConstraint := constraints.NewChainConstraint(g.MilestoneChainID, 0, 0, 0)
-	stateCommitmentConstraint, err := constraints.NewGeneralScriptFromSource(fmt.Sprintf("id(0x%s)", genesisStateCommitment.String()))
-	common.AssertNoError(err)
-
-	ret := lazyslice.EmptyArray()
-	ret.Push(amount.Bytes())
-	ret.Push(timestamp.Bytes())
-	ret.Push(g.MilestoneController.Bytes())
-	ret.Push(chainConstraint.Bytes())
-	ret.Push(stateCommitmentConstraint.Bytes())
+	ret.Push(address.Bytes())
 	return ret.Bytes()
 }
 
