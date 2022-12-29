@@ -7,7 +7,6 @@ import (
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
-	"github.com/lunfardo314/easyutxo/ledger/state"
 	"github.com/lunfardo314/unitrie/common"
 )
 
@@ -61,14 +60,14 @@ func InitIndexer(store ledger.IndexerStore, genesisAddress constraints.AddressED
 	w := store.BatchedWriter()
 	addrBytes := genesisAddress.Bytes()
 	// account ID prefixed with length
-	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, state.GenesisOutputID), []byte{0xff})
+	w.Set(common.Concat(PartitionAccount, byte(len(addrBytes)), addrBytes, ledger.GenesisOutputID.Bytes()), []byte{0xff})
 	if err := w.Commit(); err != nil {
 		panic(err)
 	}
 	return New(store)
 }
 
-func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state ledger.StateReadAccess) ([]*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, stateReader ledger.StateReadAccess) ([]*ledger.OutputDataWithID, error) {
 	acc := addr.AccountID()
 	if len(acc) > 255 {
 		return nil, fmt.Errorf("accountID length should be <= 255")
@@ -87,7 +86,7 @@ func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state 
 		if err != nil {
 			return false
 		}
-		o.OutputData, found = state.GetUTXO(&o.ID)
+		o.OutputData, found = stateReader.GetUTXO(&o.ID)
 		if !found {
 			// skip this output ID
 			return true
@@ -101,7 +100,7 @@ func (inr *Indexer) GetUTXOsLockedInAccount(addr constraints.Accountable, state 
 	return ret, err
 }
 
-func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateReadAccess) (*ledger.OutputDataWithID, error) {
+func (inr *Indexer) GetUTXOForChainID(id []byte, stateReader ledger.StateReadAccess) (*ledger.OutputDataWithID, error) {
 	if len(id) != 32 {
 		return nil, fmt.Errorf("GetUTXOForChainID: chainID length must be 32-byte long")
 	}
@@ -118,7 +117,7 @@ func (inr *Indexer) GetUTXOForChainID(id []byte, state ledger.StateReadAccess) (
 	if err != nil {
 		return nil, err
 	}
-	outData, found := state.GetUTXO(&oid)
+	outData, found := stateReader.GetUTXO(&oid)
 	if !found {
 		return nil, fmt.Errorf("GetUTXOForChainID: chain id: %s, outputID: %s. Output has not been found", easyfl.Fmt(id), oid)
 	}

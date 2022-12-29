@@ -60,13 +60,13 @@ func TestOutput(t *testing.T) {
 func TestMainConstraints(t *testing.T) {
 	t.Run("genesis", func(t *testing.T) {
 		u := utxodb.NewUTXODB(true)
-		genesisBytes, found := u.StateAccess().GetUTXO(&ledger.OutputID{})
+		genesisBytes, found := u.StateReader().GetUTXO(&ledger.OutputID{})
 		require.True(t, found)
 		out, err := txbuilder.OutputFromBytes(genesisBytes)
 		require.NoError(t, err)
 		require.EqualValues(t, u.Supply(), out.Amount())
 		require.True(t, constraints.Equal(u.GenesisAddress(), out.Lock()))
-		outsData, err := u.IndexerAccess().GetUTXOsLockedInAccount(u.GenesisAddress(), u.StateAccess())
+		outsData, err := u.IndexerAccess().GetUTXOsLockedInAccount(u.GenesisAddress(), u.StateReader())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outsData))
 		require.EqualValues(t, ledger.OutputID{}, outsData[0].ID)
@@ -331,7 +331,7 @@ func TestSenderAddressED25519(t *testing.T) {
 	require.EqualValues(t, 1, u.NumUTXOs(addr1))
 	require.EqualValues(t, 2000, u.Balance(addr1))
 
-	outDatas, err := u.IndexerAccess().GetUTXOsLockedInAccount(addr1, u.StateAccess())
+	outDatas, err := u.IndexerAccess().GetUTXOsLockedInAccount(addr1, u.StateReader())
 	require.NoError(t, err)
 	outs, err := txbuilder.ParseAndSortOutputData(outDatas, nil)
 	require.NoError(t, err)
@@ -439,7 +439,7 @@ func TestChain1(t *testing.T) {
 	t.Run("create origin indexer", func(t *testing.T) {
 		chains := initTest2()
 		require.EqualValues(t, 1, len(chains))
-		chs, err := u.IndexerAccess().GetUTXOForChainID(chains[0].ChainID[:], u.StateAccess())
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chains[0].ChainID[:], u.StateReader())
 		require.NoError(t, err)
 		o, err := txbuilder.OutputFromBytes(chs.OutputData)
 		require.NoError(t, err)
@@ -452,7 +452,7 @@ func TestChain1(t *testing.T) {
 		chains := initTest2()
 		require.EqualValues(t, 1, len(chains))
 		chainID := chains[0].ChainID
-		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 		require.NoError(t, err)
 
 		chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
@@ -489,7 +489,7 @@ func TestChain1(t *testing.T) {
 		err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
 		require.NoError(t, err)
 
-		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 		easyfl.RequireErrorWith(t, err, "has not not been found")
 
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -536,7 +536,7 @@ func TestChain2(t *testing.T) {
 		require.EqualValues(t, 1, len(chains))
 		theChainData := chains[0]
 		chainID := theChainData.ChainID
-		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 		require.NoError(t, err)
 
 		chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
@@ -604,7 +604,7 @@ func TestChain2(t *testing.T) {
 			return err
 		}
 
-		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 		require.NoError(t, err)
 
 		require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -695,7 +695,7 @@ func TestChain3(t *testing.T) {
 	require.EqualValues(t, 1, len(chains))
 	theChainData := chains[0]
 	chainID := theChainData.ChainID
-	chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 	require.NoError(t, err)
 
 	chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
@@ -729,7 +729,7 @@ func TestChain3(t *testing.T) {
 	err = u.AddTransaction(txbytes, state.TraceOptionFailedConstraints)
 	require.NoError(t, err)
 
-	_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 	require.NoError(t, err)
 
 	require.EqualValues(t, 1, u.NumUTXOs(u.GenesisAddress()))
@@ -783,7 +783,7 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 0, onLocked)
 		require.EqualValues(t, 2000, onChainOut)
 
-		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+		_, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 		require.NoError(t, err)
 
 		privKey1, _, addr1 = u.GenerateAddress(1)
@@ -818,7 +818,7 @@ func TestChainLock(t *testing.T) {
 		require.EqualValues(t, 3000, onLocked)
 		require.EqualValues(t, 2000, onChainOut)
 
-		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(chainAddr, u.StateAccess())
+		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(chainAddr, u.StateReader())
 		require.NoError(t, err)
 		require.EqualValues(t, 2, len(outs))
 
@@ -909,7 +909,7 @@ func TestHashUnlock(t *testing.T) {
 	txbytes, err := txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 
-	ctx, err := state.TransactionContextFromTransferableBytes(txbytes, u.StateAccess())
+	ctx, err := state.TransactionContextFromTransferableBytes(txbytes, u.StateReader())
 	require.NoError(t, err)
 
 	t.Logf("%s", txbuilder.ValidationContextToString(ctx))
@@ -930,7 +930,7 @@ func TestHashUnlock(t *testing.T) {
 	txbytes, err = txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 
-	ctx, err = state.TransactionContextFromTransferableBytes(txbytes, u.StateAccess())
+	ctx, err = state.TransactionContextFromTransferableBytes(txbytes, u.StateReader())
 	require.NoError(t, err)
 
 	t.Logf("---- transaction without hash unlock: FAILING\n %s", txbuilder.ValidationContextToString(ctx))
@@ -943,7 +943,7 @@ func TestHashUnlock(t *testing.T) {
 	txbytes, err = txbuilder.MakeTransferTransaction(par)
 	require.NoError(t, err)
 
-	ctx, err = state.TransactionContextFromTransferableBytes(txbytes, u.StateAccess())
+	ctx, err = state.TransactionContextFromTransferableBytes(txbytes, u.StateReader())
 	require.NoError(t, err)
 
 	t.Logf("---- transaction with hash unlock, the library/script: SUCCESS\n %s", txbuilder.ValidationContextToString(ctx))
@@ -1055,7 +1055,7 @@ func TestImmutable(t *testing.T) {
 	chainID := theChainData.ChainID
 
 	// -------------------------- make transition
-	chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	chs, err := u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 	require.NoError(t, err)
 
 	chainIN, err := txbuilder.OutputFromBytes(chs.OutputData)
@@ -1101,7 +1101,7 @@ func TestImmutable(t *testing.T) {
 	require.NoError(t, err)
 
 	// -------------------------------- make transition #2
-	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 	require.NoError(t, err)
 
 	chainIN, err = txbuilder.OutputFromBytes(chs.OutputData)
@@ -1139,7 +1139,7 @@ func TestImmutable(t *testing.T) {
 	easyfl.RequireErrorWith(t, err, "'immutable' failed with error")
 
 	// --------------------------------- transit with wrong immutable data
-	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 	require.NoError(t, err)
 
 	chainIN, err = txbuilder.OutputFromBytes(chs.OutputData)
@@ -1185,7 +1185,7 @@ func TestImmutable(t *testing.T) {
 	easyfl.RequireErrorWith(t, err, "'immutable' failed with error")
 
 	// put it all correct
-	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateAccess())
+	chs, err = u.IndexerAccess().GetUTXOForChainID(chainID[:], u.StateReader())
 	require.NoError(t, err)
 
 	chainIN, err = txbuilder.OutputFromBytes(chs.OutputData)

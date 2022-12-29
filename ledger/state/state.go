@@ -24,9 +24,6 @@ type (
 	}
 )
 
-// GenesisOutputID is an all0 outputID
-var GenesisOutputID ledger.OutputID
-
 // InitLedgerState initializes origin ledger state in the empty store
 func InitLedgerState(store common.KVWriter, identity []byte, initialSupply uint64, genesisAddress constraints.AddressED25519, ts uint32) common.VCommitment {
 	storeTmp := common.NewInMemoryKVStore()
@@ -35,7 +32,7 @@ func InitLedgerState(store common.KVWriter, identity []byte, initialSupply uint6
 	trie, err := immutable.NewTrieChained(ledger.CommitmentModel, storeTmp, emptyRoot)
 	easyfl.AssertNoError(err)
 
-	trie.Update(GenesisOutputID[:], genesisOutput(initialSupply, genesisAddress, ts))
+	trie.Update(ledger.GenesisOutputID[:], genesisOutput(initialSupply, genesisAddress, ts))
 	trie = trie.CommitChained()
 
 	common.CopyAll(store, storeTmp)

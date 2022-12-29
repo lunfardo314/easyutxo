@@ -142,7 +142,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, u.Balance(addr0))
 		require.EqualValues(t, 0, u.NumUTXOs(addr0))
 
-		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(addr1, u.StateAccess())
+		outs, err := u.IndexerAccess().GetUTXOsLockedInAccount(addr1, u.StateReader())
 		require.NoError(t, err)
 		require.EqualValues(t, howMany, len(outs))
 
@@ -152,7 +152,7 @@ func TestBasics(t *testing.T) {
 		require.EqualValues(t, 0, u.Balance(addr1))
 		require.EqualValues(t, 0, u.NumUTXOs(addr1))
 
-		outs, err = u.IndexerAccess().GetUTXOsLockedInAccount(addr0, u.StateAccess())
+		outs, err = u.IndexerAccess().GetUTXOsLockedInAccount(addr0, u.StateReader())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, len(outs))
 
