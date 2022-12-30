@@ -1,8 +1,6 @@
 package state
 
 import (
-	"fmt"
-
 	"github.com/lunfardo314/easyfl"
 	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
@@ -32,10 +30,10 @@ func MustTransactionFromTransferableBytes(txBytes []byte) *Transaction {
 
 	// check if inputs are unique
 	inps := make(map[ledger.OutputID]struct{})
-	ret.MustForEachInput(func(i byte, oid ledger.OutputID) bool {
-		_, already := inps[oid]
+	ret.MustForEachInput(func(i byte, oid *ledger.OutputID) bool {
+		_, already := inps[*oid]
 		easyfl.Assert(!already, "MustTransactionFromTransferableBytes: repeating input @ %d", i)
-		inps[oid] = struct{}{}
+		inps[*oid] = struct{}{}
 		return true
 	})
 
@@ -66,11 +64,11 @@ func (tx *Transaction) OutputAt(idx byte) []byte {
 	return tx.tree.BytesAtPath(common.Concat(constraints.TxOutputs, idx))
 }
 
-func (tx *Transaction) MustForEachInput(fun func(i byte, oid ledger.OutputID) bool) {
+func (tx *Transaction) MustForEachInput(fun func(i byte, oid *ledger.OutputID) bool) {
 	tx.tree.ForEach(func(i byte, data []byte) bool {
 		oid, err := ledger.OutputIDFromBytes(data)
 		common.Assert(err == nil, "MustForEachInput @ %d: %v", i, err)
-		return fun(i, oid)
+		return fun(i, &oid)
 	}, Path(constraints.TxInputIDs))
 }
 
@@ -86,7 +84,7 @@ func (tx *Transaction) MustForEachEndorsement(fun func(byte, ledger.TransactionI
 // the transaction in the order of appearance
 func (tx *Transaction) MustForEachConsumedTransactionID(fun func(txid *ledger.TransactionID)) {
 	already := make(map[ledger.TransactionID]struct{})
-	tx.MustForEachInput(func(i byte, oid ledger.OutputID) bool {
+	tx.MustForEachInput(func(i byte, oid *ledger.OutputID) bool {
 		txid := oid.TransactionID()
 		if _, found := already[txid]; !found {
 			already[txid] = struct{}{}
@@ -94,23 +92,4 @@ func (tx *Transaction) MustForEachConsumedTransactionID(fun func(txid *ledger.Tr
 		}
 		return true
 	})
-}
-
-// FetchConsumedOutputs reads consumed output data from the ledger state
-func (tx *Transaction) FetchConsumedOutputs(ledgerState ledger.StateReader) ([][]byte, error) {
-	ret := make([][]byte, tx.tree.NumElements(Path(constraints.TxInputIDs)))
-	var err error
-	var found bool
-	tx.MustForEachInput(func(i byte, oid ledger.OutputID) bool {
-		if ret[i], found = ledgerState.GetUTXO(&oid); !found {
-			err = fmt.Errorf("FetchConsumedOutputs:: can't find input %d,  %s of the transaction %s",
-				i, oid.String(), tx.txid.String())
-			return false
-		}
-		return true
-	})
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
 }
