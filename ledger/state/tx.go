@@ -54,6 +54,18 @@ func (tx *Transaction) ID() ledger.TransactionID {
 	return tx.txid
 }
 
+func (tx *Transaction) NumProducedOutputs() int {
+	return tx.tree.NumElements(Path(constraints.TxOutputs))
+}
+
+func (tx *Transaction) NumInputs() int {
+	return tx.tree.NumElements(Path(constraints.TxInputIDs))
+}
+
+func (tx *Transaction) OutputAt(idx byte) []byte {
+	return tx.tree.BytesAtPath(common.Concat(constraints.TxOutputs, idx))
+}
+
 func (tx *Transaction) MustForEachInput(fun func(i byte, oid ledger.OutputID) bool) {
 	tx.tree.ForEach(func(i byte, data []byte) bool {
 		oid, err := ledger.OutputIDFromBytes(data)
@@ -85,7 +97,7 @@ func (tx *Transaction) MustForEachConsumedTransactionID(fun func(txid *ledger.Tr
 }
 
 // FetchConsumedOutputs reads consumed output data from the ledger state
-func (tx *Transaction) FetchConsumedOutputs(ledgerState ledger.StateReadAccess) ([][]byte, error) {
+func (tx *Transaction) FetchConsumedOutputs(ledgerState ledger.StateReader) ([][]byte, error) {
 	ret := make([][]byte, tx.tree.NumElements(Path(constraints.TxInputIDs)))
 	var err error
 	var found bool

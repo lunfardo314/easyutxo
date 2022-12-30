@@ -542,7 +542,7 @@ func ParseChainConstraints(outs []*ledger.OutputDataWithID) ([]*OutputWithChainI
 	return ret, nil
 }
 
-func GetChainAccount(chainID []byte, ind ledger.IndexerAccess, state ledger.StateReadAccess, desc ...bool) (*OutputWithChainID, []*OutputWithID, error) {
+func GetChainAccount(chainID []byte, ind ledger.IndexerReader, state ledger.StateReader, desc ...bool) (*OutputWithChainID, []*OutputWithID, error) {
 	chainLock, err := constraints.ChainLockFromChainID(chainID)
 	if err != nil {
 		return nil, nil, err

@@ -79,11 +79,11 @@ func (u *UTXODB) Root() common.VCommitment {
 	return u.state.Root()
 }
 
-func (u *UTXODB) StateReader() ledger.StateReadAccess {
+func (u *UTXODB) StateReader() ledger.StateReader {
 	return u.state.Readable()
 }
 
-func (u *UTXODB) IndexerAccess() ledger.IndexerAccess {
+func (u *UTXODB) IndexerAccess() ledger.IndexerReader {
 	return u.indexer
 }
 

@@ -81,8 +81,8 @@ func genesisMilestoneOutput(address constraints.AddressED25519, ts uint32) []byt
 }
 
 // NewReadable creates read-only ledger state with the given root
-func NewReadable(store common.KVReader, root common.VCommitment) (*Readable, error) {
-	trie, err := immutable.NewTrieReader(ledger.CommitmentModel, store, root)
+func NewReadable(store common.KVReader, root common.VCommitment, clearCacheAtSize ...int) (*Readable, error) {
+	trie, err := immutable.NewTrieReader(ledger.CommitmentModel, store, root, clearCacheAtSize...)
 	if err != nil {
 		return nil, err
 	}

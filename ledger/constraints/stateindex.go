@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
+	"github.com/lunfardo314/unitrie/common"
 )
 
 // Immutable constraint forces the specified DataBlock to be repeated on the successor of the specified chain
@@ -70,12 +71,12 @@ func initStateIndexConstraint() {
 
 	example := NewStateIndex(5, 314)
 	stateIndexBack, err := StateIndexFromBytes(example.Bytes())
-	easyfl.AssertNoError(err)
-	easyfl.Assert(stateIndexBack.StateIndex == 314, "inconsistency "+StateIndexName)
-	easyfl.Assert(stateIndexBack.ChainBlockIndex == 5, "inconsistency "+StateIndexName)
+	common.AssertNoError(err)
+	common.Assert(stateIndexBack.StateIndex == 314, "inconsistency "+StateIndexName)
+	common.Assert(stateIndexBack.ChainBlockIndex == 5, "inconsistency "+StateIndexName)
 
 	prefix, err := easyfl.ParseBytecodePrefix(example.Bytes())
-	easyfl.AssertNoError(err)
+	common.AssertNoError(err)
 
 	registerConstraint(StateIndexName, prefix, func(data []byte) (Constraint, error) {
 		return StateIndexFromBytes(data)
