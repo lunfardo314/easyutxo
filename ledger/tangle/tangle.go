@@ -111,46 +111,68 @@ const (
 )
 
 func (tg *InMemoryTangle) AddTransaction(tx *state.Transaction) bool {
-	transactionSolidityStatus, allSolid := tg.inputSolidityStatus(tx)
-	if !allSolid {
-		for txid := range transactionSolidityStatus {
-			tg.WaitForSolidification(txid)
-		}
-		return false
-	}
+	vertex := NewVertex(tx)
+	transactionSolidityStatus, allSolid := tg.solidityOfInputTransactions(tx)
+
+	// fetch all consumed UTXO what is possible. Check if transaction does not
+	// trie to consume already spent or non-existent UTXOs
 	consumed := make([][]byte, tx.NumInputs())
-	alreadySpent := false
+	transactionValid := true
 	tx.MustForEachInput(func(i byte, oid *ledger.OutputID) bool {
 		txid := oid.TransactionID()
 		switch transactionSolidityStatus[txid] {
 		case transactionSolidityFinal:
 			out, found := tg.finalStateReader.GetUTXO(oid)
 			if !found {
-				alreadySpent = true
+				// if UTXO is not on final state, it means it is spent or never existed
+				// Transaction is invalid
+				transactionValid = false
 				return false
 			}
 			consumed[i] = out
 		case transactionSolidityOnTangle:
 			v, found := tg.GetVertex(&txid)
-			common.Assert(found, "AddTransaction: inconsistency 1")
-			rdr, err := v.StateReader(tg.stateStore)
-			common.AssertNoError(err)
-			consumed[i], found = rdr.GetUTXO(oid)
-			if !found {
-				alreadySpent = true
+			common.Assert(found, "AddTransaction: expected on the tangle txid = %s", txid.String())
+			if int(oid.Index()) >= v.tx.NumProducedOutputs() {
+				// transaction os ok, but output index is wrong
+				// Transaction is invalid
+				transactionValid = true
 				return false
 			}
-
-		default:
-			panic("AddTransaction: inconsistency 2")
+			// if we find UTXO on the tangle, it is spendable, but may be a double spend
+			consumed[i] = v.tx.OutputAt(oid.Index())
+		}
+		if consumed[i] != nil {
+			isDoubleSpend := tg.registerSpentOutput(oid)
+			if isDoubleSpend {
+				// TODO maintain conflict sets and double spend counts
+			}
 		}
 		return true
 	})
-	// TODO
-	return !alreadySpent
+	if !transactionValid {
+		// some outputs are spent or invalid
+		return false
+	}
+	if !allSolid {
+		// some inputs not solid
+		for txid, status := range transactionSolidityStatus {
+			if status == transactionSolidityNotSolid {
+				tg.RequireSolidification(vertex, txid)
+			}
+		}
+		return false
+	}
+
+	return !transactionValid
 }
 
-func (tg *InMemoryTangle) inputSolidityStatus(tx *state.Transaction) (map[ledger.TransactionID]byte, bool) {
+// registerSpentOutput keeps register of spend outputs. returns if it is double spend
+func (tg *InMemoryTangle) registerSpentOutput(oid *ledger.OutputID) bool {
+	panic("not implemented")
+}
+
+func (tg *InMemoryTangle) solidityOfInputTransactions(tx *state.Transaction) (map[ledger.TransactionID]byte, bool) {
 	ret := make(map[ledger.TransactionID]byte)
 	allSolid := true
 	tx.MustForEachInput(func(_ byte, oid *ledger.OutputID) bool {
@@ -170,9 +192,25 @@ func (tg *InMemoryTangle) inputSolidityStatus(tx *state.Transaction) (map[ledger
 		allSolid = false
 		return true
 	})
+	tx.MustForEachEndorsement(func(_ byte, txid ledger.TransactionID) bool {
+		if _, ok := ret[txid]; ok {
+			return true
+		}
+		if tg.HasVertex(&txid) {
+			ret[txid] = transactionSolidityOnTangle
+			return true
+		}
+		if tg.finalStateReader.HasTransaction(&txid) {
+			ret[txid] = transactionSolidityFinal
+			return true
+		}
+		ret[txid] = transactionSolidityNotSolid
+		allSolid = false
+		return true
+	})
 	return ret, allSolid
 }
 
-func (tg *InMemoryTangle) WaitForSolidification(txid ledger.TransactionID) {
-	panic("WaitForSolidification: implement me")
+func (tg *InMemoryTangle) RequireSolidification(vertex *Vertex, txidChild ledger.TransactionID) {
+	panic("RequireSolidification: implement me")
 }

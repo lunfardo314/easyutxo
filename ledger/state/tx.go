@@ -72,7 +72,7 @@ func (tx *Transaction) MustForEachInput(fun func(i byte, oid *ledger.OutputID) b
 	}, Path(constraints.TxInputIDs))
 }
 
-func (tx *Transaction) MustForEachEndorsement(fun func(byte, ledger.TransactionID) bool) {
+func (tx *Transaction) MustForEachEndorsement(fun func(idx byte, txid ledger.TransactionID) bool) {
 	tx.tree.ForEach(func(i byte, data []byte) bool {
 		txid, err := ledger.TransactionIDFromBytes(data)
 		common.Assert(err == nil, "MustForEachEndorsement @ %d: %v", i, err)
