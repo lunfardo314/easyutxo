@@ -28,17 +28,19 @@ func (pipe *Pipeline) Start() {
 
 		pipe.preValidator.Consume(func(txBytes []byte) {
 			var tx *state.Transaction
+
 			err := common.CatchPanicOrError(func() error {
-				tx = state.MustTransactionFromTransferableBytes(txBytes)
-				return nil
+				var err1 error
+				tx, err1 = state.MustTransactionFromTransferableBytes(txBytes)
+				return err1
 			})
 			if err != nil {
-				log.Debugf("trasaction bytes dropped. Reason: '%v'", err)
+				log.Debugf("transaction bytes dropped. Reason: '%v'", err)
 				return
 			}
 			pipe.solidifier.Write(tx)
 			txid := tx.ID()
-			log.Debugf("trasaction OUT: ID = %s", txid.String())
+			log.Debugf("transaction OUT: ID = %s", txid.String())
 		})
 
 		// close downstream

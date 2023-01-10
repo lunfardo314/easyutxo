@@ -37,14 +37,14 @@ func amountValue : parseBytecodeArg(@Array8($0, amountBlockIndex), #amount,0)
 `
 
 const (
-	amountName     = "amount"
-	amountTemplate = amountName + "(u64/%d)"
+	AmountConstraintName = "amount"
+	amountTemplate       = AmountConstraintName + "(u64/%d)"
 )
 
 type Amount uint64
 
 func (a Amount) Name() string {
-	return amountName
+	return AmountConstraintName
 }
 
 func (a Amount) source() string {
@@ -70,8 +70,8 @@ func initAmountConstraint() {
 	sym, prefix, args, err := easyfl.ParseBytecodeOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	amountBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(sym == amountName && len(amountBin) == 8 && binary.BigEndian.Uint64(amountBin) == 1337, "'amount' consistency check failed")
-	registerConstraint(amountName, prefix, func(data []byte) (Constraint, error) {
+	common.Assert(sym == AmountConstraintName && len(amountBin) == 8 && binary.BigEndian.Uint64(amountBin) == 1337, "'amount' consistency check failed")
+	registerConstraint(AmountConstraintName, prefix, func(data []byte) (Constraint, error) {
 		return AmountFromBytes(data)
 	})
 }
@@ -81,7 +81,7 @@ func AmountFromBytes(data []byte) (Amount, error) {
 	if err != nil {
 		return 0, err
 	}
-	if sym != amountName {
+	if sym != AmountConstraintName {
 		return 0, fmt.Errorf("not an 'amount' constraint")
 	}
 	amountBin := easyfl.StripDataPrefix(args[0])

@@ -17,4 +17,15 @@ func TestPipelineBasic(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		log.Sync()
 	})
+	t.Run("2", func(t *testing.T) {
+		log := testutil.NewSimpleLogger(true)
+		pipe := NewPipeline(log)
+		pipe.Start()
+		pipe.ProcessTransaction(nil)
+		pipe.ProcessTransaction([]byte("abc"))
+		pipe.ProcessTransaction([]byte("0000000000"))
+		pipe.Stop()
+		time.Sleep(10 * time.Millisecond)
+		log.Sync()
+	})
 }

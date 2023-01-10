@@ -97,7 +97,7 @@ const AddressED25519ConstraintSource = `
 
 // ED25519 address constraint wraps 32 bytes address, the blake2b hash of the public key
 // For example expression 'addressED25519(0x010203040506..)' used as constraint in the output makes 
-// the output unlockable only with the presence of signature correspomding 
+// the output unlockable only with the presence of signature corresponding 
 // to the address '0x010203040506..'
 
 // $0 = address data 32 bytes

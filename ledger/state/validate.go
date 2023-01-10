@@ -241,7 +241,7 @@ func (v *TransactionContext) runOutput(consumedBranch bool, outputArray *lazysli
 			var decomp string
 			decomp, err = easyfl.DecompileBytecode(data)
 			if err != nil {
-				decomp = fmt.Sprintf("(error while decompiling constraint 'name': '%v')", err)
+				decomp = fmt.Sprintf("(error while decompiling constraint: '%v')", err)
 			}
 			err = fmt.Errorf("constraint '%s' failed. Path: %s", decomp, PathToString(blockPath))
 			return false

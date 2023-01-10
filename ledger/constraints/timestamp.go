@@ -22,14 +22,14 @@ func timestamp: and(
 `
 
 const (
-	timestampName     = "timestamp"
-	timestampTemplate = timestampName + "(u32/%d)"
+	TimestampConstraintName = "timestamp"
+	timestampTemplate       = TimestampConstraintName + "(u32/%d)"
 )
 
 type Timestamp uint32
 
 func (t Timestamp) Name() string {
-	return timestampName
+	return TimestampConstraintName
 }
 
 func (t Timestamp) source() string {
@@ -54,7 +54,7 @@ func TimestampFromBytes(data []byte) (Timestamp, error) {
 		return 0, err
 	}
 	tsBin := easyfl.StripDataPrefix(args[0])
-	if sym != timestampName || len(tsBin) != 4 {
+	if sym != TimestampConstraintName || len(tsBin) != 4 {
 		return 0, fmt.Errorf("can't parse timestamp constraint")
 	}
 	return Timestamp(binary.BigEndian.Uint32(tsBin)), nil
@@ -67,9 +67,9 @@ func initTimestampConstraint() {
 	sym, prefix, args, err := easyfl.ParseBytecodeOneLevel(example.Bytes(), 1)
 	easyfl.AssertNoError(err)
 	tsBin := easyfl.StripDataPrefix(args[0])
-	common.Assert(sym == timestampName && len(tsBin) == 4 && binary.BigEndian.Uint32(tsBin) == 1337, "'timestamp' consistency check failed")
+	common.Assert(sym == TimestampConstraintName && len(tsBin) == 4 && binary.BigEndian.Uint32(tsBin) == 1337, "'timestamp' consistency check failed")
 
-	registerConstraint(timestampName, prefix, func(data []byte) (Constraint, error) {
+	registerConstraint(TimestampConstraintName, prefix, func(data []byte) (Constraint, error) {
 		return TimestampFromBytes(data)
 	})
 }
