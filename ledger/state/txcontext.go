@@ -5,11 +5,10 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
+	"github.com/lunfardo314/easyutxo/util/lazyslice"
 	"github.com/lunfardo314/unitrie/common"
-	"golang.org/x/crypto/blake2b"
 )
 
 // TransactionContext is a data structure, which contains transferable transaction, consumed outputs and constraint library
@@ -19,6 +18,8 @@ type TransactionContext struct {
 	// cached values
 	dataContext *constraints.DataContext
 	txid        ledger.TransactionID
+	timestamp   uint32
+	sender      constraints.AddressED25519
 }
 
 var Path = lazyslice.Path
@@ -29,28 +30,23 @@ const (
 	TraceOptionFailedConstraints
 )
 
-// TransactionContextFromTransferableBytes constructs lazytree from transaction bytes and consumed outputs
-func TransactionContextFromTransferableBytes(txBytes []byte, ledgerState ledger.StateReader, traceOption ...int) (*TransactionContext, error) {
-	txBranch := lazyslice.ArrayFromBytes(txBytes, int(constraints.TxTreeIndexMax))
-	inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(constraints.TxInputIDs)), 256)
+func TransactionContextFromTransaction(tx *Transaction, ledgerState ledger.StateReader, traceOption ...int) (*TransactionContext, error) {
+	ret := &TransactionContext{
+		tree:        nil,
+		traceOption: TraceOptionNone,
+		dataContext: nil,
+		txid:        tx.ID(),
+		timestamp:   tx.Timestamp(),
+		sender:      tx.SenderAddress(),
+	}
+	if len(traceOption) > 0 {
+		ret.traceOption = traceOption[0]
+	}
+	consumedOutputsArray := lazyslice.EmptyArray(256)
 
 	var err error
-	var oid ledger.OutputID
-
-	consumedOutputsArray := lazyslice.EmptyArray(256)
-	ids := make(map[string]struct{})
-	inputIDs.ForEach(func(i int, data []byte) bool {
-		if oid, err = ledger.OutputIDFromBytes(data); err != nil {
-			return false
-		}
-		// check repeating inputIDs
-		if _, repeating := ids[string(data)]; repeating {
-			err = fmt.Errorf("repeating input ID: %s", oid.String())
-			return false
-		}
-		ids[string(data)] = struct{}{}
-
-		od, ok := ledgerState.GetUTXO(&oid)
+	tx.MustForEachInput(func(i byte, oid *ledger.OutputID) bool {
+		od, ok := ledgerState.GetUTXO(oid)
 		if !ok {
 			err = fmt.Errorf("input not found: %s", oid.String())
 			return false
@@ -61,21 +57,63 @@ func TransactionContextFromTransferableBytes(txBytes []byte, ledgerState ledger.
 	if err != nil {
 		return nil, err
 	}
-	ctx := lazyslice.MakeArray(
-		txBytes, // TransactionBranch = 0
-		lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
-	)
-	tree := ctx.AsTree()
-	ret := &TransactionContext{
-		tree:        tree,
-		dataContext: constraints.NewDataContext(tree),
-		traceOption: TraceOptionNone,
-		txid:        blake2b.Sum256(txBytes),
-	}
-	if len(traceOption) > 0 {
-		ret.traceOption = traceOption[0]
-	}
+	ret.tree = lazyslice.TreeFromTrees(tx.tree, consumedOutputsArray.AsTree())
 	return ret, nil
+}
+
+// TransactionContextFromTransferableBytes constructs lazytree from transaction bytes and consumed outputs
+func TransactionContextFromTransferableBytes(txBytes []byte, ledgerState ledger.StateReader, traceOption ...int) (*TransactionContext, error) {
+	tx, err := TransactionFromTransferableBytes(txBytes)
+	if err != nil {
+		return nil, err
+	}
+	return TransactionContextFromTransaction(tx, ledgerState, traceOption...)
+	//
+	//txBranch := lazyslice.ArrayFromBytes(txBytes, int(constraints.TxTreeIndexMax))
+	//inputIDs := lazyslice.ArrayFromBytes(txBranch.At(int(constraints.TxInputIDs)), 256)
+	//
+	//var err error
+	//var oid ledger.OutputID
+	//
+	//consumedOutputsArray := lazyslice.EmptyArray(256)
+	//ids := make(map[string]struct{})
+	//inputIDs.ForEach(func(i int, data []byte) bool {
+	//	if oid, err = ledger.OutputIDFromBytes(data); err != nil {
+	//		return false
+	//	}
+	//	// check repeating inputIDs
+	//	if _, repeating := ids[string(data)]; repeating {
+	//		err = fmt.Errorf("repeating input ID: %s", oid.String())
+	//		return false
+	//	}
+	//	ids[string(data)] = struct{}{}
+	//
+	//	od, ok := ledgerState.GetUTXO(&oid)
+	//	if !ok {
+	//		err = fmt.Errorf("input not found: %s", oid.String())
+	//		return false
+	//	}
+	//	consumedOutputsArray.Push(od)
+	//	return true
+	//})
+	//if err != nil {
+	//	return nil, err
+	//}
+	//ctx := lazyslice.MakeArray(
+	//	txBytes, // TransactionBranch = 0
+	//	lazyslice.MakeArray(consumedOutputsArray), // ConsumedContextBranch = 1
+	//)
+	//tree := ctx.AsTree()
+	//ret := &TransactionContext{
+	//	tree:        tree,
+	//	dataContext: constraints.NewDataContext(tree),
+	//	traceOption: TraceOptionNone,
+	//	txid:        blake2b.Sum256(txBytes),
+	//}
+	//if len(traceOption) > 0 {
+	//	ret.traceOption = traceOption[0]
+	//}
+	//return ret, nil
 }
 
 // unlockScriptBinary finds script from unlock block

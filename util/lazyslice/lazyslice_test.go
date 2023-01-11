@@ -240,4 +240,22 @@ func TestSliceTreeSemantics(t *testing.T) {
 			st.BytesAtPath(Path(howMany))
 		})
 	})
+	t.Run("tree from trees", func(t *testing.T) {
+		sa1 := EmptyArray()
+		for i := 0; i < 2; i++ {
+			sa1.Push(data[i])
+		}
+		st1 := TreeFromBytes(sa1.Bytes())
+
+		sa2 := EmptyArray()
+		for i := 2 - 1; i >= 0; i-- {
+			sa2.Push(data[i])
+		}
+		st2 := TreeFromBytes(sa2.Bytes())
+
+		tr := TreeFromTrees(st1, st2)
+
+		tr1 := MakeArray(sa1, st2).AsTree()
+		require.EqualValues(t, tr.Bytes(), tr1.Bytes())
+	})
 }

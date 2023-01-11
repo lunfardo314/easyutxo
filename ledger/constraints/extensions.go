@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/lazyslice"
+	"github.com/lunfardo314/easyutxo/util/lazyslice"
 	"github.com/lunfardo314/unitrie/common"
 )
 

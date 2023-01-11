@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
-	"github.com/lunfardo314/easyutxo/lazyslice"
 	"github.com/lunfardo314/easyutxo/ledger"
 	"github.com/lunfardo314/easyutxo/ledger/constraints"
+	"github.com/lunfardo314/easyutxo/util/lazyslice"
 	"github.com/lunfardo314/unitrie/common"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/ed25519"
@@ -47,7 +47,7 @@ func TransactionFromTransferableBytes(txBytes []byte, timestampBoundsInclusive .
 		if err := ret.checkUniqueness(); err != nil {
 			return err
 		}
-		if err := ret.checkMandatory(); err != nil {
+		if err := ret.checkMandatoryConstraints(); err != nil {
 			return err
 		}
 		if err := ret.checkOther(); err != nil {
@@ -133,10 +133,12 @@ func (tx *Transaction) checkUniqueness() error {
 	return nil
 }
 
-func (tx *Transaction) checkMandatory() error {
+func (tx *Transaction) checkMandatoryConstraints() error {
 	numOutputs := tx.tree.NumElements(Path(constraints.TxOutputs))
 	for i := 0; i < numOutputs; i++ {
-		bytecode := tx.tree.BytesAtPath(Path(constraints.TxOutputs, constraints.ConstraintIndexAmount))
+		path := []byte{constraints.TxOutputs, byte(i), constraints.ConstraintIndexAmount}
+
+		bytecode := tx.tree.BytesAtPath(path)
 		fname, _, _, err := easyfl.ParseBytecodeOneLevel(bytecode, 1)
 		if err != nil {
 			return err
@@ -146,7 +148,8 @@ func (tx *Transaction) checkMandatory() error {
 				constraints.AmountConstraintName, constraints.ConstraintIndexAmount, i)
 		}
 
-		bytecode = tx.tree.BytesAtPath(Path(constraints.TxOutputs, constraints.ConstraintIndexTimestamp))
+		path[2] = constraints.ConstraintIndexTimestamp
+		bytecode = tx.tree.BytesAtPath(path)
 		fname, _, _, err = easyfl.ParseBytecodeOneLevel(bytecode, 1)
 		if err != nil {
 			return err
@@ -156,7 +159,8 @@ func (tx *Transaction) checkMandatory() error {
 				constraints.TimestampConstraintName, constraints.ConstraintIndexAmount, i)
 		}
 
-		bytecode = tx.tree.BytesAtPath(Path(constraints.TxOutputs, constraints.ConstraintIndexLock))
+		path[2] = constraints.ConstraintIndexLock
+		bytecode = tx.tree.BytesAtPath(path)
 		fname, _, _, err = easyfl.ParseBytecodeOneLevel(bytecode, 1)
 		if err != nil {
 			return err

@@ -360,6 +360,22 @@ func TreeFromBytes(data []byte) *Tree {
 	}
 }
 
+func TreeFromTrees(trees ...*Tree) *Tree {
+	common.Assert(len(trees) <= MaxElementsLazyTree, "can't be more than %d tree node elements", MaxElementsLazyTree)
+
+	sa := EmptyArray(MaxElementsLazyTree)
+	m := make(map[byte]*Tree)
+	for i, tr := range trees {
+		sa.Push(tr.Bytes())
+		m[byte(i)] = tr
+	}
+
+	return &Tree{
+		sa:       sa,
+		subtrees: m,
+	}
+}
+
 func TreeEmpty() *Tree {
 	return TreeFromBytes(emptyArrayPrefix.Bytes())
 }
