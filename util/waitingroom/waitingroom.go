@@ -80,7 +80,7 @@ func (d *WaitingRoom) WaitUntil(t time.Time, fun func()) {
 	d.d[t] = append(lst, fun)
 }
 
-func (d *WaitingRoom) WaitUntilUnixSec(fun func(), t uint32) {
+func (d *WaitingRoom) WaitUntilUnixSec(t uint32, fun func()) {
 	d.WaitUntil(time.Unix(int64(t), 0), fun)
 }
 

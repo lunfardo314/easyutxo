@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/lunfardo314/easyfl"
@@ -14,37 +15,65 @@ import (
 
 // Transaction provides access to the tree of transferable transaction
 type Transaction struct {
-	tree   *lazyslice.Tree
-	txid   ledger.TransactionID
-	sender constraints.AddressED25519
+	tree      *lazyslice.Tree
+	txid      ledger.TransactionID
+	sender    constraints.AddressED25519
+	timestamp uint32
 }
 
-func MustTransactionFromTransferableBytes(txBytes []byte) (*Transaction, error) {
+func TransactionFromTransferableBytes(txBytes []byte, timestampBoundsInclusive ...uint32) (*Transaction, error) {
 	ret := &Transaction{
 		tree: lazyslice.TreeFromBytes(txBytes),
 		txid: blake2b.Sum256(txBytes),
 	}
-	senderPubKey := ed25519.PublicKey(ret.tree.BytesAtPath(Path(constraints.TxSignature)))
-	ret.sender = constraints.AddressED25519FromPublicKey(senderPubKey)
-	if err := ret.mustPreValidate(); err != nil {
+	err := common.CatchPanicOrError(func() error {
+		// check timestamp first because it is the cheapest sanity check
+		tsBin := ret.tree.BytesAtPath(Path(constraints.TxTimestamp))
+		if len(tsBin) != 4 {
+			return fmt.Errorf("wrong timestamp")
+		}
+		ret.timestamp = binary.BigEndian.Uint32(tsBin)
+		if err := ret.checkTimestampBounds(timestampBoundsInclusive...); err != nil {
+			return err
+		}
+		// mandatory sender signature
+		senderPubKey := ed25519.PublicKey(ret.tree.BytesAtPath(Path(constraints.TxSignature)))
+		ret.sender = constraints.AddressED25519FromPublicKey(senderPubKey)
+
+		// pre-validate whatever possible without ledger context
+		if err := ret.checkNumElements(); err != nil {
+			return err
+		}
+		if err := ret.checkUniqueness(); err != nil {
+			return err
+		}
+		if err := ret.checkMandatory(); err != nil {
+			return err
+		}
+		if err := ret.checkOther(); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	return ret, nil
 }
 
-// mustPreValidate validates what is possible without ledger context
-func (tx *Transaction) mustPreValidate() error {
-	if err := tx.checkNumElements(); err != nil {
-		return err
+func (tx *Transaction) checkTimestampBounds(boundsInclusive ...uint32) error {
+	if len(boundsInclusive) == 0 {
+		return nil
 	}
-	if err := tx.checkUniqueness(); err != nil {
-		return err
+	if len(boundsInclusive) >= 1 {
+		if tx.timestamp < boundsInclusive[0] {
+			return fmt.Errorf("transaction is too old")
+		}
 	}
-	if err := tx.checkMandatory(); err != nil {
-		return err
-	}
-	if err := tx.checkOther(); err != nil {
-		return err
+	if len(boundsInclusive) >= 2 {
+		if tx.timestamp < boundsInclusive[1] {
+			return fmt.Errorf("transaction is too far in the future")
+		}
 	}
 	return nil
 }
@@ -154,6 +183,10 @@ func (tx *Transaction) ID() ledger.TransactionID {
 
 func (tx *Transaction) SenderAddress() constraints.AddressED25519 {
 	return tx.sender
+}
+
+func (tx *Transaction) Timestamp() uint32 {
+	return tx.timestamp
 }
 
 func (tx *Transaction) NumProducedOutputs() int {

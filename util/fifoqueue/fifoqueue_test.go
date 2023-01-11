@@ -10,7 +10,7 @@ import (
 
 func TestBasic(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		q := NewFIFOQueue[string]()
+		q := New[string]()
 		require.EqualValues(t, 0, q.Len())
 		q.Write("one")
 		require.EqualValues(t, 1, q.Len())
@@ -26,7 +26,7 @@ func TestBasic(t *testing.T) {
 		require.EqualValues(t, 0, q.Len())
 	})
 	t.Run("2", func(t *testing.T) {
-		q := NewFIFOQueue[string]()
+		q := New[string]()
 		require.EqualValues(t, 0, q.Len())
 		q.Write("one")
 		require.EqualValues(t, 1, q.Len())
@@ -37,7 +37,7 @@ func TestBasic(t *testing.T) {
 		require.EqualValues(t, 1, q.Len())
 	})
 	t.Run("4", func(t *testing.T) {
-		q := NewFIFOQueue[int]()
+		q := New[int]()
 		require.EqualValues(t, 0, q.Len())
 		for i := 0; i < 10000; i++ {
 			q.Write(i)
@@ -53,7 +53,7 @@ func TestBasic(t *testing.T) {
 }
 
 func TestMultiThread1(t *testing.T) {
-	q := NewFIFOQueue[int]()
+	q := New[int]()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -83,7 +83,7 @@ func TestMultiThread1(t *testing.T) {
 }
 
 func TestMultiThread2(t *testing.T) {
-	q := NewFIFOQueue[int]()
+	q := New[int]()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -107,7 +107,7 @@ func TestMultiThread2(t *testing.T) {
 }
 
 func BenchmarkRW(b *testing.B) {
-	q := NewFIFOQueue[int]()
+	q := New[int]()
 	for i := 0; i < b.N; i++ {
 		q.Write(i)
 	}

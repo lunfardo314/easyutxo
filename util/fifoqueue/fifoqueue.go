@@ -15,7 +15,7 @@ type FIFOQueue[T any] struct {
 	once    sync.Once
 }
 
-func NewFIFOQueue[T any]() *FIFOQueue[T] {
+func New[T any]() *FIFOQueue[T] {
 	return &FIFOQueue[T]{
 		d:   new(deque.Deque[T]),
 		out: make(chan T),
@@ -23,12 +23,13 @@ func NewFIFOQueue[T any]() *FIFOQueue[T] {
 }
 
 // Write pushes element
-func (q *FIFOQueue[T]) Write(elem T) {
+func (q *FIFOQueue[T]) Write(elem T) bool {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	if q.closing {
-		panic("attempt to write to the closed FIFOQueue")
+		// ignored. The element is dropped
+		return false
 	}
 
 	q.d.PushBack(elem)
@@ -39,6 +40,7 @@ func (q *FIFOQueue[T]) Write(elem T) {
 		q.d.PopFront()
 	default:
 	}
+	return true
 }
 
 // CloseNow closes FIFOQueue immediately. The elements in the buffer are lost
