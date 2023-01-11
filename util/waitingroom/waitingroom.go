@@ -17,7 +17,7 @@ type WaitingRoom struct {
 
 var defaultPoolingPeriod = 1 * time.Second
 
-func CreateWaitingRoom(poolEvery ...time.Duration) *WaitingRoom {
+func Create(poolEvery ...time.Duration) *WaitingRoom {
 	ret := &WaitingRoom{
 		d:      make(map[time.Time][]func()),
 		period: defaultPoolingPeriod,

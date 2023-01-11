@@ -10,7 +10,7 @@ import (
 )
 
 func TestWaitingRoom(t *testing.T) {
-	wr := CreateWaitingRoom(100 * time.Millisecond)
+	wr := Create(100 * time.Millisecond)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
